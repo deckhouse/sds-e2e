@@ -23,8 +23,11 @@ import (
 )
 
 const (
-	APIGroup   = "storage.deckhouse.io"
-	APIVersion = "v1alpha1" // v1alpha1
+	LVMVolumeGroupKind   = "LvmVolumeGroup"
+	LVMLogicalVolumeKind = "LvmLogicalVolume"
+	APIGroup             = "storage.deckhouse.io"
+	APIVersion           = "v1alpha1"
+	TypeMediaAPIVersion  = APIGroup + "/" + APIVersion
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -40,12 +43,10 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&DRBDStorageClass{},
-		&DRBDStorageClassList{},
-		&DRBDStoragePool{},
-		&DRBDStoragePoolList{},
 		&LvmVolumeGroup{},
 		&LvmVolumeGroupList{},
+		&LvmLogicalVolume{},
+		&LvmLogicalVolumeList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
