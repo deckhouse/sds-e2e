@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-func TestCreatePool(t *testing.T) {
+func TestCreateStsLogs(t *testing.T) {
 	kubeconfigPath := os.Getenv("kubeconfig")
 	fmt.Printf(kubeconfigPath)
 	if kubeconfigPath == "" {
