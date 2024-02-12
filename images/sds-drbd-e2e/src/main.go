@@ -18,7 +18,7 @@ package main
 
 import (
 	"flag"
-	"gocontainer/tests"
+	"gocontainer/funcs"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -44,9 +44,9 @@ func main() {
 	}
 
 	klog.Info("Creating Pools")
-	tests.CreatePools(*dynamicClient)
+	funcs.CreatePools(*dynamicClient)
 
 	klog.Info("Testing Logs STS")
-	tests.CreateLogSts(*clientset)
+	funcs.CreateLogSts(*clientset)
 
 }
