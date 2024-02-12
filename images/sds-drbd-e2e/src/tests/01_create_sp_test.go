@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-func CreatePoolTest(t *testing.T) {
+func TestCreatePool(t *testing.T) {
 	kubeconfig := flag.String("kubeconfig", filepath.Join("/app", "kube.config.internal"), "(optional) absolute path to the kubeconfig file")
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
