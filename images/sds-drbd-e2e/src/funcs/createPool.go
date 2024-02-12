@@ -113,6 +113,6 @@ func CreatePools(client dynamic.DynamicClient) {
 	output, err = CreateDrbdStorageClass(client, "linstor-r1", "None", false)
 	fmt.Printf("%s\n%s\n", output, err)
 
-	output, err = CreateDrbdStorageClass(client, "linstor-r1", "Availability", true)
+	output, err = CreateDrbdStorageClass(client, "linstor-r2", "Availability", true)
 	fmt.Printf("%s\n%s\n", output, err)
 }
