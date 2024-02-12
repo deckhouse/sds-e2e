@@ -22,5 +22,4 @@ func TestCreatePool(t *testing.T) {
 	}
 
 	funcs.CreatePools(*dynamicClient)
-	t.Error("Failed")
 }
