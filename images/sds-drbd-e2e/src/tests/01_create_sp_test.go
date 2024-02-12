@@ -1,7 +1,6 @@
 package test
 
 import (
-	"flag"
 	"fmt"
 	"gocontainer/funcs"
 	"k8s.io/client-go/dynamic"
@@ -19,8 +18,7 @@ func TestCreatePool(t *testing.T) {
 		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	}
 
-	kubeconfig := flag.String("kubeconfig", kubeconfigPath, "(optional) absolute path to the kubeconfig file")
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		panic(err.Error())
 	}
