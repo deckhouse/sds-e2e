@@ -10,82 +10,66 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func CreatePools(client dynamic.DynamicClient) {
-	bdRes := schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "blockdevices"}
-	lvmvgRes := schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "lvmvolumegroups"}
-	drbdspRes := schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "drbdstoragepools"}
-	drbdscRes := schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "drbdstorageclasses"}
+var ctx = context.Background()
 
-	ctx := context.Background()
+var lvmVolumeGroupRes = schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "lvmvolumegroups"}
+var blockDeviceRes = schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "blockdevices"}
+var drbdStoragePoolRes = schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "drbdstoragepools"}
+var drbdStorageClassRes = schema.GroupVersionResource{Group: "storage.deckhouse.io", Version: "v1alpha1", Resource: "drbdstorageclasses"}
 
-	listedResources, err := client.Resource(bdRes).List(ctx, metav1.ListOptions{})
-	if err != nil {
-		klog.Fatal(err)
-	}
-
-	for _, item := range listedResources.Items {
-		bdName, _, _ := unstructured.NestedString(item.Object, "metadata", "name")
-		nodeName, _, _ := unstructured.NestedString(item.Object, "status", "nodeName")
-		fmt.Printf("%s\n\n", bdName)
-		fmt.Printf("%s\n\n", nodeName)
-		lvmvgobj := &unstructured.Unstructured{
-			Object: map[string]interface{}{
-				"apiVersion": "storage.deckhouse.io/v1alpha1",
-				"kind":       "LvmVolumeGroup",
-				"metadata": map[string]interface{}{
-					"name": nodeName,
-				},
-				"spec": map[string]interface{}{
-					"actualVGNameOnTheNode": "lvmthin",
-					"blockDeviceNames": []string{
-						bdName,
-					},
-					"type": "Local",
-				},
+func CreateLvmVolumeGroup(client dynamic.DynamicClient, blockDeviceName string, lvmVolumeGroupName string, vgName string) (*unstructured.Unstructured, error) {
+	lvmVolumeGroupObj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "storage.deckhouse.io/v1alpha1",
+			"kind":       "LvmVolumeGroup",
+			"metadata": map[string]interface{}{
+				"name": lvmVolumeGroupName,
 			},
-		}
-		output, err := client.Resource(lvmvgRes).Create(ctx, lvmvgobj, metav1.CreateOptions{})
-		fmt.Printf("%s\n%s\n", output, err)
+			"spec": map[string]interface{}{
+				"actualVGNameOnTheNode": vgName,
+				"blockDeviceNames": []string{
+					blockDeviceName,
+				},
+				"type": "Local",
+			},
+		},
 	}
 
-	lvmvgList := []map[string]interface{}{}
-	listedResources, err = client.Resource(lvmvgRes).List(ctx, metav1.ListOptions{})
-	for _, item := range listedResources.Items {
-		lvmvgName, _, _ := unstructured.NestedString(item.Object, "metadata", "name")
-		fmt.Printf("%s\n", lvmvgName)
-		lvmvgList = append(lvmvgList, map[string]interface{}{"name": lvmvgName, "thinpoolname": ""})
-	}
+	output, err := client.Resource(lvmVolumeGroupRes).Create(ctx, lvmVolumeGroupObj, metav1.CreateOptions{})
+	return output, err
+}
 
-	fmt.Printf("%s\n", lvmvgList)
-
-	drbdspobj := &unstructured.Unstructured{
+func CreateDrbdStoragePool(client dynamic.DynamicClient, lvmVolumeGroupList []map[string]interface{}, storagePoolName string) (*unstructured.Unstructured, error) {
+	drbdStoragePoolObj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "storage.deckhouse.io/v1alpha1",
 			"kind":       "DRBDStoragePool",
 			"metadata": map[string]interface{}{
-				"name": "data",
+				"name": storagePoolName,
 			},
 			"spec": map[string]interface{}{
-				"lvmvolumegroups": lvmvgList,
+				"lvmvolumegroups": lvmVolumeGroupList,
 				"type":            "LVM",
 			},
 		},
 	}
 
-	output, err := client.Resource(drbdspRes).Create(ctx, drbdspobj, metav1.CreateOptions{})
-	fmt.Printf("%s\n%s\n", output, err)
+	output, err := client.Resource(drbdStoragePoolRes).Create(ctx, drbdStoragePoolObj, metav1.CreateOptions{})
+	return output, err
+}
 
-	drbdSCObj := &unstructured.Unstructured{
+func CreateDrbdStorageClass(client dynamic.DynamicClient, storageClassName string, replication string, isDefault bool) (*unstructured.Unstructured, error) {
+	drbdStorageClassObj := &unstructured.Unstructured{
 		Object: map[string]interface{}{
 			"apiVersion": "storage.deckhouse.io/v1alpha1",
 			"kind":       "DRBDStorageClass",
 			"metadata": map[string]interface{}{
-				"name": "linstor-r1",
+				"name": storageClassName,
 			},
 			"spec": map[string]interface{}{
-				"isDefault":     false,
+				"isDefault":     isDefault,
 				"reclaimPolicy": "Delete",
-				"replication":   "None",
+				"replication":   replication,
 				"storagePool":   "data",
 				"topology":      "Ignored",
 				"volumeAccess":  "PreferablyLocal",
@@ -93,28 +77,42 @@ func CreatePools(client dynamic.DynamicClient) {
 		},
 	}
 
-	output, err = client.Resource(drbdscRes).Create(ctx, drbdSCObj, metav1.CreateOptions{})
-	fmt.Printf("%s\n%s\n", output, err)
+	output, err := client.Resource(drbdStorageClassRes).Create(ctx, drbdStorageClassObj, metav1.CreateOptions{})
+	return output, err
+}
 
-	drbdSCObj = &unstructured.Unstructured{
-		Object: map[string]interface{}{
-			"apiVersion": "storage.deckhouse.io/v1alpha1",
-			"kind":       "DRBDStorageClass",
-			"metadata": map[string]interface{}{
-				"name": "linstor-r2",
-			},
-			"spec": map[string]interface{}{
-				"isDefault":     true,
-				"reclaimPolicy": "Delete",
-				"replication":   "Availability",
-				"storagePool":   "data",
-				"topology":      "Ignored",
-				"volumeAccess":  "PreferablyLocal",
-			},
-		},
+func CreatePools(client dynamic.DynamicClient) {
+	listedResources, err := client.Resource(blockDeviceRes).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		klog.Fatal(err)
 	}
 
-	output, err = client.Resource(drbdscRes).Create(ctx, drbdSCObj, metav1.CreateOptions{})
+	for _, item := range listedResources.Items {
+		blockDeviceName, _, _ := unstructured.NestedString(item.Object, "metadata", "name")
+		nodeName, _, _ := unstructured.NestedString(item.Object, "status", "nodeName")
+		fmt.Printf("%s\n\n", blockDeviceName)
+		fmt.Printf("%s\n\n", nodeName)
+
+		output, err := CreateLvmVolumeGroup(client, blockDeviceName, nodeName, "lvm")
+
+		fmt.Printf("%s\n%s\n", output, err)
+	}
+
+	lvmVolumeGroupList := []map[string]interface{}{}
+	listedResources, err = client.Resource(lvmVolumeGroupRes).List(ctx, metav1.ListOptions{})
+	for _, item := range listedResources.Items {
+		lvmvgName, _, _ := unstructured.NestedString(item.Object, "metadata", "name")
+		fmt.Printf("%s\n", lvmvgName)
+		lvmVolumeGroupList = append(lvmVolumeGroupList, map[string]interface{}{"name": lvmvgName, "thinpoolname": ""})
+	}
+	fmt.Printf("%s\n", lvmVolumeGroupList)
+
+	output, err := CreateDrbdStoragePool(client, lvmVolumeGroupList, "data")
 	fmt.Printf("%s\n%s\n", output, err)
 
+	output, err = CreateDrbdStorageClass(client, "linstor-r1", "None", false)
+	fmt.Printf("%s\n%s\n", output, err)
+
+	output, err = CreateDrbdStorageClass(client, "linstor-r1", "Availability", true)
+	fmt.Printf("%s\n%s\n", output, err)
 }
