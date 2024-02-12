@@ -22,4 +22,5 @@ func CreatePoolTest(t *testing.T) {
 	}
 
 	funcs.CreatePools(*dynamicClient)
+	panic("error")
 }
