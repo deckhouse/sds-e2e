@@ -19,7 +19,10 @@ func TestCreateStsLogs(t *testing.T) {
 		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	}
 
-	kubeconfig := flag.String("kubeconfig", kubeconfigPath, "(optional) absolute path to the kubeconfig file")
+	if flag.Lookup("kubeconfig") == nil {
+		kubeconfig := flag.String("kubeconfig", kubeconfigPath, "(optional) absolute path to the kubeconfig file")
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
 	if err != nil {
 		panic(err.Error())
