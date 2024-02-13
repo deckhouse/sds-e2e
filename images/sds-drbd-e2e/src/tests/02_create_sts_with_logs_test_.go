@@ -2,11 +2,11 @@ package test
 
 import (
 	"fmt"
-	"gocontainer/funcs"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"path/filepath"
+	"sds-drbd-e2e/funcs"
 	"testing"
 )
 
