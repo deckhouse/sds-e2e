@@ -9,7 +9,7 @@ import (
 
 func Test11(t *testing.T) {
 	ctx := context.Background()
-	cl, err := NewKubeClient()
+	cl, err := NewKubeClient(t)
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
