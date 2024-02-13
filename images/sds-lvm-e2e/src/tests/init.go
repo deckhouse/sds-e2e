@@ -1,7 +1,6 @@
 package test
 
 import (
-	"fmt"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -12,23 +11,10 @@ import (
 	"path/filepath"
 	"sds-lvm-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func NewKubeClient() (client.Client, error) {
-	//clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	//	clientcmd.NewDefaultClientConfigLoadingRules(),
-	//	&clientcmd.ConfigOverrides{},
-	//)
-	//
-	//config, err := clientConfig.ClientConfig()
-	//if err != nil {
-	//	return nil, err
-	//}
-
 	kubeconfigPath := os.Getenv("kubeconfig")
-
-	fmt.Printf(kubeconfigPath)
 	if kubeconfigPath == "" {
 		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	}
@@ -56,14 +42,9 @@ func NewKubeClient() (client.Client, error) {
 		}
 	}
 
-	managerOpts := manager.Options{
+	clientOpts := client.Options{
 		Scheme: scheme,
 	}
 
-	mgr, err := manager.New(config, managerOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	return mgr.GetClient(), nil
+	return client.New(config, clientOpts)
 }

@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"path/filepath"
-	"sds-node-configurator-e2e/v1alpha1"
+	"sds-drbd-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

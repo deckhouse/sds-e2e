@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-func Test11(t *testing.T) {
+func TestLvmVolumeGroupCreation(t *testing.T) {
 	ctx := context.Background()
-	cl, err := NewKubeClient(t)
+	cl, err := NewKubeClient()
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
@@ -20,10 +20,7 @@ func Test11(t *testing.T) {
 		t.Error("get error", err)
 	}
 
-	for key, item := range devices {
-		t.Log(key)
-		t.Log(item.ObjectMeta.Name)
-		t.Log(item.Status.NodeName)
+	for _, item := range devices {
 		lvmVolumeGroup := &v1alpha1.LvmVolumeGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: item.Status.NodeName,

@@ -1,9 +1,7 @@
-package test
+package funcs
 
 import (
 	"context"
-	"testing"
-
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,20 +13,7 @@ const (
 	StorageClassAPIVersion = "storage.k8s.io/v1"
 )
 
-func Test11(t *testing.T) {
-	ctx := context.Background()
-	cl, err := NewKubeClient()
-	if err != nil {
-		t.Error(err)
-	}
-
-	err = CreateStorageClass(ctx, cl)
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func CreateStorageClass(ctx context.Context, cl client.Client) error {
+func CreateStorageClass(ctx context.Context, cl client.Client, lvmType string, volumeBindingMode string, lvmVolumeGroups string) error {
 	vbm := storagev1.VolumeBindingImmediate
 	rp := v1.PersistentVolumeReclaimDelete
 
@@ -43,9 +28,9 @@ func CreateStorageClass(ctx context.Context, cl client.Client) error {
 		},
 		Provisioner: "lvm.csi.storage.deckhouse.io",
 		Parameters: map[string]string{
-			"lvm.csi.storage.deckhouse.io/lvm-type":            "Thick",
-			"lvm.csi.storage.deckhouse.io/volume-binding-mode": "Immediate",
-			"lvm.csi.storage.deckhouse.io/lvm-volume-groups":   "- name: vg-w1\n- name: vg-w2",
+			"lvm.csi.storage.deckhouse.io/lvm-type":            lvmType,
+			"lvm.csi.storage.deckhouse.io/volume-binding-mode": volumeBindingMode,
+			"lvm.csi.storage.deckhouse.io/lvm-volume-groups":   lvmVolumeGroups,
 		},
 		ReclaimPolicy:        &rp,
 		MountOptions:         nil,
