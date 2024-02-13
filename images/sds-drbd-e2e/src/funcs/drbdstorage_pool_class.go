@@ -15,6 +15,10 @@ func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoo
 		},
 		Spec: v1alpha1.DRBDStoragePoolSpec{
 			LvmVolumeGroups: lvmVolumeGroups,
+			Type:            "LVM",
+		},
+		Status: v1alpha1.DRBDStoragePoolStatus{
+			Phase: "Updating",
 		},
 	}
 	return cl.Create(ctx, lvmVolumeGroup)
