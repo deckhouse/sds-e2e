@@ -6,16 +6,14 @@ import (
 	"testing"
 )
 
-func Test10(t *testing.T) {
-	t.Error("test")
-}
-
 func Test11(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient(t)
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
+
+	t.Logf("test")
 
 	devices, err := funcs.GetAPIBlockDevices(ctx, cl)
 	if err != nil {
