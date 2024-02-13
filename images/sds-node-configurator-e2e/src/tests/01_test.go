@@ -15,7 +15,7 @@ func Test11(t *testing.T) {
 
 	t.Logf("test")
 
-	devices, err := funcs.GetAPIBlockDevices(ctx, cl)
+	devices, err := funcs.GetAPIBlockDevices(ctx, cl, t)
 	if err != nil {
 		t.Error("get error", err)
 	}
