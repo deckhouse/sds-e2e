@@ -2,7 +2,6 @@ package funcs
 
 import (
 	"context"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sds-node-configurator-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -19,12 +18,8 @@ func GetAPIBlockDevices(ctx context.Context, cl client.Client, t *testing.T) (ma
 		Items:    []v1alpha1.BlockDevice{},
 	}
 
-	blockDeviceList := &v1alpha1.BlockDevice{}
-
 	cl.List(ctx, listDevice)
 	t.Logf("%#v", listDevice.Items)
-
-	cl.Get(ctx, client.ObjectKey{Namespace: corev1.NamespaceDefault}, blockDeviceList)
 
 	devices := make(map[string]v1alpha1.BlockDevice, len(listDevice.Items))
 	for _, blockDevice := range listDevice.Items {
