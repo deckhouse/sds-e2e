@@ -17,7 +17,7 @@ type patchUInt32Value struct {
 }
 
 func CreateLogSts(clientset kubernetes.Clientset) {
-	for count := 0; count <= 20; count++ {
+	for count := 0; count <= 10; count++ {
 		fmt.Println(count)
 
 		fs := corev1.PersistentVolumeFilesystem
