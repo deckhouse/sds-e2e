@@ -6,30 +6,21 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
 	"sds-lvm-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func NewKubeClient() (client.Client, error) {
-	var config *rest.Config
-	var err error
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		clientcmd.NewDefaultClientConfigLoadingRules(),
+		&clientcmd.ConfigOverrides{},
+	)
 
-	kubeconfigPath := os.Getenv("kubeconfig")
-	//	if kubeconfigPath == "" {
-	//		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
-	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//	} else {
-	//		config = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	//			clientcmd.NewDefaultClientConfigLoadingRules(),
-	//			&clientcmd.ConfigOverrides{},
-	//		)
-	//	}
-
+	config, err := clientConfig.ClientConfig()
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	var (
@@ -50,9 +41,14 @@ func NewKubeClient() (client.Client, error) {
 		}
 	}
 
-	clientOpts := client.Options{
+	managerOpts := manager.Options{
 		Scheme: scheme,
 	}
 
-	return client.New(config, clientOpts)
+	mgr, err := manager.New(config, managerOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return mgr.GetClient(), nil
 }

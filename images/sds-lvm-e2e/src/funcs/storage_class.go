@@ -9,13 +9,32 @@ import (
 )
 
 const (
-	StorageClassKind       = "StorageClass"
-	StorageClassAPIVersion = "storage.k8s.io/v1"
+	StorageClassKind                                  = "StorageClass"
+	StorageClassAPIVersion                            = "storage.k8s.io/v1"
+	StorageClassVolumeBindingModeImmediate            = "Immediate"
+	StorageClassVolumeBindingModeWaitForFirstConsumer = "WaitForFirstConsumer"
+	StorageClassReclaimPolicyDelete                   = "Delete"
+	StorageClassReclaimPolicyRetain                   = "Retain"
 )
 
-func CreateStorageClass(ctx context.Context, cl client.Client, lvmType string, volumeBindingMode string, lvmVolumeGroups string) error {
+func CreateStorageClass(ctx context.Context, cl client.Client, name, lvmType, lvmVolumeGroups, volumeBindingMode, reclaimPolicy string) error {
+
 	vbm := storagev1.VolumeBindingImmediate
+	switch volumeBindingMode {
+	case StorageClassVolumeBindingModeImmediate:
+		vbm = storagev1.VolumeBindingImmediate
+	case StorageClassVolumeBindingModeWaitForFirstConsumer:
+		vbm = storagev1.VolumeBindingWaitForFirstConsumer
+	}
+
 	rp := v1.PersistentVolumeReclaimDelete
+	switch reclaimPolicy {
+	case StorageClassReclaimPolicyDelete:
+		rp = v1.PersistentVolumeReclaimDelete
+	case StorageClassReclaimPolicyRetain:
+		rp = v1.PersistentVolumeReclaimRetain
+
+	}
 
 	cs := storagev1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
@@ -23,7 +42,7 @@ func CreateStorageClass(ctx context.Context, cl client.Client, lvmType string, v
 			APIVersion: StorageClassAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-lvm-thick-immediate-delete",
+			Name:      name,
 			Namespace: "default",
 		},
 		Provisioner: "lvm.csi.storage.deckhouse.io",
