@@ -6,20 +6,28 @@ import (
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
-	"path/filepath"
 	"sds-drbd-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func NewKubeClient() (client.Client, error) {
-	kubeconfigPath := os.Getenv("kubeconfig")
-	if kubeconfigPath == "" {
-		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
-	}
+	var config *rest.Config
+	var err error
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	kubeconfigPath := os.Getenv("kubeconfig")
+	//	if kubeconfigPath == "" {
+	//		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
+	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	//	} else {
+	//		config = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+	//			clientcmd.NewDefaultClientConfigLoadingRules(),
+	//			&clientcmd.ConfigOverrides{},
+	//		)
+	//	}
+
 	if err != nil {
 		panic(err.Error())
 	}
