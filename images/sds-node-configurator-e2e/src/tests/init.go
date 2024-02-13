@@ -58,11 +58,11 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 		}
 	}
 
-	managerOpts := client.Options{
+	clientOpts := client.Options{
 		Scheme: scheme,
 	}
 
-	return client.New(config, managerOpts)
+	return client.New(config, clientOpts)
 	//
 	//mgr, err := manager.New(config, managerOpts)
 	//if err != nil {
