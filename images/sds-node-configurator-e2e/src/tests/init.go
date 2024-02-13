@@ -68,5 +68,7 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 		return nil, err
 	}
 
+	t.Log(err)
+
 	return mgr.GetClient(), nil
 }
