@@ -3,7 +3,7 @@ package funcs
 import (
 	"context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sds-node-configurator-e2e/v1alpha1"
+	"sds-drbd-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

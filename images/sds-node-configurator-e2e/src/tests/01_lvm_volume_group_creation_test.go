@@ -19,6 +19,6 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 	}
 
 	for _, item := range devices {
-		t.Log(funcs.CreateLvmVolumeGroup(ctx, cl, t, item.Status.NodeName, []string{item.ObjectMeta.Name}))
+		t.Log(funcs.CreateLvmVolumeGroup(ctx, cl, item.Status.NodeName, []string{item.ObjectMeta.Name}))
 	}
 }
