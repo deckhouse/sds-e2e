@@ -34,6 +34,8 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 	//	kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	//}
 
+	t.Log("1")
+
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		panic(err.Error())
