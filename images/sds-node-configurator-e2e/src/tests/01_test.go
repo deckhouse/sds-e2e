@@ -7,7 +7,7 @@ import (
 )
 
 func Test10(t *testing.T) {
-	t.Log("test")
+	t.Error("test")
 }
 
 func Test11(t *testing.T) {
