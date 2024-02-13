@@ -1,4 +1,4 @@
-module gocontainer
+module sds-drbd-e2e
 
 go 1.21
 
