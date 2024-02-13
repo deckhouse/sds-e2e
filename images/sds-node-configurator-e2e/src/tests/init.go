@@ -63,11 +63,4 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 	}
 
 	return client.New(config, clientOpts)
-	//
-	//mgr, err := manager.New(config, managerOpts)
-	//if err != nil {
-	//	return nil, err
-	//}
-	//
-	//return mgr.GetClient(), nil
 }

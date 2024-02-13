@@ -18,6 +18,8 @@ func GetAPIBlockDevices(ctx context.Context, cl client.Client, t *testing.T) (ma
 		Items:    []v1alpha1.BlockDevice{},
 	}
 
+	cl.List(ctx, listDevice)
+
 	devices := make(map[string]v1alpha1.BlockDevice, len(listDevice.Items))
 	for _, blockDevice := range listDevice.Items {
 		devices[blockDevice.Name] = blockDevice
