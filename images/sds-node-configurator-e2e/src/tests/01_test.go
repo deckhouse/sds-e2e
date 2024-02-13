@@ -6,6 +6,10 @@ import (
 	"testing"
 )
 
+func Test10(t *testing.T) {
+	t.Log("test")
+}
+
 func Test11(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient(t)
