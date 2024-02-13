@@ -2,9 +2,7 @@ package test
 
 import (
 	"context"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sds-node-configurator-e2e/funcs"
-	"sds-node-configurator-e2e/v1alpha1"
 	"testing"
 )
 
@@ -21,19 +19,6 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 	}
 
 	for _, item := range devices {
-		lvmVolumeGroup := &v1alpha1.LvmVolumeGroup{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: item.Status.NodeName,
-			},
-			Spec: v1alpha1.LvmVolumeGroupSpec{
-				ActualVGNameOnTheNode: "data",
-				BlockDeviceNames:      []string{item.ObjectMeta.Name},
-				Type:                  "Local",
-			},
-			Status: v1alpha1.LvmVolumeGroupStatus{
-				Health: "NonOperational",
-			},
-		}
-		t.Log(cl.Create(ctx, lvmVolumeGroup))
+		t.Log(funcs.CreateLvmVolumeGroup(ctx, cl, t, item.Status.NodeName, []string{item.ObjectMeta.Name}))
 	}
 }
