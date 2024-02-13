@@ -33,6 +33,9 @@ func Test11(t *testing.T) {
 				BlockDeviceNames:      []string{item.ObjectMeta.Name},
 				Type:                  "Local",
 			},
+			Status: v1alpha1.LvmVolumeGroupStatus{
+				Health: "NonOperational",
+			},
 		}
 		t.Log(cl.Create(ctx, lvmVolumeGroup))
 	}
