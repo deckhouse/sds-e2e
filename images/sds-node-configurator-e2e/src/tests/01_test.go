@@ -13,8 +13,6 @@ func Test11(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	t.Logf("test")
-
 	devices, err := funcs.GetAPIBlockDevices(ctx, cl, t)
 	if err != nil {
 		t.Error("get error", err)
