@@ -18,5 +18,8 @@ func Test11(t *testing.T) {
 		t.Error("get error", err)
 	}
 
-	t.Logf("%#v", devices)
+	for key, item := range devices {
+		t.Log(key)
+		t.Log(item)
+	}
 }
