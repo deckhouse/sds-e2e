@@ -11,12 +11,12 @@ func Test11(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
-		t.Error(err)
+		t.Error("kubeclient error", err)
 	}
 
 	devices, err := funcs.GetAPIBlockDevices(ctx, cl)
 	if err != nil {
-		t.Error(err)
+		t.Error("get error", err)
 	}
 
 	fmt.Print(devices)
