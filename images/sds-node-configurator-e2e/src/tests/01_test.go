@@ -19,5 +19,5 @@ func Test11(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Printf("%s", devices)
+	fmt.Print(devices)
 }
