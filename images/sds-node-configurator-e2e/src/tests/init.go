@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"sds-node-configurator-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"testing"
 )
 
@@ -59,16 +58,16 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 		}
 	}
 
-	managerOpts := manager.Options{
+	managerOpts := client.Options{
 		Scheme: scheme,
 	}
 
-	mgr, err := manager.New(config, managerOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	t.Log(err)
-
-	return mgr.GetClient(), nil
+	return client.New(config, managerOpts)
+	//
+	//mgr, err := manager.New(config, managerOpts)
+	//if err != nil {
+	//	return nil, err
+	//}
+	//
+	//return mgr.GetClient(), nil
 }
