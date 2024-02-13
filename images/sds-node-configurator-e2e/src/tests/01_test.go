@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"sds-node-configurator-e2e/funcs"
 	"testing"
 )
@@ -19,5 +18,5 @@ func Test11(t *testing.T) {
 		t.Error("get error", err)
 	}
 
-	fmt.Print(devices)
+	t.Logf("%#v", devices)
 }

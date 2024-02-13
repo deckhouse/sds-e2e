@@ -7,7 +7,6 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
 	"path/filepath"
 	"sds-node-configurator-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -26,12 +25,14 @@ func NewKubeClient(t *testing.T) (client.Client, error) {
 	//	return nil, err
 	//}
 
-	kubeconfigPath := os.Getenv("kubeconfig")
-
-	t.Logf(kubeconfigPath)
-	if kubeconfigPath == "" {
-		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
-	}
+	kubeconfigPath := filepath.Join("/app", "kube.config.internal")
+	//kubeconfigPath := os.Getenv("kubeconfig")
+	//
+	//
+	//t.Logf(kubeconfigPath)
+	//if kubeconfigPath == "" {
+	//	kubeconfigPath = filepath.Join("/app", "kube.config.internal")
+	//}
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
