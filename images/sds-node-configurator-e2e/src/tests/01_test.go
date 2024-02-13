@@ -31,7 +31,7 @@ func Test11(t *testing.T) {
 			Spec: v1alpha1.LvmVolumeGroupSpec{
 				ActualVGNameOnTheNode: "data",
 				BlockDeviceNames:      []string{item.ObjectMeta.Name},
-				Type:                  "LVM",
+				Type:                  "Local",
 			},
 		}
 		t.Log(cl.Create(ctx, lvmVolumeGroup))
