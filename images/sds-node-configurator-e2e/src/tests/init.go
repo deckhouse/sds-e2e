@@ -1,7 +1,6 @@
 package test
 
 import (
-	"fmt"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -13,9 +12,10 @@ import (
 	"sds-node-configurator-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"testing"
 )
 
-func NewKubeClient() (client.Client, error) {
+func NewKubeClient(t *testing.T) (client.Client, error) {
 	//clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
 	//	clientcmd.NewDefaultClientConfigLoadingRules(),
 	//	&clientcmd.ConfigOverrides{},
@@ -28,7 +28,7 @@ func NewKubeClient() (client.Client, error) {
 
 	kubeconfigPath := os.Getenv("kubeconfig")
 
-	fmt.Printf(kubeconfigPath)
+	t.Logf(kubeconfigPath)
 	if kubeconfigPath == "" {
 		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	}
