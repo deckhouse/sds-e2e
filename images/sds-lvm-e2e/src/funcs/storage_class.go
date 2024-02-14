@@ -63,3 +63,22 @@ func CreateStorageClass(ctx context.Context, cl client.Client, name, lvmType, lv
 	}
 	return nil
 }
+
+func DeleteStorageClass(ctx context.Context, cl client.Client, name string) error {
+	sc := storagev1.StorageClass{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       StorageClassKind,
+			APIVersion: StorageClassAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: "default",
+		},
+	}
+
+	err := cl.Delete(ctx, &sc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
