@@ -1,32 +1,17 @@
 package test
 
 import (
-	"fmt"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"path/filepath"
+	"context"
 	"sds-drbd-e2e/funcs"
 	"testing"
 )
 
 func TestCreateStsLogs(t *testing.T) {
-	kubeconfigPath := os.Getenv("kubeconfig")
-
-	fmt.Printf(kubeconfigPath)
-	if kubeconfigPath == "" {
-		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
-	}
-
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	ctx := context.Background()
+	cl, err := NewKubeClient()
 	if err != nil {
-		t.Error(err)
+		t.Error("kubeclient error", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		t.Error(err)
-	}
-
-	funcs.CreateLogSts(*clientset)
+	funcs.CreateLogSts(ctx, cl)
 }

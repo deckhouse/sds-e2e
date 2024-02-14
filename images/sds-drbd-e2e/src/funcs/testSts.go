@@ -7,7 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type patchUInt32Value struct {
@@ -16,17 +16,16 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateLogSts(clientset kubernetes.Clientset) error {
-	for count := 0; count <= 10; count++ {
+func CreateLogSts(ctx context.Context, cl client.Client) error {
+	for count := 0; count <= 2; count++ {
 		fmt.Println(count)
 
 		fs := corev1.PersistentVolumeFilesystem
-
-		stsClient := clientset.AppsV1().StatefulSets(corev1.NamespaceDefault)
 		var replicas int32 = 3
 		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("flog-generator-%d", count),
+				Name:      fmt.Sprintf("flog-generator-%d", count),
+				Namespace: "default",
 			},
 			Spec: appsv1.StatefulSetSpec{
 				Replicas: &replicas,
@@ -74,7 +73,7 @@ func CreateLogSts(clientset kubernetes.Clientset) error {
 							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 							Resources: corev1.VolumeResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceName(corev1.ResourceStorage): resource.MustParse("1Gi"),
+									corev1.ResourceStorage: resource.MustParse("1Gi"),
 								},
 							},
 							VolumeMode: &fs,
@@ -83,13 +82,12 @@ func CreateLogSts(clientset kubernetes.Clientset) error {
 				},
 			},
 		}
-		// Create sts
+
 		fmt.Println("Creating sts...")
-		result, err := stsClient.Create(context.TODO(), sts, metav1.CreateOptions{})
+		err := cl.Create(ctx, sts)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Created sts %q.\n", result.GetObjectMeta().GetName())
 	}
 
 	return nil
