@@ -5,7 +5,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sds-drbd-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"testing"
 )
 
 func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoolName string, lvmVolumeGroups []v1alpha1.DRBDStoragePoolLVMVolumeGroups) error {
@@ -42,7 +41,7 @@ func CreateDrbdStorageClass(ctx context.Context, cl client.Client, drbdStorageCl
 	return cl.Create(ctx, lvmVolumeGroup)
 }
 
-func CreatePools(ctx context.Context, cl client.Client, t *testing.T) {
+func CreatePools(ctx context.Context, cl client.Client) error {
 	var lvmVolumeGroupList []v1alpha1.DRBDStoragePoolLVMVolumeGroups
 	listedResources, _ := GetAPILvmVolumeGroup(ctx, cl)
 	for _, item := range listedResources {
@@ -50,9 +49,20 @@ func CreatePools(ctx context.Context, cl client.Client, t *testing.T) {
 		lvmVolumeGroupList = append(lvmVolumeGroupList, v1alpha1.DRBDStoragePoolLVMVolumeGroups{Name: lvmVolumeGroupName, ThinPoolName: ""})
 	}
 
-	t.Log(CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList))
+	err := CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList)
+	if err != nil {
+		return err
+	}
 
-	t.Log(CreateDrbdStorageClass(ctx, cl, "linstor-r1", "None", false))
+	err = CreateDrbdStorageClass(ctx, cl, "linstor-r1", "None", false)
+	if err != nil {
+		return err
+	}
 
-	t.Log(CreateDrbdStorageClass(ctx, cl, "linstor-r2", "Availability", true))
+	err = CreateDrbdStorageClass(ctx, cl, "linstor-r2", "Availability", true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
