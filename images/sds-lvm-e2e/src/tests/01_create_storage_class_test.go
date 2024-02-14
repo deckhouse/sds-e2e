@@ -8,10 +8,10 @@ import (
 )
 
 func init() {
-	fmt.Println("Create LVM VolumeGroup: vg-w1 in the node")
+	fmt.Println("Create manual LVM VolumeGroup: vg-w1 in the node")
 }
 
-func TestStorageClassCreation_17(t *testing.T) {
+func TestCreateStorageClass_17(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
@@ -27,7 +27,7 @@ func TestStorageClassCreation_17(t *testing.T) {
 	}
 }
 
-func TestStorageClassCreation_18(t *testing.T) {
+func TestCreateStorageClass_18(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
@@ -43,7 +43,7 @@ func TestStorageClassCreation_18(t *testing.T) {
 	}
 }
 
-func TestStorageClassCreation_19(t *testing.T) {
+func TestCreateStorageClass_19(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
@@ -59,7 +59,7 @@ func TestStorageClassCreation_19(t *testing.T) {
 	}
 }
 
-func TestStorageClassCreation_20(t *testing.T) {
+func TestCreateStorageClass_20(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
@@ -70,6 +70,19 @@ func TestStorageClassCreation_20(t *testing.T) {
 		ctx, cl,
 		"test-lvm-thick-wait-for-first-consumer-retain", "Thick", "- name: vg-w1\n- name: vg-w2",
 		funcs.StorageClassVolumeBindingModeWaitForFirstConsumer, funcs.StorageClassReclaimPolicyRetain)
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestDeleteStorageClass(t *testing.T) {
+	ctx := context.Background()
+	cl, err := NewKubeClient()
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = funcs.DeleteStorageClass(ctx, cl, "test-lvm-thick-immediate-delete")
 	if err != nil {
 		t.Error(err)
 	}
