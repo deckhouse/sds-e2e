@@ -11,15 +11,13 @@ import (
 const (
 	PersistentVolumeClaimKind       = "PersistentVolumeClaim"
 	PersistentVolumeClaimAPIVersion = "v1"
-	NamePrefixBlock                 = "-block"
-	NamePrefixFS                    = "-fs"
 )
 
-func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, size string, blockMode bool) error {
+func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, size string, blockMode bool) (string, error) {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	sizeStorage, err := resource.ParseQuantity(size)
 	if err != nil {
-		return err
+		return "", err
 	}
 	resourceList[v1.ResourceStorage] = sizeStorage
 
@@ -55,9 +53,9 @@ func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, si
 
 	err = cl.Create(ctx, &pvc)
 	if err != nil {
-		return err
+		return "", err
 	}
-	return nil
+	return name, nil
 }
 
 func DeletePVC(ctx context.Context, cl client.Client, name string) error {

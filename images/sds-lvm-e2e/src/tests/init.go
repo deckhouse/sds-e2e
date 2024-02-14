@@ -9,7 +9,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"sds-lvm-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func NewKubeClient() (client.Client, error) {
@@ -41,14 +40,11 @@ func NewKubeClient() (client.Client, error) {
 		}
 	}
 
-	managerOpts := manager.Options{
+	options := client.Options{
 		Scheme: scheme,
+		Cache:  nil,
 	}
 
-	mgr, err := manager.New(config, managerOpts)
-	if err != nil {
-		return nil, err
-	}
-
-	return mgr.GetClient(), nil
+	cl, err := client.New(config, options)
+	return cl, nil
 }
