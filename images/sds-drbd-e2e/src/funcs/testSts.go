@@ -21,6 +21,7 @@ func CreateLogSts(ctx context.Context, cl client.Client) error {
 		fmt.Println(count)
 
 		fs := corev1.PersistentVolumeFilesystem
+		storageClassName := "linstor-r2"
 		var replicas int32 = 3
 		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -76,7 +77,8 @@ func CreateLogSts(ctx context.Context, cl client.Client) error {
 									corev1.ResourceStorage: resource.MustParse("1Gi"),
 								},
 							},
-							VolumeMode: &fs,
+							StorageClassName: &storageClassName,
+							VolumeMode:       &fs,
 						},
 					},
 				},
