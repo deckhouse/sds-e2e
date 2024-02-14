@@ -34,7 +34,10 @@ func GetAPILvmVolumeGroup(ctx context.Context, cl client.Client) (map[string]v1a
 		Items:    []v1alpha1.LvmVolumeGroup{},
 	}
 
-	cl.List(ctx, listDevice)
+	err := cl.List(ctx, listDevice)
+	if err != nil {
+		return nil, err
+	}
 
 	lvmVolumeGroups := make(map[string]v1alpha1.LvmVolumeGroup, len(listDevice.Items))
 	for _, lvmVolumeGroup := range listDevice.Items {

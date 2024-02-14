@@ -16,7 +16,7 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateLogSts(clientset kubernetes.Clientset) {
+func CreateLogSts(clientset kubernetes.Clientset) error {
 	for count := 0; count <= 10; count++ {
 		fmt.Println(count)
 
@@ -87,10 +87,12 @@ func CreateLogSts(clientset kubernetes.Clientset) {
 		fmt.Println("Creating sts...")
 		result, err := stsClient.Create(context.TODO(), sts, metav1.CreateOptions{})
 		if err != nil {
-			panic(err)
+			return err
 		}
 		fmt.Printf("Created sts %q.\n", result.GetObjectMeta().GetName())
 	}
+
+	return nil
 
 	//payload := []patchUInt32Value{{
 	//	Op:    "replace",

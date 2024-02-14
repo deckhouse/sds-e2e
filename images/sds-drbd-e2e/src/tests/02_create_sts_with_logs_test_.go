@@ -20,12 +20,12 @@ func TestCreateStsLogs(t *testing.T) {
 
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
-		panic(err.Error())
+		t.Error(err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		panic(err)
+		t.Error(err)
 	}
 
 	funcs.CreateLogSts(*clientset)
