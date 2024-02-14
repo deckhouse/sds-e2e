@@ -13,7 +13,7 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	devices, err := funcs.GetAPIBlockDevices(ctx, cl, t)
+	devices, err := funcs.GetAPIBlockDevices(ctx, cl)
 	if err != nil {
 		t.Error("get error", err)
 	}
