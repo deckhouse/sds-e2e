@@ -29,7 +29,7 @@ func NewKubeClient() (client.Client, error) {
 	//	}
 
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
 
 	var (
