@@ -51,7 +51,7 @@ func CreatePools(ctx context.Context, cl client.Client) error {
 
 	err := CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList)
 	if err != nil {
-		if err.Error() != "Pool creation error drbdstoragepools.storage.deckhouse.io \"data\" already exists" {
+		if err.Error() != "drbdstoragepools.storage.deckhouse.io \"data\" already exists" {
 			return err
 		}
 	}
