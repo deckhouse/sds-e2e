@@ -58,12 +58,16 @@ func CreatePools(ctx context.Context, cl client.Client) error {
 
 	err = CreateDrbdStorageClass(ctx, cl, "linstor-r1", "None", false)
 	if err != nil {
-		return err
+		if err.Error() != "drbdstorageclasses.storage.deckhouse.io \"linstor-r1\" already exists" {
+			return err
+		}
 	}
 
 	err = CreateDrbdStorageClass(ctx, cl, "linstor-r2", "Availability", true)
 	if err != nil {
-		return err
+		if err.Error() != "drbdstorageclasses.storage.deckhouse.io \"linstor-r2\" already exists" {
+			return err
+		}
 	}
 
 	return nil
