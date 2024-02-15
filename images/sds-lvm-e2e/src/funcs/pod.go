@@ -5,16 +5,17 @@ import (
 	"errors"
 	"fmt"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
 
 const (
-	PodClassKind  = "Pod"
-	PodAPIVersion = "v1"
-	StartDelayPOD = 3
-	WaitInterval  = 3
+	PodClassKind          = "Pod"
+	PodAPIVersion         = "v1"
+	WaitIntervalPOD       = 3
+	WaitIterationCountPOD = 20
 )
 
 func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, blockMode bool, command, args []string) (string, error) {
@@ -80,7 +81,6 @@ func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, bloc
 	if err != nil {
 		return "", err
 	}
-	time.Sleep(StartDelayPOD * time.Second)
 	return name, nil
 }
 
@@ -99,15 +99,14 @@ func DeletePod(ctx context.Context, cl client.Client, name string) error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(StartDelayPOD * time.Second)
 	return nil
 }
 
 func WaitPodStatus(ctx context.Context, cl client.Client, name string) (string, error) {
 	pod := v1.Pod{}
 
-	for i := 0; i < 20; i++ {
-		time.Sleep(WaitInterval * time.Second)
+	for i := 0; i < WaitIterationCountPOD; i++ {
+		time.Sleep(WaitIntervalPOD * time.Second)
 		cl.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: NameSpace,
@@ -130,4 +129,22 @@ func WaitPodStatus(ctx context.Context, cl client.Client, name string) (string, 
 		}
 	}
 	return "", errors.New("the waiting time for the pod to be ready has expired")
+}
+
+func WaitDeletePod(ctx context.Context, cl client.Client, name string) (string, error) {
+	pod := v1.Pod{}
+	for i := 0; i < WaitIterationCountPOD; i++ {
+		time.Sleep(WaitIntervalPOD * time.Second)
+		err := cl.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: NameSpace,
+		}, &pod)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return "Deleted", nil
+			}
+		}
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
+		WaitIterationCountPOD*WaitIntervalPOD))
 }

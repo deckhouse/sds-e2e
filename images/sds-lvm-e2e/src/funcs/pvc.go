@@ -2,6 +2,8 @@ package funcs
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,14 +14,16 @@ import (
 const (
 	PersistentVolumeClaimKind       = "PersistentVolumeClaim"
 	PersistentVolumeClaimAPIVersion = "v1"
-	StartDelayPVC                   = 1
+	WaitIntervalPVC                 = 1
+	WaitIterationCountPVC           = 10
+	DeletedStatusPVC                = "Deleted"
 )
 
-func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, size string, blockMode bool) (string, error) {
+func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, size string, blockMode bool) (v1.PersistentVolumeClaim, error) {
 	resourceList := make(map[v1.ResourceName]resource.Quantity)
 	sizeStorage, err := resource.ParseQuantity(size)
 	if err != nil {
-		return "", err
+		return v1.PersistentVolumeClaim{}, err
 	}
 	resourceList[v1.ResourceStorage] = sizeStorage
 
@@ -55,10 +59,9 @@ func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, si
 
 	err = cl.Create(ctx, &pvc)
 	if err != nil {
-		return "", err
+		return v1.PersistentVolumeClaim{}, err
 	}
-	time.Sleep(StartDelayPVC * time.Second)
-	return name, nil
+	return pvc, nil
 }
 
 func DeletePVC(ctx context.Context, cl client.Client, name string) error {
@@ -77,6 +80,30 @@ func DeletePVC(ctx context.Context, cl client.Client, name string) error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(StartDelayPVC * time.Second)
 	return nil
+}
+
+func WaitPVCStatus(ctx context.Context, cl client.Client, name string) (string, error) {
+	pvc := v1.PersistentVolumeClaim{}
+	for i := 0; i < WaitIterationCountPVC; i++ {
+		err := cl.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: NameSpace,
+		}, &pvc)
+		if err != nil {
+			//return "", err
+		}
+		fmt.Printf("pvc %s...\n", pvc.Status.Phase)
+		if pvc.Status.Phase == v1.ClaimBound {
+			return string(pvc.Status.Phase), nil
+		}
+
+		if len(pvc.Status.Phase) == 0 {
+			return DeletedStatusPVC, nil
+		}
+
+		time.Sleep(WaitIntervalPVC * time.Second)
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d or the pvc to be ready has expired",
+		WaitIntervalPVC*WaitIterationCountPVC))
 }

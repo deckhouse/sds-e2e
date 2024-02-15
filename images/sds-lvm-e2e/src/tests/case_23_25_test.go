@@ -19,16 +19,24 @@ func Test_23_24(t *testing.T) {
 		t.Error(err)
 	}
 
-	pvcName, err := funcs.CreatePVC(ctx, cl,
+	t.Log("------------  pvc creating ------------- ")
+	pvc, err := funcs.CreatePVC(ctx, cl,
 		"test-pvc", "test-lvm-thick-immediate-retain", "1Gi", false)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(fmt.Sprintf("pvc=%s created", pvcName))
 
+	pvcStatus, err := funcs.WaitPVCStatus(ctx, cl, pvc.Name)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(fmt.Sprintf("pvc status=%s", pvcStatus))
+	t.Log(fmt.Sprintf("pvc=%s created", pvc.Name))
+
+	t.Log("------------  pod creating ------------- ")
 	command := []string{"/bin/bash"}
 	args := []string{"-c", "df -T | grep '/usr/share/test-data' | grep 'ext4'"}
-	podName, err := funcs.CreatePod(ctx, cl, "test-pod", pvcName, false, command, args)
+	podName, err := funcs.CreatePod(ctx, cl, "test-pod", pvc.Name, false, command, args)
 	if err != nil {
 		t.Error(err)
 	}
@@ -44,15 +52,27 @@ func Test_23_24(t *testing.T) {
 		t.Error(errors.New("container error"))
 	}
 
+	t.Log("------------  pod deleting ------------- ")
 	err = funcs.DeletePod(ctx, cl, podName)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(fmt.Sprintf("pod=%s deleted", podName))
-
-	err = funcs.DeletePVC(ctx, cl, pvcName)
+	status, err = funcs.WaitDeletePod(ctx, cl, podName)
 	if err != nil {
 		t.Error(err)
 	}
-	t.Log(fmt.Sprintf("pvc=%s deleted", pvcName))
+	t.Log(fmt.Sprintf("status pod=%s ", status))
+	t.Log(fmt.Sprintf("pod=%s deleted", podName))
+
+	t.Log("------------  pvc deleting ------------- ")
+	err = funcs.DeletePVC(ctx, cl, pvc.Name)
+	if err != nil {
+		t.Error(err)
+	}
+	pvcStatus, err = funcs.WaitPVCStatus(ctx, cl, pvc.Name)
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(fmt.Sprintf("pvc status=%s", pvcStatus))
+	t.Log(fmt.Sprintf("pvc=%s deleted", pvc.Name))
 }
