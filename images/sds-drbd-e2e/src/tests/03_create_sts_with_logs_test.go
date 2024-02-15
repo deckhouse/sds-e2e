@@ -13,5 +13,8 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	funcs.CreateLogSts(ctx, cl)
+	err = funcs.CreateLogSts(ctx, cl, "d8-sds-drbd-e2e-test")
+	if err != nil {
+		t.Error("sts creation error", err)
+	}
 }

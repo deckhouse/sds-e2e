@@ -16,7 +16,7 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateLogSts(ctx context.Context, cl client.Client) error {
+func CreateLogSts(ctx context.Context, cl client.Client, namespaceName string) error {
 	for count := 0; count <= 2; count++ {
 		fmt.Println(count)
 
@@ -26,7 +26,7 @@ func CreateLogSts(ctx context.Context, cl client.Client) error {
 		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fmt.Sprintf("flog-generator-%d", count),
-				Namespace: "default",
+				Namespace: namespaceName,
 			},
 			Spec: appsv1.StatefulSetSpec{
 				Replicas: &replicas,
