@@ -3,6 +3,7 @@ package funcs
 import (
 	"context"
 	"errors"
+	"fmt"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -12,6 +13,8 @@ import (
 const (
 	PodClassKind  = "Pod"
 	PodAPIVersion = "v1"
+	StartDelayPOD = 3
+	WaitInterval  = 3
 )
 
 func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, blockMode bool, command, args []string) (string, error) {
@@ -77,24 +80,53 @@ func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, bloc
 	if err != nil {
 		return "", err
 	}
+	time.Sleep(StartDelayPOD * time.Second)
 	return name, nil
 }
 
-func GetPodStatus(ctx context.Context, cl client.Client, name string) (string, error) {
+func DeletePod(ctx context.Context, cl client.Client, name string) error {
+	pod := v1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       PodClassKind,
+			APIVersion: PodAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: NameSpace,
+		},
+	}
+	err := cl.Delete(ctx, &pod)
+	if err != nil {
+		return err
+	}
+	time.Sleep(StartDelayPOD * time.Second)
+	return nil
+}
+
+func WaitPodStatus(ctx context.Context, cl client.Client, name string) (string, error) {
 	pod := v1.Pod{}
 
-	for i := 0; i < 10; i++ {
-		time.Sleep(1 * time.Second)
-		err := cl.Get(ctx, client.ObjectKey{
+	for i := 0; i < 20; i++ {
+		time.Sleep(WaitInterval * time.Second)
+		cl.Get(ctx, client.ObjectKey{
 			Name:      name,
 			Namespace: NameSpace,
 		}, &pod)
-		if err != nil {
-			return "", err
-		}
 
 		if len(pod.Status.ContainerStatuses) != 0 {
-			return pod.Status.ContainerStatuses[0].State.Terminated.Reason, nil
+			if pod.Status.ContainerStatuses[0].State.Waiting != nil {
+				fmt.Println("container Waiting...")
+				//return pod.Status.ContainerStatuses[0].Image, nil
+			}
+
+			if pod.Status.ContainerStatuses[0].State.Running != nil {
+				fmt.Println("container Running....")
+			}
+
+			if pod.Status.ContainerStatuses[0].State.Terminated != nil {
+				fmt.Println("container Terminated...")
+				return pod.Status.ContainerStatuses[0].State.Terminated.Reason, nil
+			}
 		}
 	}
 	return "", errors.New("the waiting time for the pod to be ready has expired")

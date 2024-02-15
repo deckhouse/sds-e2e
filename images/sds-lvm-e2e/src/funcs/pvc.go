@@ -6,11 +6,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"time"
 )
 
 const (
 	PersistentVolumeClaimKind       = "PersistentVolumeClaim"
 	PersistentVolumeClaimAPIVersion = "v1"
+	StartDelayPVC                   = 1
 )
 
 func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, size string, blockMode bool) (string, error) {
@@ -55,6 +57,7 @@ func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, si
 	if err != nil {
 		return "", err
 	}
+	time.Sleep(StartDelayPVC * time.Second)
 	return name, nil
 }
 
@@ -74,5 +77,6 @@ func DeletePVC(ctx context.Context, cl client.Client, name string) error {
 	if err != nil {
 		return err
 	}
+	time.Sleep(StartDelayPVC * time.Second)
 	return nil
 }
