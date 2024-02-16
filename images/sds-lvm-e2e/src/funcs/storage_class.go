@@ -36,6 +36,7 @@ func CreateStorageClass(ctx context.Context, cl client.Client, name, lvmType, lv
 
 	}
 
+	allowVolumeExpansion := true
 	cs := storagev1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       StorageClassKind,
@@ -53,7 +54,7 @@ func CreateStorageClass(ctx context.Context, cl client.Client, name, lvmType, lv
 		},
 		ReclaimPolicy:        &rp,
 		MountOptions:         nil,
-		AllowVolumeExpansion: nil,
+		AllowVolumeExpansion: &allowVolumeExpansion,
 		VolumeBindingMode:    &vbm,
 	}
 

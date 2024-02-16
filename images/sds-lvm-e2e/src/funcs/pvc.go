@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	v1 "k8s.io/api/core/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -91,7 +92,9 @@ func WaitPVCStatus(ctx context.Context, cl client.Client, name string) (string, 
 			Namespace: NameSpace,
 		}, &pvc)
 		if err != nil {
-			//return "", err
+			//if kerrors.IsNotFound(err) {
+			//	return "", err
+			//}
 		}
 		fmt.Printf("pvc %s...\n", pvc.Status.Phase)
 		if pvc.Status.Phase == v1.ClaimBound {
@@ -106,4 +109,48 @@ func WaitPVCStatus(ctx context.Context, cl client.Client, name string) (string, 
 	}
 	return "", errors.New(fmt.Sprintf("the waiting time %d or the pvc to be ready has expired",
 		WaitIntervalPVC*WaitIterationCountPVC))
+}
+
+func WaitDeletePVC(ctx context.Context, cl client.Client, name string) (string, error) {
+	pod := v1.Pod{}
+	for i := 0; i < WaitIterationCountPVC; i++ {
+		time.Sleep(WaitIntervalPVC * time.Second)
+		err := cl.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: NameSpace,
+		}, &pod)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return DeletedStatusPVC, nil
+			}
+		}
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
+		WaitIterationCountPVC*WaitIntervalPVC))
+}
+
+func EditSizePVC(ctx context.Context, cl client.Client, name, newSize string) error {
+	pvc := v1.PersistentVolumeClaim{}
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pvc)
+	if err != nil {
+		return err
+	}
+
+	resourceList := make(map[v1.ResourceName]resource.Quantity)
+	newPVCSize, err := resource.ParseQuantity(newSize)
+	if err != nil {
+		return err
+	}
+
+	resourceList[v1.ResourceStorage] = newPVCSize
+	pvc.Spec.Resources.Requests = resourceList
+
+	err = cl.Update(ctx, &pvc)
+	if err != nil {
+		return err
+	}
+	return nil
 }
