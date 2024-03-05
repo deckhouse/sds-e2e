@@ -2,7 +2,7 @@ package test
 
 import (
 	"context"
-	"sds-drbd-e2e/funcs"
+	"sds-replicated-volume-e2e/funcs"
 	"testing"
 )
 
@@ -13,7 +13,7 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	//	err = funcs.CreateLogSts(ctx, cl, "d8-sds-drbd-e2e-test")
+	//	err = funcs.CreateLogSts(ctx, cl, "d8-sds-replicated-volume-e2e-test")
 	//	if err != nil {
 	//		t.Error("sts creation error", err)
 	//	}
