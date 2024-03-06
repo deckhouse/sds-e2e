@@ -4,6 +4,7 @@ import (
 	"context"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestCreateNamespace(t *testing.T) {
@@ -17,4 +18,6 @@ func TestCreateNamespace(t *testing.T) {
 	if err != nil {
 		t.Error("namespace creation error", err)
 	}
+
+	time.Sleep(time.Second * 10)
 }
