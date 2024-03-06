@@ -14,7 +14,7 @@ func TestDeleteStsPods(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.DeleteSts(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	err = funcs.DeleteSts(ctx, cl, testNamespace)
 	if err != nil {
 		t.Error("Sts delete error", err)
 	}

@@ -15,9 +15,9 @@ func TestChangeStsPvcSize(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	pvcList, err := funcs.ListPvcs(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
 	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", pvc.Name, "1.1Gi")
+		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "1.1Gi")
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
@@ -27,7 +27,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 		fmt.Printf("Wait for all pvc to change size")
 
 		allPvcChanged := true
-		pvcList, err = funcs.ListPvcs(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
 		if err != nil {
 
 			t.Error("PVC size change error", err)
