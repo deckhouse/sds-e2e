@@ -18,8 +18,6 @@ type patchUInt32Value struct {
 
 func CreateSts(ctx context.Context, cl client.Client, namespaceName string, podsCount int) error {
 	for count := 0; count <= podsCount; count++ {
-		fmt.Println(count)
-
 		fs := corev1.PersistentVolumeFilesystem
 		storageClassName := "linstor-r2"
 		var replicas int32 = 3
@@ -85,7 +83,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string, pods
 			},
 		}
 
-		fmt.Println("Creating sts...")
+		fmt.Printf("Creating sts number %d\n", count)
 		err := cl.Create(ctx, sts)
 		if err != nil {
 			return err
