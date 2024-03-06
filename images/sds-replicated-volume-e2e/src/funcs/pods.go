@@ -21,3 +21,19 @@ func ListPods(ctx context.Context, cl client.Client, namespaceName string) error
 
 	return nil
 }
+
+func WaitForLogStsPods(ctx context.Context, cl client.Client, namespaceName string) error {
+	objs := corev1.PodList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	err := cl.List(ctx, &objs, opts)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range objs.Items {
+		//		fmt.Printf("%d: #%v", count, item)
+		fmt.Printf("#%v", item.Status.Phase)
+	}
+
+	return nil
+}
