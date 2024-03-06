@@ -40,4 +40,6 @@ func TestWaitStsPods(t *testing.T) {
 
 		time.Sleep(time.Second * 5)
 	}
+
+	time.Sleep(time.Second * 10)
 }

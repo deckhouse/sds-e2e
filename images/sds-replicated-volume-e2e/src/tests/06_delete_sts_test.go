@@ -4,6 +4,7 @@ import (
 	"context"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestDeleteStsPods(t *testing.T) {
@@ -17,4 +18,6 @@ func TestDeleteStsPods(t *testing.T) {
 	if err != nil {
 		t.Error("Sts delete error", err)
 	}
+
+	time.Sleep(time.Second * 10)
 }

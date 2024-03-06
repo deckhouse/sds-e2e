@@ -4,6 +4,7 @@ import (
 	"context"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestCreateStsLogs(t *testing.T) {
@@ -18,4 +19,5 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("sts creation error", err)
 	}
 
+	time.Sleep(time.Second * 10)
 }
