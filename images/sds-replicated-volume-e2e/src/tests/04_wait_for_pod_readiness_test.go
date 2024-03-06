@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestWaitStsPods(t *testing.T) {
@@ -36,5 +37,7 @@ func TestWaitStsPods(t *testing.T) {
 		if count == 60 {
 			t.Errorf("Timeout waiting for all pods to be ready")
 		}
+
+		time.Sleep(time.Second * 5)
 	}
 }
