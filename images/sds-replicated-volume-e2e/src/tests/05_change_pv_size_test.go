@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
 )
@@ -13,11 +14,35 @@ func TestChangeStsPvcSize(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	pvcsNames, err := funcs.ListPvcNames(ctx, cl, "d8-sds-replicated-volume-e2e-test")
-	for _, pvcName := range pvcsNames {
-		err = funcs.ChangePvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", pvcName, "1.1Gi")
+	pvcList, err := funcs.ListPvcs(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	for _, pvc := range pvcList {
+		err = funcs.ChangePvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", pvc.Name, "1.1Gi")
 		if err != nil {
 			t.Error("PVC size change error", err)
+		}
+	}
+
+	for count := 0; count < 60; count++ {
+		fmt.Printf("Wait for all pvc to change size")
+
+		allPvcChanged := true
+		pvcList, err = funcs.ListPvcs(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+		if err != nil {
+
+			t.Error("PVC size change error", err)
+		}
+		for _, pvc := range pvcList {
+			if pvc.Size != "1153434Ki" {
+				allPvcChanged = false
+			}
+		}
+
+		if allPvcChanged {
+			break
+		}
+
+		if count == 60 {
+			t.Errorf("Timeout waiting for all pods to be ready")
 		}
 	}
 }
