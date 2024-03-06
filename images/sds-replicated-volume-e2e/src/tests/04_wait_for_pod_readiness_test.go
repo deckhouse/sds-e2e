@@ -17,7 +17,7 @@ func TestWaitStsPods(t *testing.T) {
 	}
 
 	for count := 0; count < 60; count++ {
-		fmt.Printf("Wait for all pods to be ready")
+		fmt.Printf("Wait for all pods to be ready\n")
 
 		allPodsReady := true
 		podList, err := funcs.ListPods(ctx, cl, testNamespace)
