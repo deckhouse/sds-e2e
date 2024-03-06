@@ -4,6 +4,7 @@ import (
 	"context"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestDeleteNamespace(t *testing.T) {
@@ -17,4 +18,6 @@ func TestDeleteNamespace(t *testing.T) {
 	if err != nil {
 		t.Error("namespace delete error", err)
 	}
+
+	time.Sleep(time.Second * 10)
 }
