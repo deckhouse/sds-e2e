@@ -18,7 +18,5 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("sts creation error", err)
 	}
 
-	funcs.ListPods(ctx, cl, "")
-
 	funcs.WaitForLogStsPods(ctx, cl, "d8-sds-replicated-volume-e2e-test")
 }
