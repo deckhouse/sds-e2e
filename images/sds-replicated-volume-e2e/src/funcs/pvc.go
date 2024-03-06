@@ -9,7 +9,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ListPvcNames(ctx context.Context, cl client.Client, namespaceName string) ([]string, error) {
+type pvcList struct {
+	Name string
+	Size string
+}
+
+func ListPvcs(ctx context.Context, cl client.Client, namespaceName string) ([]pvcList, error) {
 	objs := corev1.PersistentVolumeClaimList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
@@ -17,9 +22,9 @@ func ListPvcNames(ctx context.Context, cl client.Client, namespaceName string) (
 		return nil, err
 	}
 
-	pvcs := []string{}
+	pvcs := []pvcList{}
 	for _, item := range objs.Items {
-		pvcs = append(pvcs, item.ObjectMeta.Name)
+		pvcs = append(pvcs, pvcList{Name: item.ObjectMeta.Name, Size: item.Status.Capacity.Storage().String()})
 	}
 
 	return pvcs, nil

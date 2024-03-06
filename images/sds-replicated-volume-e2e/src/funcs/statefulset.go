@@ -16,7 +16,7 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateLogSts(ctx context.Context, cl client.Client, namespaceName string) error {
+func CreateSts(ctx context.Context, cl client.Client, namespaceName string) error {
 	for count := 0; count <= 2; count++ {
 		fmt.Println(count)
 
@@ -95,7 +95,7 @@ func CreateLogSts(ctx context.Context, cl client.Client, namespaceName string) e
 	return nil
 }
 
-func DeleteLogSts(ctx context.Context, cl client.Client, namespaceName string) error {
+func DeleteSts(ctx context.Context, cl client.Client, namespaceName string) error {
 	objs := appsv1.StatefulSetList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
