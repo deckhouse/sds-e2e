@@ -16,8 +16,8 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateSts(ctx context.Context, cl client.Client, namespaceName string) error {
-	for count := 0; count <= 2; count++ {
+func CreateSts(ctx context.Context, cl client.Client, namespaceName string, podsCount int) error {
+	for count := 0; count <= podsCount; count++ {
 		fmt.Println(count)
 
 		fs := corev1.PersistentVolumeFilesystem
