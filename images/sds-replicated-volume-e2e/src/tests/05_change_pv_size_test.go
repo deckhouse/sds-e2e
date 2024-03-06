@@ -6,16 +6,15 @@ import (
 	"testing"
 )
 
-func TestCreateStsLogs(t *testing.T) {
+func TestChangeStsPvcSize(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreateLogSts(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	err = funcs.ChangeLogStsPvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", "1.1Gi")
 	if err != nil {
-		t.Error("sts creation error", err)
+		t.Error("Pods waiting error", err)
 	}
-
 }
