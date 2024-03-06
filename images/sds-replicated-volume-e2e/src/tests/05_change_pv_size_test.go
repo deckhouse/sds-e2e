@@ -13,8 +13,11 @@ func TestChangeStsPvcSize(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.ChangeLogStsPvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", "1.1Gi")
-	if err != nil {
-		t.Error("Pods waiting error", err)
+	pvcsNames, err := funcs.ListPvcNames(ctx, cl, "d8-sds-replicated-volume")
+	for _, pvcName := range pvcsNames {
+		err = funcs.ChangePvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", pvcName, "1.1Gi")
+		if err != nil {
+			t.Error("Pods waiting error", err)
+		}
 	}
 }
