@@ -17,7 +17,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 	for _, pvcName := range pvcsNames {
 		err = funcs.ChangePvcSize(ctx, cl, "d8-sds-replicated-volume-e2e-test", pvcName, "1.1Gi")
 		if err != nil {
-			t.Error("Pods waiting error", err)
+			t.Error("PVC size change error", err)
 		}
 	}
 }
