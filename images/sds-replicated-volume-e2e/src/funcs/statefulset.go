@@ -2,11 +2,13 @@ package funcs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -93,17 +95,25 @@ func CreateLogSts(ctx context.Context, cl client.Client, namespaceName string) e
 	}
 
 	return nil
+}
 
-	//payload := []patchUInt32Value{{
-	//	Op:    "replace",
-	//	Path:  "/spec/resources/requests/storage",
-	//	Value: "1.1Gi",
-	//}}
-	//payloadBytes, _ := json.Marshal(payload)
-	//output, err := clientset.CoreV1().PersistentVolumeClaims(corev1.NamespaceDefault).Patch(ctx, "flog-pv-flog-generator-2-0", types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
-	//
-	//fmt.Printf("%s", output)
+func ChangeLogStsPvcSize(ctx context.Context, cl client.Client, namespaceName string, size string) error {
+	payload := []patchUInt32Value{{
+		Op:    "replace",
+		Path:  "/spec/resources/requests/storage",
+		Value: size,
+	}}
+	payloadBytes, _ := json.Marshal(payload)
+	err := cl.Patch(ctx,
+		&corev1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{Namespace: namespaceName, Name: "flog-pv-flog-generator-2-0"}},
+		client.RawPatch(types.JSONPatchType, payloadBytes),
+		&client.PatchOptions{})
+	//.PersistentVolumeClaims(corev1.NamespaceDefault).Patch(ctx, "flog-pv-flog-generator-2-0", types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	if err != nil {
+		return err
+	}
 
+	return nil
 }
 
 func DeleteLogSts(ctx context.Context, cl client.Client, namespaceName string) error {
