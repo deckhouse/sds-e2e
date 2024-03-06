@@ -103,8 +103,13 @@ func DeleteSts(ctx context.Context, cl client.Client, namespaceName string) erro
 		return err
 	}
 
-	for count, item := range objs.Items {
-		fmt.Printf("%d: #%v", count, item)
+	for _, item := range objs.Items {
+		err := cl.Delete(ctx,
+			&appsv1.StatefulSet{ObjectMeta: metav1.ObjectMeta{Name: item.Name, Namespace: namespaceName}},
+			client.DeleteOption(&client.DeleteOptions{}))
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
