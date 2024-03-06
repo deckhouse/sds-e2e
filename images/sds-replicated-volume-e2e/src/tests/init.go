@@ -13,6 +13,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const testNamespace = "d8-sds-replicated-volume-e2e-test"
+
 func NewKubeClient() (client.Client, error) {
 	var config *rest.Config
 	var err error

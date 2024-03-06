@@ -20,7 +20,7 @@ func TestWaitStsPods(t *testing.T) {
 		fmt.Printf("Wait for all pods to be ready")
 
 		allPodsReady := true
-		podList, err := funcs.ListPods(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+		podList, err := funcs.ListPods(ctx, cl, testNamespace)
 		if err != nil {
 			t.Error("Pod list error", err)
 		}
