@@ -14,7 +14,7 @@ func TestCreateNamespace(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreateNamespace(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	err = funcs.CreateNamespace(ctx, cl, testNamespace)
 	if err != nil {
 		t.Error("namespace creation error", err)
 	}

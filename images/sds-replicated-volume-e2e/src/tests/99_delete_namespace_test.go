@@ -14,7 +14,7 @@ func TestDeleteNamespace(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.DeleteNamespace(ctx, cl, "d8-sds-replicated-volume-e2e-test")
+	err = funcs.DeleteNamespace(ctx, cl, testNamespace)
 	if err != nil {
 		t.Error("namespace delete error", err)
 	}
