@@ -129,8 +129,8 @@ func WaitForLogStsPods(ctx context.Context, cl client.Client, namespaceName stri
 		return err
 	}
 
-	for count, item := range objs.Items {
-		fmt.Printf("%d: #%v", count, item)
+	for _, item := range objs.Items {
+		//		fmt.Printf("%d: #%v", count, item)
 		fmt.Printf("#%v", item.Status.Phase)
 	}
 
