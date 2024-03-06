@@ -10,7 +10,7 @@ import (
 )
 
 func ListPvcNames(ctx context.Context, cl client.Client, namespaceName string) ([]string, error) {
-	objs := corev1.PodList{}
+	objs := corev1.PersistentVolumeClaimList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
