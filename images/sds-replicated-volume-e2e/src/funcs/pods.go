@@ -22,7 +22,7 @@ func ListPods(ctx context.Context, cl client.Client, namespaceName string) error
 	return nil
 }
 
-func WaitForLogStsPods(ctx context.Context, cl client.Client, namespaceName string) error {
+func WaitForPodsReadiness(ctx context.Context, cl client.Client, namespaceName string) error {
 	objs := corev1.PodList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
@@ -30,9 +30,23 @@ func WaitForLogStsPods(ctx context.Context, cl client.Client, namespaceName stri
 		return err
 	}
 
-	for _, item := range objs.Items {
-		//		fmt.Printf("%d: #%v", count, item)
-		fmt.Printf("#%v", item.Status.Phase)
+	for count := 0; count < 60; count++ {
+		fmt.Printf("Wait for all pods to be ready")
+
+		allPodsReady := true
+		for _, item := range objs.Items {
+			if item.Status.Phase != corev1.PodRunning {
+				allPodsReady = false
+			}
+		}
+
+		if allPodsReady {
+			break
+		}
+
+		if count == 60 {
+			return fmt.Errorf("Timeout waiting for all pods to be ready")
+		}
 	}
 
 	return nil
