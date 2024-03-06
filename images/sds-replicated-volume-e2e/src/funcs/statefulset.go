@@ -109,6 +109,7 @@ func ChangeLogStsPvcSize(ctx context.Context, cl client.Client, namespaceName st
 		client.RawPatch(types.JSONPatchType, payloadBytes),
 		&client.PatchOptions{})
 	//.PersistentVolumeClaims(corev1.NamespaceDefault).Patch(ctx, "flog-pv-flog-generator-2-0", types.JSONPatchType, payloadBytes, metav1.PatchOptions{})
+	fmt.Printf("%s", err)
 	if err != nil {
 		return err
 	}
