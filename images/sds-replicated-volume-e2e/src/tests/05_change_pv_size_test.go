@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
+	"time"
 )
 
 func TestChangeStsPvcSize(t *testing.T) {
@@ -44,5 +45,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 		if count == 60 {
 			t.Errorf("Timeout waiting for all pods to be ready")
 		}
+
+		time.Sleep(time.Second * 5)
 	}
 }
