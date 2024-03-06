@@ -24,7 +24,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 	}
 
 	for count := 0; count < 60; count++ {
-		fmt.Printf("Wait for all pvc to change size")
+		fmt.Printf("Wait for all pvc to change size\n")
 
 		allPvcChanged := true
 		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
