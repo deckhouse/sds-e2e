@@ -19,6 +19,7 @@ package main
 import (
 	"cluster-management/tests"
 	"context"
+	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -39,7 +40,7 @@ func main() {
 	objs := corev1.PersistentVolumeClaimList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err = cl.List(ctx, &objs, opts)
-	print(err)
+	fmt.Printf(err.Error())
 	for _, item := range objs.Items {
 		print(item.Name)
 	}
