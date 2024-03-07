@@ -39,7 +39,7 @@ func main() {
 	objs := v1alpha2.VirtualMachineList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err = cl.List(ctx, &objs, opts)
-	print(err.Error())
+	print("1111")
 	for _, item := range objs.Items {
 		print(item)
 	}
