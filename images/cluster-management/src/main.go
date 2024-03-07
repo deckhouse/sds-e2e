@@ -1,5 +1,5 @@
 /*
-Copyright 2023 Flant JSC
+Copyright 2024 Flant JSC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,12 +17,30 @@ limitations under the License.
 package main
 
 import (
-	"sds-drbd-e2e/tests"
+	"cluster-management/tests"
+	"context"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func main() {
 	_, err := test.NewKubeClient()
 	if err != nil {
 		panic(err)
+	}
+
+	ctx := context.Background()
+	cl, err := test.NewKubeClient()
+	//	if err != nil {
+	//		t.Error("kubeclient error", err)
+	//	}
+
+	namespaceName := "d8-sds-replicated-volume-e2e-test"
+	objs := corev1.PersistentVolumeClaimList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	err = cl.List(ctx, &objs, opts)
+	print(err)
+	for _, item := range objs.Items {
+		print(item.Name)
 	}
 }
