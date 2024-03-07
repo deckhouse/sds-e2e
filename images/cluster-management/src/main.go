@@ -18,9 +18,9 @@ package main
 
 import (
 	"cluster-management/tests"
+	"cluster-management/v1alpha2"
 	"context"
 	"fmt"
-	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -36,8 +36,8 @@ func main() {
 	//		t.Error("kubeclient error", err)
 	//	}
 
-	namespaceName := "d8-sds-replicated-volume-e2e-test"
-	objs := corev1.PersistentVolumeClaimList{}
+	namespaceName := "default"
+	objs := v1alpha2.VirtualMachineList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err = cl.List(ctx, &objs, opts)
 	fmt.Printf(err.Error())
