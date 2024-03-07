@@ -20,6 +20,7 @@ import (
 	"cluster-management/tests"
 	"cluster-management/v1alpha2"
 	"context"
+	"fmt"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -39,8 +40,8 @@ func main() {
 	objs := v1alpha2.VirtualMachineList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err = cl.List(ctx, &objs, opts)
-	print("1111")
+	fmt.Printf("%s\n", err)
 	for _, item := range objs.Items {
-		print(item)
+		fmt.Print(item)
 	}
 }
