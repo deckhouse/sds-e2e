@@ -35,7 +35,11 @@ func main() {
 	//		t.Error("kubeclient error", err)
 	//	}
 
-	namespaceName := "default"
+	namespaceName := "test1"
+
+	err = funcs.CreateNamespace(ctx, cl, namespaceName)
+
+	fmt.Printf("err: %v\n", err)
 
 	vmList, err := funcs.ListVM(ctx, cl, namespaceName)
 	for _, item := range vmList {
