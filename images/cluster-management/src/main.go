@@ -17,11 +17,10 @@ limitations under the License.
 package main
 
 import (
+	"cluster-management/funcs"
 	"cluster-management/tests"
-	"cluster-management/v1alpha2"
 	"context"
 	"fmt"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func main() {
@@ -37,11 +36,9 @@ func main() {
 	//	}
 
 	namespaceName := "default"
-	objs := v1alpha2.VirtualMachineList{}
-	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
-	err = cl.List(ctx, &objs, opts)
-	fmt.Printf("%s\n", err)
-	for _, item := range objs.Items {
-		fmt.Print(item.Name)
+
+	vmList, err := funcs.ListVM(ctx, cl, namespaceName)
+	for _, item := range vmList {
+		fmt.Printf("%s\n", item.Name)
 	}
 }
