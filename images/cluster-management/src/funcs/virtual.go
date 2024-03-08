@@ -18,6 +18,10 @@ type CVMI struct {
 	Name string
 }
 
+type IPClaim struct {
+	Name string
+}
+
 func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, error) {
 	objs := v1alpha2.VirtualMachineList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
@@ -50,6 +54,24 @@ func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI,
 	}
 
 	return cvmiList, nil
+}
+
+func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vmIPClaimSearch string) ([]IPClaim, error) {
+	objs := v1alpha2.VirtualMachineIPAddressClaimList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	err := cl.List(ctx, &objs, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	vmIPClaimList := []IPClaim{}
+	for _, item := range objs.Items {
+		if vmIPClaimSearch == "" || vmIPClaimSearch == item.Name {
+			vmIPClaimList = append(vmIPClaimList, IPClaim{Name: item.Name})
+		}
+	}
+
+	return vmIPClaimList, nil
 }
 
 func CreateCVMI(ctx context.Context, cl client.Client, name string, url string) (*v1alpha2.ClusterVirtualMachineImage, error) {
@@ -135,9 +157,17 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmClaim, err := CreateVMIPClaim(ctx, cl, namespaceName, fmt.Sprintf("%s-0", vmName), ip)
+	vmClaim := &v1alpha2.VirtualMachineIPAddressClaim{}
+	vmIPClaimName := fmt.Sprintf("%s-0", vmName)
+	vmIPClaimList, err := ListIPClaim(ctx, cl, namespaceName, vmIPClaimName)
 	if err != nil {
 		return err
+	}
+	if len(vmIPClaimList) == 0 {
+		vmClaim, err = CreateVMIPClaim(ctx, cl, namespaceName, vmIPClaimName, ip)
+		if err != nil {
+			return err
+		}
 	}
 
 	vmSystemDisk, err := CreateVMD(ctx, cl, namespaceName, fmt.Sprintf("%s-system", vmName), storageClass, 32)
