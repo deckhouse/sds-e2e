@@ -34,7 +34,7 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 	return vmList, nil
 }
 
-func ListCVMI(ctx context.Context, cl client.Client) ([]CVMI, error) {
+func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI, error) {
 	objs := v1alpha2.ClusterVirtualMachineImageList{}
 	opts := client.ListOption(&client.ListOptions{})
 	err := cl.List(ctx, &objs, opts)
@@ -44,7 +44,9 @@ func ListCVMI(ctx context.Context, cl client.Client) ([]CVMI, error) {
 
 	cvmiList := []CVMI{}
 	for _, item := range objs.Items {
-		cvmiList = append(cvmiList, CVMI{Name: item.Name})
+		if CVMISearch == "" || CVMISearch == item.Name {
+			cvmiList = append(cvmiList, CVMI{Name: item.Name})
+		}
 	}
 
 	return cvmiList, nil
@@ -122,20 +124,11 @@ func CreateVM(ctx context.Context,
 
 	splittedUrl := strings.Split(url, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
-	CVMIList, err := ListCVMI(ctx, cl)
+	CVMIList, err := ListCVMI(ctx, cl, CVMIName)
 	if err != nil {
 		return err
 	}
-
-	CVMIExists := false
-	for _, CVMI := range CVMIList {
-		if CVMI.Name == CVMIName {
-			CVMIExists = true
-			break
-		}
-	}
-
-	if !CVMIExists {
+	if len(CVMIList) == 0 {
 		_, err := CreateCVMI(ctx, cl, CVMIName, url)
 		if err != nil {
 			return err
