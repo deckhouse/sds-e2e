@@ -42,6 +42,6 @@ func main() {
 	err = cl.List(ctx, &objs, opts)
 	fmt.Printf("%s\n", err)
 	for _, item := range objs.Items {
-		fmt.Print(item)
+		fmt.Print(item.Name)
 	}
 }
