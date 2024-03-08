@@ -142,6 +142,8 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
+	print(1)
+
 	vmClaim, err := CreateVMIPClaim(ctx, cl, namespaceName, fmt.Sprintf("%s-0", vmName), ip)
 	if err != nil {
 		return err
