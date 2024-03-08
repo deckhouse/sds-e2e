@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
@@ -124,10 +125,7 @@ func CreateVM(ctx context.Context,
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
 	CVMIList, err := ListCVMI(ctx, cl, namespaceName)
 	if err != nil {
-		fmt.Println(err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName))
-		if err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName) {
-			return err
-		}
+		return err
 	}
 
 	CVMIExists := false
@@ -138,10 +136,16 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
+	fmt.Printf("CVMI Exists: %v\n", CVMIExists)
+	os.Exit(1)
+
 	if !CVMIExists {
 		_, err := CreateCVMI(ctx, cl, CVMIName, url)
 		if err != nil {
-			return err
+			fmt.Println(err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName))
+			if err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName) {
+				return err
+			}
 		}
 	}
 
