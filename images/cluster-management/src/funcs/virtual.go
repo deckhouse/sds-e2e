@@ -122,7 +122,9 @@ func CreateVM(ctx context.Context,
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
 	CVMIList, err := ListCVMI(ctx, cl, namespaceName)
 	if err != nil {
-		return err
+		if err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName) {
+			return err
+		}
 	}
 
 	CVMIExists := false
