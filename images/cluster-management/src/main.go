@@ -40,14 +40,11 @@ func main() {
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
 	if err != nil {
-		fmt.Println(err.Error() != fmt.Sprintf("err: namespaces \"%s\" already exists", namespaceName))
-		if err.Error() != fmt.Sprintf("err: namespaces \"%s\" already exists", namespaceName) {
+		if err.Error() != fmt.Sprintf("namespaces \"%s\" already exists", namespaceName) {
 			fmt.Println(err)
 			os.Exit(1)
 		}
 	}
-
-	fmt.Printf("err: %v\n", err)
 
 	vmList, err := funcs.ListVM(ctx, cl, namespaceName)
 	for _, item := range vmList {
