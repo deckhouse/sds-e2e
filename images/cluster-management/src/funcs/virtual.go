@@ -14,6 +14,10 @@ type VM struct {
 	Name string
 }
 
+type VMD struct {
+	Name string
+}
+
 type CVMI struct {
 	Name string
 }
@@ -36,6 +40,24 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 	}
 
 	return vmList, nil
+}
+
+func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSearch string) ([]VMD, error) {
+	objs := v1alpha2.VirtualMachineDiskList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	err := cl.List(ctx, &objs, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	vmdList := []VMD{}
+	for _, item := range objs.Items {
+		if VMDSearch == "" || VMDSearch == item.Name {
+			vmdList = append(vmdList, VMD{Name: item.Name})
+		}
+	}
+
+	return vmdList, nil
 }
 
 func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI, error) {
@@ -157,27 +179,43 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmClaim := &v1alpha2.VirtualMachineIPAddressClaim{}
+	vmIPClaim := &v1alpha2.VirtualMachineIPAddressClaim{}
 	vmIPClaimName := fmt.Sprintf("%s-0", vmName)
 	vmIPClaimList, err := ListIPClaim(ctx, cl, namespaceName, vmIPClaimName)
 	if err != nil {
 		return err
 	}
 	if len(vmIPClaimList) == 0 {
-		vmClaim, err = CreateVMIPClaim(ctx, cl, namespaceName, vmIPClaimName, ip)
+		vmIPClaim, err = CreateVMIPClaim(ctx, cl, namespaceName, vmIPClaimName, ip)
 		if err != nil {
 			return err
 		}
 	}
 
-	vmSystemDisk, err := CreateVMD(ctx, cl, namespaceName, fmt.Sprintf("%s-system", vmName), storageClass, 32)
+	vmSystemDisk := &v1alpha2.VirtualMachineDisk{}
+	vmdName := fmt.Sprintf("%s-system", vmName)
+	vmdList, err := ListVMD(ctx, cl, namespaceName, vmdName)
 	if err != nil {
 		return err
 	}
+	if len(vmdList) == 0 {
+		vmSystemDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 32)
+		if err != nil {
+			return err
+		}
+	}
 
-	vmDataDisk, err := CreateVMD(ctx, cl, namespaceName, fmt.Sprintf("%s-data", vmName), storageClass, 50)
+	vmDataDisk := &v1alpha2.VirtualMachineDisk{}
+	vmdName = fmt.Sprintf("%s-data", vmName)
+	vmdList, err = ListVMD(ctx, cl, namespaceName, vmdName)
 	if err != nil {
 		return err
+	}
+	if len(vmdList) == 0 {
+		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 32)
+		if err != nil {
+			return err
+		}
 	}
 
 	vmObj := &v1alpha2.VirtualMachine{
@@ -190,7 +228,7 @@ func CreateVM(ctx context.Context,
 			RunPolicy:                        v1alpha2.RunPolicy("AlwaysOn"),
 			OsType:                           v1alpha2.OsType("Generic"),
 			Bootloader:                       v1alpha2.BootloaderType("BIOS"),
-			VirtualMachineIPAddressClaimName: vmClaim.Name,
+			VirtualMachineIPAddressClaimName: vmIPClaim.Name,
 			CPU:                              v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%"},
 			Memory:                           v1alpha2.MemorySpec{Size: memory},
 			BlockDevices: []v1alpha2.BlockDeviceSpec{
