@@ -45,4 +45,8 @@ func main() {
 	for _, item := range vmList {
 		fmt.Printf("%s\n", item.Name)
 	}
+
+	err = funcs.CreateVM(ctx, cl, namespaceName, "vm1", "10.10.10.180", 4, "8Gi", "linstor-thin-r1", "http://static.storage-e2e.virtlab.flant.com/media/cloudubuntu22.img")
+	fmt.Printf("err: %v\n", err)
+
 }
