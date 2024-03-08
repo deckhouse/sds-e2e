@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"os"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 )
@@ -136,20 +135,12 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	fmt.Printf("CVMI Exists: %v\n", CVMIExists)
-	os.Exit(1)
-
 	if !CVMIExists {
 		_, err := CreateCVMI(ctx, cl, CVMIName, url)
 		if err != nil {
-			fmt.Println(err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName))
-			if err.Error() != fmt.Sprintf("clustervirtualmachineimages.virtualization.deckhouse.io \"%s\" already exists", CVMIName) {
-				return err
-			}
+			return err
 		}
 	}
-
-	print(1)
 
 	vmClaim, err := CreateVMIPClaim(ctx, cl, namespaceName, fmt.Sprintf("%s-0", vmName), ip)
 	if err != nil {
