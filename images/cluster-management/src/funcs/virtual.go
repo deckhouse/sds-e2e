@@ -166,7 +166,7 @@ func CreateVM(ctx context.Context,
 			OsType:                           v1alpha2.OsType("Generic"),
 			Bootloader:                       v1alpha2.BootloaderType("BIOS"),
 			VirtualMachineIPAddressClaimName: vmClaim.Name,
-			CPU:                              v1alpha2.CPUSpec{Cores: cpu},
+			CPU:                              v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%"},
 			Memory:                           v1alpha2.MemorySpec{Size: memory},
 			BlockDevices: []v1alpha2.BlockDeviceSpec{
 				{
