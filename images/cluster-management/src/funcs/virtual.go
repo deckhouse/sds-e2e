@@ -35,9 +35,9 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 	return vmList, nil
 }
 
-func ListCVMI(ctx context.Context, cl client.Client, namespaceName string) ([]CVMI, error) {
-	objs := v1alpha2.VirtualMachineImageList{}
-	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+func ListCVMI(ctx context.Context, cl client.Client) ([]CVMI, error) {
+	objs := v1alpha2.ClusterVirtualMachineImageList{}
+	opts := client.ListOption(&client.ListOptions{})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func CreateVM(ctx context.Context,
 
 	splittedUrl := strings.Split(url, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
-	CVMIList, err := ListCVMI(ctx, cl, namespaceName)
+	CVMIList, err := ListCVMI(ctx, cl)
 	if err != nil {
 		return err
 	}
