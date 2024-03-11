@@ -166,6 +166,7 @@ func CreateVMDFromCVMI(ctx context.Context, cl client.Client, namespaceName stri
 				StorageClassName: &storageClass,
 			},
 			DataSource: &v1alpha2.VMDDataSource{
+				Type: v1alpha2.DataSourceTypeClusterVirtualMachineImage,
 				ClusterVirtualMachineImage: &v1alpha2.DataSourceNamedRef{
 					Name: vmCVMI.Name,
 				},
