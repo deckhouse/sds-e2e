@@ -154,6 +154,33 @@ func CreateVMD(ctx context.Context, cl client.Client, namespaceName string, name
 	return vmDisk, nil
 }
 
+func CreateVMDFromCVMI(ctx context.Context, cl client.Client, namespaceName string, name string, storageClass string, sizeInGi int64, vmCVMI *v1alpha2.ClusterVirtualMachineImage) (*v1alpha2.VirtualMachineDisk, error) {
+	vmDisk := &v1alpha2.VirtualMachineDisk{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespaceName,
+		},
+		Spec: v1alpha2.VirtualMachineDiskSpec{
+			PersistentVolumeClaim: v1alpha2.VMDPersistentVolumeClaim{
+				Size:             resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
+				StorageClassName: &storageClass,
+			},
+			DataSource: &v1alpha2.VMDDataSource{
+				ClusterVirtualMachineImage: &v1alpha2.DataSourceNamedRef{
+					Name: vmCVMI.Name,
+				},
+			},
+		},
+	}
+
+	err := cl.Create(ctx, vmDisk)
+	if err != nil {
+		return nil, err
+	}
+
+	return vmDisk, nil
+}
+
 func CreateVM(ctx context.Context,
 	cl client.Client,
 	namespaceName string,
@@ -168,12 +195,13 @@ func CreateVM(ctx context.Context,
 
 	splittedUrl := strings.Split(url, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
+	vmCVMI := &v1alpha2.ClusterVirtualMachineImage{}
 	CVMIList, err := ListCVMI(ctx, cl, CVMIName)
 	if err != nil {
 		return err
 	}
 	if len(CVMIList) == 0 {
-		_, err := CreateCVMI(ctx, cl, CVMIName, url)
+		vmCVMI, err = CreateCVMI(ctx, cl, CVMIName, url)
 		if err != nil {
 			return err
 		}
@@ -199,7 +227,7 @@ func CreateVM(ctx context.Context,
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmSystemDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 32)
+		vmSystemDisk, err = CreateVMDFromCVMI(ctx, cl, namespaceName, vmdName, storageClass, 32, vmCVMI)
 		if err != nil {
 			return err
 		}
