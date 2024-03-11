@@ -206,6 +206,8 @@ func CreateVM(ctx context.Context,
 		if err != nil {
 			return err
 		}
+	} else {
+		vmCVMI.Name = CVMIList[0].Name
 	}
 
 	vmIPClaim := &v1alpha2.VirtualMachineIPAddressClaim{}
