@@ -16,8 +16,8 @@ type patchUInt32Value struct {
 	Value string `json:"value"`
 }
 
-func CreateSts(ctx context.Context, cl client.Client, namespaceName string, podsCount int) error {
-	for count := 0; count <= podsCount; count++ {
+func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsCount int) error {
+	for count := 0; count <= stsCount; count++ {
 		fs := corev1.PersistentVolumeFilesystem
 		storageClassName := "linstor-r2"
 		var replicas int32 = 3
