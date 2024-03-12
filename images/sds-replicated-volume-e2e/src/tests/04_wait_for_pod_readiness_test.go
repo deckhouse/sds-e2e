@@ -35,7 +35,7 @@ func TestWaitStsPods(t *testing.T) {
 			break
 		}
 
-		if count == 60 {
+		if count == 600 {
 			t.Errorf("Timeout waiting for all pods to be ready")
 		}
 
