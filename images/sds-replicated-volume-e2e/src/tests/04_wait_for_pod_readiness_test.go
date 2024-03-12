@@ -25,6 +25,7 @@ func TestWaitStsPods(t *testing.T) {
 			t.Error("Pod list error", err)
 		}
 		for _, item := range podList {
+			fmt.Printf("Pod: %s\n status: %s\n", item.Name, item.Phase)
 			if item.Phase != corev1.PodRunning {
 				allPodsReady = false
 			}
