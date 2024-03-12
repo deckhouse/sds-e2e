@@ -38,7 +38,7 @@ func TestWaitStsPods(t *testing.T) {
 			t.Errorf("Timeout waiting for all pods to be ready")
 		}
 
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 10)
 	}
 
 	time.Sleep(time.Second * 10)
