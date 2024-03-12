@@ -16,7 +16,9 @@ func TestWaitStsPods(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	for count := 0; count < 60; count++ {
+	tries := 600
+
+	for count := 0; count < tries; count++ {
 		fmt.Printf("Wait for all pods to be ready\n")
 
 		allPodsReady := true
@@ -35,11 +37,12 @@ func TestWaitStsPods(t *testing.T) {
 			break
 		}
 
-		if count == 600 {
+		time.Sleep(time.Second * 10)
+
+		if count == tries-1 {
 			t.Errorf("Timeout waiting for all pods to be ready")
 		}
 
-		time.Sleep(time.Second * 10)
 	}
 
 	time.Sleep(time.Second * 10)
