@@ -72,7 +72,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsC
 							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 							Resources: corev1.VolumeResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("10Gi"),
+									corev1.ResourceStorage: resource.MustParse("5Gi"),
 								},
 							},
 							StorageClassName: &storageClassName,
