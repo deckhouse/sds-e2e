@@ -17,7 +17,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
 	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "1.1Gi")
+		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "10.1Gi")
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
