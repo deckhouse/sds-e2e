@@ -7,6 +7,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+type Namespace struct {
+	Name string
+}
+
 func CreateNamespace(ctx context.Context, cl client.Client, namespaceName string) error {
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -25,4 +29,22 @@ func DeleteNamespace(ctx context.Context, cl client.Client, namespaceName string
 	}
 
 	return cl.Delete(ctx, namespace)
+}
+
+func ListNamespace(ctx context.Context, cl client.Client, namespaceName string, namespaceSearch string) ([]Namespace, error) {
+	objs := corev1.NamespaceList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	err := cl.List(ctx, &objs, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	namespaceList := []Namespace{}
+	for _, item := range objs.Items {
+		if namespaceSearch == "" || namespaceSearch == item.Name {
+			namespaceList = append(namespaceList, Namespace{Name: item.Name})
+		}
+	}
+
+	return namespaceList, nil
 }

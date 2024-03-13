@@ -42,7 +42,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsC
 								Name:         "flog-generator",
 								Command:      []string{"/bin/sh"},
 								Args:         []string{"-c", "/srv/flog/run.sh 2>&1 | tee -a /var/log/flog/fake.log"},
-								Env:          []corev1.EnvVar{{Name: "FLOG_BATCH_SIZE", Value: "1097"}, {Name: "FLOG_TIME_INTERVAL", Value: "1"}},
+								Env:          []corev1.EnvVar{{Name: "FLOG_BATCH_SIZE", Value: "2048000"}, {Name: "FLOG_TIME_INTERVAL", Value: "1"}},
 								VolumeMounts: []corev1.VolumeMount{{Name: "flog-pv", MountPath: "/var/log/flog"}},
 							},
 							{
@@ -72,7 +72,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsC
 							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 							Resources: corev1.VolumeResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("1Gi"),
+									corev1.ResourceStorage: resource.MustParse("10Gi"),
 								},
 							},
 							StorageClassName: &storageClassName,
