@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
 	"time"
@@ -23,7 +22,7 @@ func TestDeleteNamespace(t *testing.T) {
 	tries := 600
 
 	for count := 0; count < tries; count++ {
-		fmt.Printf("Wait for namespace %s to be deleted\n", testNamespace)
+		//		fmt.Printf("Wait for namespace %s to be deleted\n", testNamespace)
 
 		namespaceList, err := funcs.ListNamespace(ctx, cl, testNamespace)
 		if err != nil {

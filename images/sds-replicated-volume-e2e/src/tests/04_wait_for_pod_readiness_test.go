@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	corev1 "k8s.io/api/core/v1"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
@@ -19,7 +18,7 @@ func TestWaitStsPods(t *testing.T) {
 	tries := 600
 
 	for count := 0; count < tries; count++ {
-		fmt.Printf("Wait for all pods to be ready\n")
+		//		fmt.Printf("Wait for all pods to be ready\n")
 
 		allPodsReady := true
 		podList, err := funcs.ListPods(ctx, cl, testNamespace)

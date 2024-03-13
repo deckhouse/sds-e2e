@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"fmt"
 	"sds-replicated-volume-e2e/funcs"
 	"testing"
 	"time"
@@ -17,14 +16,14 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
 	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "10.1Gi")
+		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "5.1Gi")
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
 	}
 
 	for count := 0; count < 60; count++ {
-		fmt.Printf("Wait for all pvc to change size\n")
+		//		fmt.Printf("Wait for all pvc to change size\n")
 
 		allPvcChanged := true
 		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
