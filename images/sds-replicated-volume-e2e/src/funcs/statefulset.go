@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const stsCount = 40
+const stsCount = 50
 const pvSize = "5Gi"
 
 type patchUInt32Value struct {
@@ -45,7 +45,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string) erro
 								Name:         "flog-generator",
 								Command:      []string{"/bin/sh"},
 								Args:         []string{"-c", "/srv/flog/run.sh 2>&1 | tee -a /var/log/flog/fake.log"},
-								Env:          []corev1.EnvVar{{Name: "FLOG_BATCH_SIZE", Value: "512000"}, {Name: "FLOG_TIME_INTERVAL", Value: "1"}},
+								Env:          []corev1.EnvVar{{Name: "FLOG_BATCH_SIZE", Value: "1024000"}, {Name: "FLOG_TIME_INTERVAL", Value: "1"}},
 								VolumeMounts: []corev1.VolumeMount{{Name: "flog-pv", MountPath: "/var/log/flog"}},
 							},
 							{
