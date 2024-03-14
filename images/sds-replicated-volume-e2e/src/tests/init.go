@@ -14,6 +14,8 @@ import (
 )
 
 const testNamespace = "d8-sds-replicated-volume-e2e-test"
+const stsCount = 15
+const pvSize = "5Gi"
 
 func NewKubeClient() (client.Client, error) {
 	var config *rest.Config
