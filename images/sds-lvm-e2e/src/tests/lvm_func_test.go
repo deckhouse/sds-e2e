@@ -4,6 +4,7 @@ import (
 	"sds-lvm-e2e/funcs"
 	"strconv"
 	"testing"
+	"time"
 )
 
 // worker-1
@@ -43,7 +44,7 @@ func BenchmarkCreateThinLVSerial(b *testing.B) {
 }
 
 func BenchmarkDeleteThinLVSerial(b *testing.B) {
-	b.N = 30
+	b.N = 20
 	for i := 0; i < b.N; i++ {
 		command, err := funcs.RemoveLV("new", strconv.Itoa(i))
 		if err != nil {
@@ -56,7 +57,7 @@ func BenchmarkDeleteThinLVSerial(b *testing.B) {
 func BenchmarkCreateThinLVParallel(b *testing.B) {
 	var i int
 	b.SetParallelism(100)
-	b.N = 30
+	b.N = 20
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			i++
@@ -72,7 +73,7 @@ func BenchmarkCreateThinLVParallel(b *testing.B) {
 func BenchmarkDeleteThinLVParallel(b *testing.B) {
 	var i int
 	b.SetParallelism(100)
-	b.N = 30
+	b.N = 20
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			i++
@@ -86,8 +87,8 @@ func BenchmarkDeleteThinLVParallel(b *testing.B) {
 }
 
 func BenchmarkCreateThickLVSerial(b *testing.B) {
-	b.N = 30
-	for i := 0; i < b.N; i++ {
+	b.N = 20
+	for i := 1; i <= b.N; i++ {
 		command, err := funcs.CreateThickLogicalVolume("new", strconv.Itoa(i), "1G")
 		if err != nil {
 			b.Log(command)
@@ -97,8 +98,8 @@ func BenchmarkCreateThickLVSerial(b *testing.B) {
 }
 
 func BenchmarkDeleteThickLVSerial(b *testing.B) {
-	b.N = 30
-	for i := 0; i < b.N; i++ {
+	b.N = 20
+	for i := 1; i <= b.N; i++ {
 		command, err := funcs.RemoveLV("new", strconv.Itoa(i))
 		if err != nil {
 			b.Log(command)
@@ -109,34 +110,73 @@ func BenchmarkDeleteThickLVSerial(b *testing.B) {
 
 func BenchmarkCreateThickLVParallel(b *testing.B) {
 	var i int
-	b.SetParallelism(100)
-	b.N = 30
+	//b.SetParallelism(100)
+	b.N = 20
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			i++
+			b.Log("Create=", i)
 			command, err := funcs.CreateThickLogicalVolume("new", strconv.Itoa(i), "1G")
 			if err != nil {
 				b.Log(command)
 				b.Error(err)
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
 }
 
 func BenchmarkDeleteThickLVParallel(b *testing.B) {
 	var i int
-	b.SetParallelism(100)
-	b.N = 30
+	//b.SetParallelism(100)
+	b.N = 20
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			i++
+			b.Log("Delete=", i)
 			command, err := funcs.RemoveLV("new", strconv.Itoa(i))
 			if err != nil {
 				b.Log(command)
 				b.Error(err)
 			}
+			time.Sleep(100 * time.Millisecond)
 		}
 	})
+}
+
+func BenchmarkExtendThickLVParallel(b *testing.B) {
+	var i int
+	b.SetParallelism(100)
+	b.N = 20
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			i++
+			b.Log("Extend " + strconv.Itoa(i))
+			commandExtend, err := funcs.ExtendLV("2G", "new", strconv.Itoa(i))
+			if err != nil {
+				b.Log(commandExtend)
+				b.Error(err)
+			}
+		}
+	})
+}
+
+func BenchmarkCreateAndExtendLVSerial(b *testing.B) {
+	b.N = 20
+	for i := 1; i <= b.N; i++ {
+		b.Log("Create " + strconv.Itoa(i))
+		command, err := funcs.CreateThickLogicalVolume("new", strconv.Itoa(i), "1G")
+		if err != nil {
+			b.Log(command)
+			b.Error(err)
+		}
+		b.Log("Extend " + strconv.Itoa(i))
+		commandExtend, err := funcs.ExtendLV("1.8G", "new", strconv.Itoa(i))
+		if err != nil {
+			b.Log(commandExtend)
+			b.Error(err)
+		}
+	}
 }
 
 func TestRemoveVGLocal(t *testing.T) {

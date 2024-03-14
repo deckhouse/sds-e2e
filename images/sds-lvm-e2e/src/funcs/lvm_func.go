@@ -105,6 +105,20 @@ func CreateThickLogicalVolume(vgName, lvName, size string) (string, error) {
 	return cmd.String(), nil
 }
 
+func ExtendLV(size, vgName, lvName string) (string, error) {
+	args := []string{"-L", size, fmt.Sprintf("/dev/%s/%s", vgName, lvName)}
+	cmd := exec.Command("lvextend", args...)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return cmd.String(), fmt.Errorf("unable to run cmd: %s, err: %w, stderr: %s", cmd.String(), err, stderr.String())
+	}
+
+	return cmd.String(), nil
+}
+
 func RemoveLV(vgName, lvName string) (string, error) {
 	args := []string{fmt.Sprintf("/dev/%s/%s", vgName, lvName), "-y"}
 	cmd := exec.Command("lvremove", args...)
