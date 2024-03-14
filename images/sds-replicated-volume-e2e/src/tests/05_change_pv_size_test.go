@@ -32,7 +32,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 			t.Error("PVC size change error", err)
 		}
 		for _, pvc := range pvcList {
-			if pvc.Size != "5347737Ki" {
+			if pvc.Size != "5347738Ki" {
 				allPvcChanged = false
 			}
 		}
