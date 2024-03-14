@@ -14,7 +14,7 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreateSts(ctx, cl, testNamespace, 50)
+	err = funcs.CreateSts(ctx, cl, testNamespace)
 	if err != nil {
 		t.Error("sts creation error", err)
 	}

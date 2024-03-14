@@ -10,13 +10,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const stsCount = 15
+const pvSize = "5Gi"
+
 type patchUInt32Value struct {
 	Op    string `json:"op"`
 	Path  string `json:"path"`
 	Value string `json:"value"`
 }
 
-func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsCount int) error {
+func CreateSts(ctx context.Context, cl client.Client, namespaceName string) error {
 	for count := 0; count <= stsCount; count++ {
 		fs := corev1.PersistentVolumeFilesystem
 		storageClassName := "linstor-r2"
@@ -72,7 +75,7 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string, stsC
 							AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 							Resources: corev1.VolumeResourceRequirements{
 								Requests: corev1.ResourceList{
-									corev1.ResourceStorage: resource.MustParse("5Gi"),
+									corev1.ResourceStorage: resource.MustParse(pvSize),
 								},
 							},
 							StorageClassName: &storageClassName,
