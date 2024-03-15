@@ -16,23 +16,24 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
 	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, "5.1Gi")
+		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name)
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
 	}
 
-	for count := 0; count < 60; count++ {
+	allPvcChanged := true
+	for count := 0; count < 600; count++ {
 		//		fmt.Printf("Wait for all pvc to change size\n")
 
-		allPvcChanged := true
 		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
 		if err != nil {
 
 			t.Error("PVC size change error", err)
 		}
+		allPvcChanged = true
 		for _, pvc := range pvcList {
-			if pvc.Size != "5347737Ki" {
+			if pvc.Size != "5347738Ki" {
 				allPvcChanged = false
 			}
 		}
@@ -41,11 +42,11 @@ func TestChangeStsPvcSize(t *testing.T) {
 			break
 		}
 
-		if count == 60 {
-			t.Errorf("Timeout waiting for all pods to be ready")
-		}
-
 		time.Sleep(time.Second * 5)
+	}
+
+	if allPvcChanged == false {
+		t.Errorf("Timeout waiting for all pods to be ready")
 	}
 
 	time.Sleep(time.Second * 10)

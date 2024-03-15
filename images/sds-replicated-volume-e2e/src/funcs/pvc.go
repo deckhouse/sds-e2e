@@ -14,6 +14,8 @@ type pvcList struct {
 	Size string
 }
 
+const pvResizedSize = "5.1Gi"
+
 func ListPvcs(ctx context.Context, cl client.Client, namespaceName string) ([]pvcList, error) {
 	objs := corev1.PersistentVolumeClaimList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
@@ -30,11 +32,11 @@ func ListPvcs(ctx context.Context, cl client.Client, namespaceName string) ([]pv
 	return pvcs, nil
 }
 
-func ChangePvcSize(ctx context.Context, cl client.Client, namespaceName string, pvcName string, newSize string) error {
+func ChangePvcSize(ctx context.Context, cl client.Client, namespaceName string, pvcName string) error {
 	payload := []patchUInt32Value{{
 		Op:    "replace",
 		Path:  "/spec/resources/requests/storage",
-		Value: newSize,
+		Value: pvResizedSize,
 	}}
 	payloadBytes, _ := json.Marshal(payload)
 	err := cl.Patch(ctx,
