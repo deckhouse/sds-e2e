@@ -34,7 +34,6 @@ func CreatePVC(ctx context.Context, cl client.Client, name, storageClassName, si
 		name = name + NamePrefixBlock
 	} else {
 		pvm = v1.PersistentVolumeFilesystem
-		name = name + NamePrefixFS
 	}
 
 	pvc := v1.PersistentVolumeClaim{

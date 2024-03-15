@@ -38,17 +38,17 @@ func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, bloc
 		}
 		vms = append(vms, vm)
 		vds = nil
-		name = name + NamePrefixFS
 	}
 
 	var cs []v1.Container
 	c := v1.Container{
-		Name:          "nginx-container",
-		Image:         "nginx",
-		VolumeDevices: vds,
-		VolumeMounts:  vms,
-		Command:       command,
-		Args:          args,
+		Name:            "nginx-container",
+		Image:           "nginx",
+		VolumeDevices:   vds,
+		VolumeMounts:    vms,
+		Command:         command,
+		Args:            args,
+		ImagePullPolicy: v1.PullIfNotPresent,
 	}
 	cs = append(cs, c)
 
@@ -100,6 +100,90 @@ func DeletePod(ctx context.Context, cl client.Client, name string) error {
 		return err
 	}
 	return nil
+}
+
+func GetPodStatusPhase(ctx context.Context, cl client.Client, name string) (v1.PodPhase, error) {
+	pod := v1.Pod{}
+
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pod)
+	if err != nil {
+		return "", err
+	}
+
+	return pod.Status.Phase, nil
+}
+
+func GetPVCs(ctx context.Context, cl client.Client) (map[string]v1.PersistentVolumeClaim, error) {
+	list := &v1.PersistentVolumeClaimList{}
+	err := cl.List(ctx, list)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]v1.PersistentVolumeClaim, len(list.Items))
+	for _, pvc := range list.Items {
+		res[pvc.Name] = pvc
+	}
+
+	return res, nil
+}
+
+func GetPods(ctx context.Context, cl client.Client) (map[string]v1.Pod, error) {
+	list := &v1.PodList{}
+	err := cl.List(ctx, list)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make(map[string]v1.Pod, len(list.Items))
+	for _, pod := range list.Items {
+		res[pod.Name] = pod
+	}
+
+	return res, nil
+}
+
+func GetPVCStatusPhase(ctx context.Context, cl client.Client, name string) (v1.PersistentVolumeClaimPhase, error) {
+	pvc := v1.PersistentVolumeClaim{}
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pvc)
+	if err != nil {
+		return "", err
+	}
+
+	return pvc.Status.Phase, nil
+}
+
+func IsPVCDeleted(ctx context.Context, cl client.Client, name string) (bool, error) {
+	pvc := v1.PersistentVolumeClaim{}
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pvc)
+	if err != nil && kerrors.IsNotFound(err) {
+		return true, err
+	}
+
+	return false, err
+}
+
+func IsPodDeleted(ctx context.Context, cl client.Client, name string) (bool, error) {
+	pod := v1.Pod{}
+
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pod)
+	if err != nil && kerrors.IsNotFound(err) {
+		return true, err
+	}
+
+	return false, err
 }
 
 func WaitPodStatus(ctx context.Context, cl client.Client, name string) (string, error) {
