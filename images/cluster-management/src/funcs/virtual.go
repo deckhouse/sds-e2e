@@ -256,6 +256,7 @@ func CreateVM(ctx context.Context,
 			Labels:    map[string]string{"vm": "linux", "service": "v1"},
 		},
 		Spec: v1alpha2.VirtualMachineSpec{
+			EnableParavirtualization:         true,
 			RunPolicy:                        v1alpha2.RunPolicy("AlwaysOn"),
 			OsType:                           v1alpha2.OsType("Generic"),
 			Bootloader:                       v1alpha2.BootloaderType("BIOS"),
@@ -278,30 +279,10 @@ func CreateVM(ctx context.Context,
 package_update: true
 packages:
 - qemu-guest-agent
-- nginx
-write_files:
-- path: /usr/scripts/genpage_script.sh
-  permissions: "0755"
-  content: |
-	#!/bin/bash
-
-	cat > /var/www/html/index.html<<EOF
-	<!DOCTYPE html>
-	<html>
-	<head>
-	<title>Welcome to $(hostname)<title>
-	</head>
-	<body>
-	<h1>Welcome to nginx on server $(hostname) !</h1>
-	</body>
-	</html>
-	EOF
 runcmd:
 - [ hostnamectl, set-hostname, %s ]
 - [ systemctl, daemon-reload ]
 - [ systemctl, enable, --now, qemu-guest-agent.service ]
-- [ /usr/scripts/genpage_script.sh ]
-- [ systemctl, enable, --now, nginx ]
 user: user
 password: user
 ssh_pwauth: True
