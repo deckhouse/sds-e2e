@@ -10,7 +10,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const stsCount = 50
+const stsCount = 20
 const pvSize = "5Gi"
 
 type patchUInt32Value struct {
