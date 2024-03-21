@@ -40,6 +40,15 @@ func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, bloc
 		vds = nil
 	}
 
+	//memory, err := resource.ParseQuantity("50Mi")
+	//if err != nil {
+	//	return "", err
+	//}
+	//
+	//rq := map[v1.ResourceName]resource.Quantity{
+	//	v1.ResourceMemory: memory,
+	//}
+
 	var cs []v1.Container
 	c := v1.Container{
 		Name:            "nginx-container",
@@ -49,6 +58,9 @@ func CreatePod(ctx context.Context, cl client.Client, name, pvcName string, bloc
 		Command:         command,
 		Args:            args,
 		ImagePullPolicy: v1.PullIfNotPresent,
+		//Resources: v1.ResourceRequirements{
+		//	Requests: rq,
+		//},
 	}
 	cs = append(cs, c)
 
