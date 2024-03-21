@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"sds-replicated-volume-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const testNamespace = "d8-sds-replicated-volume-e2e-test"
@@ -21,16 +23,10 @@ func NewKubeClient() (client.Client, error) {
 	var config *rest.Config
 	var err error
 
+	logf.SetLogger(logr.Logger{})
+
 	kubeconfigPath := os.Getenv("kubeconfig")
-	//	if kubeconfigPath == "" {
-	//		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//	} else {
-	//		config = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	//			clientcmd.NewDefaultClientConfigLoadingRules(),
-	//			&clientcmd.ConfigOverrides{},
-	//		)
-	//	}
 
 	if err != nil {
 		return nil, err
@@ -56,6 +52,7 @@ func NewKubeClient() (client.Client, error) {
 
 	clientOpts := client.Options{
 		Scheme: scheme,
+		Cache:  nil,
 	}
 
 	return client.New(config, clientOpts)
