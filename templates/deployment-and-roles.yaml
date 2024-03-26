@@ -1,0 +1,129 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: d8-sds-e2e-test
+  namespace: d8-sds-e2e-test
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      component: d8-sds-e2e-test
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        component: d8-sds-e2e-test
+    spec:
+      containers:
+        - command:
+            - sleep
+            - infinity
+          image: golang:1.21.3-bullseye
+          imagePullPolicy: Always
+          name: d8-sds-e2e-test
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /app
+              name: d8-sds-e2e-test
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: registrysecret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: d8-sds-e2e-test
+      serviceAccountName: d8-sds-e2e-test
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: d8-sds-e2e-test
+          persistentVolumeClaim:
+            claimName: d8-sds-e2e-test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: d8-sds-e2e-test
+  namespace: d8-sds-e2e-test
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: d8-sds-e2e-test
+  namespace: d8-sds-e2e-test
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: d8:d8-sds-e2e-test
+rules:
+  - verbs:
+      - get
+      - list
+      - watch
+    apiGroups:
+      - virtualization.deckhouse.io
+    resources:
+      - ""
+  - verbs:
+      - "*"
+    apiGroups:
+      - "*"
+    resources:
+      - "*"
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: d8:d8-sds-e2e-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: d8:d8-sds-e2e-test
+subjects:
+  - kind: ServiceAccount
+    name: d8-sds-e2e-test
+    namespace: default
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: d8:d8-sds-e2e-test
+  namespace: d8-sds-e2e-test
+rules:
+  - verbs:
+      - get
+      - list
+    apiGroups:
+      - virtualization.deckhouse.io
+    resources:
+      - "*"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: d8:d8-sds-e2e-test
+  namespace: d8-sds-e2e-test
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: d8:d8-sds-e2e-test
+subjects:
+  - kind: ServiceAccount
+    name: d8-sds-e2e-test
+    namespace: d8-sds-e2e-test

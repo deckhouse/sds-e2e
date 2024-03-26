@@ -1,9 +1,9 @@
 package funcs
 
 import (
-	"cluster-management/v1alpha2"
 	"context"
 	"fmt"
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
