@@ -8,9 +8,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
-const stsCount = 20
+const stsCount = 50
 const pvSize = "5Gi"
 
 type patchUInt32Value struct {
@@ -89,7 +90,9 @@ func CreateSts(ctx context.Context, cl client.Client, namespaceName string) erro
 		fmt.Printf("Creating sts number %d\n", count)
 		err := cl.Create(ctx, sts)
 		if err != nil {
-			return err
+			if !strings.Contains(err.Error(), "already exists") {
+				return err
+			}
 		}
 	}
 
