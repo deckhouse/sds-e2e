@@ -53,5 +53,7 @@ func main() {
 
 	err = funcs.CreateVM(ctx, cl, namespaceName, "vm1", "10.10.10.180", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img")
 	fmt.Printf("err: %v\n", err)
+	err = funcs.CreateVM(ctx, cl, namespaceName, "vm2", "10.10.10.181", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img")
+	fmt.Printf("err: %v\n", err)
 
 }
