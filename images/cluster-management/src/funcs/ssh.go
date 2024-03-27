@@ -27,7 +27,7 @@ func RemoteRun(user string, addr string, password string, cmd string) (string, e
 		Auth: []ssh.AuthMethod{
 			ssh.Password(password),
 		},
-		Timeout: 3600,
+		Timeout: 0,
 	}
 	// Connect
 	client, err := ssh.Dial("tcp", net.JoinHostPort(addr, "22"), config)
