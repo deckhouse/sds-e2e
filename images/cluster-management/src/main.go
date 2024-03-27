@@ -60,7 +60,8 @@ func main() {
 	fmt.Printf("err: %v\n", err)
 
 	licenseKey := os.Getenv("licensekey")
-	sshCommand := fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io && mkdir -p .ssh && sudo docker run --pull=always -t -v '/home/tfadm/config.yml:/config.yml' -v '/home/tfadm/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-password=user --config=/config.yml", licenseKey)
+	sshCommand := fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey)
+	//" && mkdir -p .ssh && sudo docker run --pull=always -t -v '/home/tfadm/config.yml:/config.yml' -v '/home/tfadm/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-password=user --config=/config.yml", licenseKey)
 
 	output, err = funcs.RemoteRun("user", "10.10.10.181", "user", sshCommand)
 	fmt.Printf("output: %v\n", output)
