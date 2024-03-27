@@ -1,7 +1,7 @@
 package test
 
 import (
-	"cluster-management/v1alpha2"
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
