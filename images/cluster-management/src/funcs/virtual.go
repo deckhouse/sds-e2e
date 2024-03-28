@@ -291,7 +291,7 @@ chpasswd: { expire: False }
 sudo: ALL=(ALL) NOPASSWD:ALL
 chpasswd: { expire: False }
 ssh_authorized_keys:
-  - ssh-rsa %s
+  - %s
 `, vmName, sshPubKey),
 			},
 		},
