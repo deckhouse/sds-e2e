@@ -190,7 +190,8 @@ func CreateVM(ctx context.Context,
 	cpu int,
 	memory string,
 	storageClass string,
-	url string) error {
+	url string,
+	sshPubKey string) error {
 
 	fmt.Printf("Creating VM %s\n", vmName)
 
@@ -289,7 +290,9 @@ ssh_pwauth: True
 chpasswd: { expire: False }
 sudo: ALL=(ALL) NOPASSWD:ALL
 chpasswd: { expire: False }
-`, vmName),
+ssh_authorized_keys:
+  - ssh-rsa %s
+`, vmName, sshPubKey),
 			},
 		},
 	}
