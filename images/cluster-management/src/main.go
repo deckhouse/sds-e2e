@@ -83,7 +83,9 @@ func main() {
 		fmt.Printf(item.Name, item.Status, item.Status == v1alpha2.MachineRunning)
 	}
 
+	fmt.Printf("checked if all VM up\n")
 	if allVMUp {
+		fmt.Printf("all VM up\n")
 		licenseKey := os.Getenv("licensekey")
 		fmt.Printf(licenseKey)
 
