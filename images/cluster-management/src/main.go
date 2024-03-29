@@ -98,7 +98,7 @@ func main() {
 			log.Fatal(err)
 		}
 		defer client.Close()
-		out, err := client.Run("ls - l /")
+		out, err := client.Run("ls -l /")
 		if err != nil {
 			log.Fatal(err)
 		}
