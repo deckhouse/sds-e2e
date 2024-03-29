@@ -11,7 +11,8 @@ import (
 )
 
 type VM struct {
-	Name string
+	Name   string
+	Status string
 }
 
 type VMD struct {
@@ -36,7 +37,7 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 
 	vmList := []VM{}
 	for _, item := range objs.Items {
-		vmList = append(vmList, VM{Name: item.Name})
+		vmList = append(vmList, VM{Name: item.Name, Status: string(item.Status.Phase)})
 	}
 
 	return vmList, nil
