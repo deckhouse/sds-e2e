@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"log"
 	"os"
 )
@@ -93,7 +94,7 @@ func main() {
 
 	vmList, err = funcs.ListVM(ctx, cl, namespaceName)
 	for _, item := range vmList {
-		fmt.Printf(item.Name, item.Status)
+		fmt.Printf(item.Name, item.Status, item.Status == v1alpha2.MachineRunning)
 	}
 
 }
