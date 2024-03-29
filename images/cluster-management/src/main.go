@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
+	"github.com/melbahja/goph"
 	"log"
 	"os"
 )
@@ -66,13 +67,6 @@ func main() {
 	}
 	sshPubKeyString := string(sshPubKey)
 
-	sshPrivKey, err := os.ReadFile("./id_rsa_test")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	sshPrivKeyString := string(sshPrivKey)
-
 	err = funcs.CreateVM(ctx, cl, namespaceName, "vm1", "10.10.10.180", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
 	fmt.Printf("err: %v\n", err)
 	err = funcs.CreateVM(ctx, cl, namespaceName, "vm2", "10.10.10.181", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
@@ -90,22 +84,41 @@ func main() {
 	}
 
 	if allVMUp {
-		output, err := funcs.RemoteRun("user", "10.10.10.181", sshPrivKeyString, "ls -l /")
-		fmt.Printf("output: %v\n", output)
-		fmt.Printf("err: %v\n", err)
-
-		output, err = funcs.RemoteRun("user", "10.10.10.181", sshPrivKeyString, "sudo apt update && sudo apt -y install docker.io")
-		fmt.Printf("output: %v\n", output)
-		fmt.Printf("err: %v\n", err)
-
 		licenseKey := os.Getenv("licensekey")
 		fmt.Printf(licenseKey)
-		sshCommand := fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey)
+
+		auth, err := goph.Key("./id_rsa_test", "")
+		if err != nil {
+			log.Fatal(err)
+		}
+		client, err := goph.New("user", "10.10.10.181", auth)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer client.Close()
+		out, err := client.Run("ls - l /")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("output: %v\n", out)
+		fmt.Printf("err: %v\n", err)
+
+		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("output: %v\n", out)
+		fmt.Printf("err: %v\n", err)
+
+		out, err = client.Run(fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey))
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("output: %v\n", out)
+		fmt.Printf("err: %v\n", err)
+
 		//" && mkdir -p .ssh && sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-password=user --config=/config.yml", licenseKey
 
-		output, err = funcs.RemoteRun("user", "10.10.10.181", sshPrivKeyString, sshCommand)
-		fmt.Printf("output: %v\n", output)
-		fmt.Printf("err: %v\n", err)
 	}
 
 }

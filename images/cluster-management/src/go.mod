@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/deckhouse/virtualization/api v0.0.0-20240326113112-979c4f4f17b9
+	github.com/melbahja/goph v1.4.0
 	golang.org/x/crypto v0.16.0
 	k8s.io/api v0.29.2
 	k8s.io/apiextensions-apiserver v0.29.2
@@ -28,6 +29,7 @@ require (
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -36,6 +38,7 @@ require (
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pkg/sftp v1.13.5 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.12.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect
