@@ -102,22 +102,22 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %v\n", out)
-		fmt.Printf("err: %v\n", err)
+		fmt.Printf("output: %s\n", out)
+		fmt.Printf("err: %s\n", err)
 
 		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %v\n", out)
-		fmt.Printf("err: %v\n", err)
+		fmt.Printf("output: %s\n", out)
+		fmt.Printf("err: %s\n", err)
 
 		out, err = client.Run(fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey))
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %v\n", out)
-		fmt.Printf("err: %v\n", err)
+		fmt.Printf("output: %s\n", out)
+		fmt.Printf("err: %s\n", err)
 
 		//" && mkdir -p .ssh && sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-password=user --config=/config.yml", licenseKey
 
