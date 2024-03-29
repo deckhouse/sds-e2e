@@ -118,11 +118,16 @@ func main() {
 			log.Fatal(err)
 		}
 
+		err = client.Upload("id_rsa_test", "/home/user/.ssh/id_rsa_test")
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		for _, sshCommand := range []string{
 			"ls -l /",
 			"sudo apt update && sudo apt -y install docker.io",
 			fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
-			fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo `%s` > /home/user/.ssh/id_rsa_test", sshPubKeyString),
+			//			fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo `%s` > /home/user/.ssh/id_rsa_test", sshPubKeyString),
 			"sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa --config=/config.yml",
 		} {
 			out, err := client.Run(sshCommand)
