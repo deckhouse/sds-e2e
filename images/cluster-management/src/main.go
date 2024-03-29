@@ -136,12 +136,16 @@ func main() {
 		fmt.Printf("output: %s\n", out)
 		fmt.Printf("err: %s\n", err)
 
-		out, err = client.Run(fmt.Sprintf("sudo echo %s > /home/user/config.yaml", clusterConfigString))
+		fmt.Printf("writing config")
+
+		out, err = client.Run(fmt.Sprintf("sudo echo %s > /home/user/config.yml", clusterConfigString))
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("output: %s\n", out)
 		fmt.Printf("err: %s\n", err)
+
+		fmt.Printf("installation run")
 
 		out, err = client.Run("sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa --config=/config.yml")
 		if err != nil {
