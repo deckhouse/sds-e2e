@@ -12,13 +12,14 @@ import (
 	"net"
 )
 
-func RemoteRun(user string, addr string, key []byte, cmd string) (string, error) {
+func RemoteRun(user string, addr string, privateKey string, cmd string) (string, error) {
 	// privateKey could be read from a file, or retrieved from another storage
 	// source, such as the Secret Service / GNOME Keyring
-	privKey, err := ssh.ParsePrivateKey([]byte(key))
+	privKey, err := ssh.ParsePrivateKey([]byte(privateKey))
 	if err != nil {
 		return "", err
 	}
+
 	// Authentication
 	config := &ssh.ClientConfig{
 		User: user,
