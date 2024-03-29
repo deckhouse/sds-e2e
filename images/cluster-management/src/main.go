@@ -103,14 +103,14 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %s\n", out)
+		fmt.Printf("output: %s\n", fmt.Sprintf("%s", out))
 		fmt.Printf("err: %s\n", err)
 
 		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %s\n", out)
+		fmt.Printf("output: %s\n", fmt.Sprintf("%s", out))
 		fmt.Printf("err: %s\n", err)
 
 		out, err = client.Run(fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey))
