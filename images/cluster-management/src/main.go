@@ -93,6 +93,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		goph.DefaultTimeout = 0
 		client, err := goph.NewUnknown("user", "10.10.10.181", auth)
 		if err != nil {
 			log.Fatal(err)
