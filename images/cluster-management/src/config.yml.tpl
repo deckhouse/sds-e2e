@@ -25,9 +25,6 @@ deckhouse:
   configOverrides:
     global:
       modules:
-        # Template that will be used for system apps domains within the cluster.
-        # E.g., Grafana for %s.virtualmachines.local will be available as 'grafana.virtualmachines.local'.
-        # You can change it to your own or follow the steps in the guide and change it after installation.
         publicDomainTemplate: "%s.virtualmachines.local"
     userAuthn:
       controlPlaneConfigurator:
