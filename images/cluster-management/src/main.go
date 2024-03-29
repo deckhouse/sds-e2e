@@ -91,7 +91,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		client, err := goph.New("user", "10.10.10.181", auth)
+		client, err := goph.NewUnknown("user", "10.10.10.181", auth)
 		if err != nil {
 			log.Fatal(err)
 		}
