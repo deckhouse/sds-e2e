@@ -129,14 +129,14 @@ func main() {
 		fmt.Printf("output: %s\n", out)
 		fmt.Printf("err: %s\n", err)
 
-		out, err = client.Run(fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo %s > \"/home/user/.ssh/id_rsa_test\"", sshPubKeyString))
+		out, err = client.Run(fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo %s > /home/user/.ssh/id_rsa_test", sshPubKeyString))
 		if err != nil {
 			log.Fatal(err)
 		}
 		fmt.Printf("output: %s\n", out)
 		fmt.Printf("err: %s\n", err)
 
-		out, err = client.Run(fmt.Sprintf("sudo echo %s > \"/home/user/config.yaml\"", clusterConfigString))
+		out, err = client.Run(fmt.Sprintf("sudo echo %s > /home/user/config.yaml", clusterConfigString))
 		if err != nil {
 			log.Fatal(err)
 		}
