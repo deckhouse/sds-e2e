@@ -92,7 +92,7 @@ func main() {
 		registryDockerCfg := os.Getenv("registryDockerCfg")
 		fmt.Printf(licenseKey)
 
-		clusterConfig, err := os.ReadFile("config.yaml.tpl")
+		clusterConfig, err := os.ReadFile("config.yml.tpl")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -108,52 +108,30 @@ func main() {
 			log.Fatal(err)
 		}
 		defer client.Close()
-		out, err := client.Run("ls -l /")
+
+		err = os.WriteFile("config.yml", []byte(clusterConfigString), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
-
-		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
+		err = client.Upload("config.yml", "/home/user/config.yml")
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
 
-		out, err = client.Run(fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey))
-		if err != nil {
-			log.Fatal(err)
+		for _, sshCommand := range []string{
+			"ls -l /",
+			"sudo apt update && sudo apt -y install docker.io",
+			fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
+			fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo `%s` > /home/user/.ssh/id_rsa_test", sshPubKeyString),
+			"sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa --config=/config.yml",
+		} {
+			out, err := client.Run(sshCommand)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("output: %s\n", out)
+			fmt.Printf("err: %s\n", err)
 		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
-
-		out, err = client.Run(fmt.Sprintf("sudo mkdir -p /home/user/.ssh/ && sudo echo `%s` > /home/user/.ssh/id_rsa_test", sshPubKeyString))
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
-
-		fmt.Printf("writing config")
-		fmt.Printf("sudo echo `%s` > /home/user/config.yml", clusterConfigString)
-
-		out, err = client.Run(fmt.Sprintf("sudo cat << EOF > /home/user/config.yml\n%s\nEOF ", clusterConfigString))
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
-
-		fmt.Printf("installation run")
-
-		out, err = client.Run("sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa --config=/config.yml")
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Printf("output: %s\n", out)
-		fmt.Printf("err: %s\n", err)
 
 	}
 
