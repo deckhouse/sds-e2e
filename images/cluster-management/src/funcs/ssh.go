@@ -12,13 +12,13 @@ import (
 	"net"
 )
 
-func RemoteRun(user string, addr string, password string, cmd string) (string, error) {
+func RemoteRun(user string, addr string, key []byte, cmd string) (string, error) {
 	// privateKey could be read from a file, or retrieved from another storage
 	// source, such as the Secret Service / GNOME Keyring
-	//key, err := ssh.ParsePrivateKey([]byte(privateKey))
-	//if err != nil {
-	//	return "", err
-	//}
+	privKey, err := ssh.ParsePrivateKey([]byte(key))
+	if err != nil {
+		return "", err
+	}
 	// Authentication
 	config := &ssh.ClientConfig{
 		User: user,
@@ -26,13 +26,13 @@ func RemoteRun(user string, addr string, password string, cmd string) (string, e
 		// as clientConfig is non-permissive by default
 		// you can set ssh.InsercureIgnoreHostKey to allow any host
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		//Auth: []ssh.AuthMethod{
-		//	ssh.PublicKeys(key),
-		//},
-		//alternatively, you could use a password
 		Auth: []ssh.AuthMethod{
-			ssh.Password(password),
+			ssh.PublicKeys(privKey),
 		},
+		//alternatively, you could use a password
+		//Auth: []ssh.AuthMethod{
+		//	ssh.Password(password),
+		//},
 		Timeout: 0,
 	}
 	// Connect
