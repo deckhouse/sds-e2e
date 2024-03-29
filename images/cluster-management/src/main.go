@@ -53,7 +53,7 @@ func main() {
 		fmt.Printf("%s\n", item.Name)
 	}
 
-	if _, err := os.Stat("/path/to/whatever"); err == nil {
+	if _, err := os.Stat("./id_rsa_test"); err == nil {
 		fmt.Printf("RSA keys exists")
 	} else if errors.Is(err, os.ErrNotExist) {
 		funcs.GenerateRSAKeys("./id_rsa_test", "./id_rsa_test.pub")
@@ -88,5 +88,12 @@ func main() {
 	fmt.Printf("err: %v\n", err)
 	err = funcs.CreateVM(ctx, cl, namespaceName, "vm2", "10.10.10.181", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
 	fmt.Printf("err: %v\n", err)
+	err = funcs.CreateVM(ctx, cl, namespaceName, "vm3", "10.10.10.182", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
+	fmt.Printf("err: %v\n", err)
+
+	vmList, err = funcs.ListVM(ctx, cl, namespaceName)
+	for _, item := range vmList {
+		fmt.Printf(item.Name, item.Status)
+	}
 
 }
