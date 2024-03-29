@@ -139,7 +139,7 @@ func main() {
 		fmt.Printf("writing config")
 		fmt.Printf("sudo echo `%s` > /home/user/config.yml", clusterConfigString)
 
-		out, err = client.Run(fmt.Sprintf("sudo cat << EOF \n%s\nEOF > /home/user/config.yml", clusterConfigString))
+		out, err = client.Run(fmt.Sprintf("sudo cat << EOF > /home/user/config.yml\n%s\nEOF ", clusterConfigString))
 		if err != nil {
 			log.Fatal(err)
 		}
