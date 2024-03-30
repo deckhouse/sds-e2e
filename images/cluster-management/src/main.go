@@ -26,7 +26,34 @@ import (
 	"github.com/melbahja/goph"
 	"log"
 	"os"
+	"strconv"
+	"time"
 )
+
+const (
+	namespaceName = "test1"
+)
+
+func checkAndGetSSHKeys() (sshPubKeyString string) {
+	if _, err := os.Stat("./id_rsa_test"); err == nil {
+		fmt.Printf("RSA keys exists")
+	} else if errors.Is(err, os.ErrNotExist) {
+		funcs.GenerateRSAKeys("./id_rsa_test", "./id_rsa_test.pub")
+	}
+
+	sshPubKey, err := os.ReadFile("./id_rsa_test.pub")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return string(sshPubKey)
+}
+
+func logFatalIfError(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func main() {
 	_, err := test.NewKubeClient()
@@ -40,8 +67,6 @@ func main() {
 	//		t.Error("kubeclient error", err)
 	//	}
 
-	namespaceName := "test1"
-
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
 	if err != nil {
 		if err.Error() != fmt.Sprintf("namespaces \"%s\" already exists", namespaceName) {
@@ -50,99 +75,80 @@ func main() {
 		}
 	}
 
-	vmList, err := funcs.ListVM(ctx, cl, namespaceName)
-	for _, item := range vmList {
-		fmt.Printf("%s\n", item.Name)
+	sshPubKeyString := checkAndGetSSHKeys()
+
+	for _, vmItem := range [][]string{
+		{"vm1", "10.10.10.180", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+		{"vm2", "10.10.10.181", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+		{"vm3", "10.10.10.182", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+	} {
+		cpuCount, err := strconv.Atoi(vmItem[2])
+		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
+		logFatalIfError(err)
 	}
 
-	if _, err := os.Stat("./id_rsa_test"); err == nil {
-		fmt.Printf("RSA keys exists")
-	} else if errors.Is(err, os.ErrNotExist) {
-		funcs.GenerateRSAKeys("./id_rsa_test", "./id_rsa_test.pub")
-	}
-
-	sshPubKey, err := os.ReadFile("./id_rsa_test.pub")
-	if err != nil {
-		log.Fatal(err)
-	}
-	sshPubKeyString := string(sshPubKey)
-
-	err = funcs.CreateVM(ctx, cl, namespaceName, "vm1", "10.10.10.180", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
-	fmt.Printf("err: %v\n", err)
-	err = funcs.CreateVM(ctx, cl, namespaceName, "vm2", "10.10.10.181", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
-	fmt.Printf("err: %v\n", err)
-	err = funcs.CreateVM(ctx, cl, namespaceName, "vm3", "10.10.10.182", 4, "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img", sshPubKeyString)
-	fmt.Printf("err: %v\n", err)
-
+	tries := 600
 	allVMUp := true
-	vmList, err = funcs.ListVM(ctx, cl, namespaceName)
-	for _, item := range vmList {
-		if item.Status != v1alpha2.MachineRunning {
-			allVMUp = false
-		}
-		fmt.Printf(item.Name, item.Status, item.Status == v1alpha2.MachineRunning)
-	}
 
-	fmt.Printf("checked if all VM up\n")
-	if allVMUp {
-		fmt.Printf("all VM up\n")
-		licenseKey := os.Getenv("licensekey")
-		fmt.Printf(licenseKey)
-
-		registryDockerCfg := os.Getenv("registryDockerCfg")
-		fmt.Printf(licenseKey)
-
-		clusterConfig, err := os.ReadFile("config.yml.tpl")
-		if err != nil {
-			log.Fatal(err)
-		}
-		clusterConfigString := fmt.Sprintf(string(clusterConfig), registryDockerCfg, "%s")
-
-		auth, err := goph.Key("./id_rsa_test", "")
-		if err != nil {
-			log.Fatal(err)
-		}
-		goph.DefaultTimeout = 0
-		client, err := goph.NewUnknown("user", "10.10.10.181", auth)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer client.Close()
-
-		err = os.WriteFile("config.yml", []byte(clusterConfigString), 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		err = client.Upload("config.yml", "/home/user/config.yml")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = client.Upload("id_rsa_test", "/home/user/.ssh/id_rsa_test")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		err = client.Upload("resources.yml", "/home/user/resources.yml")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		for _, sshCommand := range []string{
-			"ls -l /",
-			"sudo apt update && sudo apt -y install docker.io",
-			fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
-			"sudo docker run --pull=always -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml",
-			"sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml",
-		} {
-			out, err := client.Run(sshCommand)
-			if err != nil {
-				log.Fatal(err)
+	for count := 0; count < tries; count++ {
+		allVMUp = true
+		vmList, err := funcs.ListVM(ctx, cl, namespaceName)
+		logFatalIfError(err)
+		vmList, err = funcs.ListVM(ctx, cl, namespaceName)
+		logFatalIfError(err)
+		for _, item := range vmList {
+			if item.Status != v1alpha2.MachineRunning {
+				allVMUp = false
 			}
-			fmt.Printf("output: %s\n", out)
-			fmt.Printf("err: %s\n", err)
+			log.Printf("%s, #%v", item.Status, item.Status == v1alpha2.MachineRunning)
 		}
 
+		if allVMUp {
+			break
+		}
+
+		time.Sleep(time.Second * 10)
+
+		if count == tries-1 {
+			log.Fatal("Timeout waiting for all VMs to be ready")
+		}
 	}
 
+	licenseKey := os.Getenv("licensekey")
+	registryDockerCfg := os.Getenv("registryDockerCfg")
+	clusterConfig, err := os.ReadFile("config.yml.tpl")
+	logFatalIfError(err)
+	clusterConfigString := fmt.Sprintf(string(clusterConfig), registryDockerCfg, "%s")
+	err = os.WriteFile("config.yml", []byte(clusterConfigString), 0644)
+	logFatalIfError(err)
+
+	auth, err := goph.Key("./id_rsa_test", "")
+	logFatalIfError(err)
+
+	goph.DefaultTimeout = 0
+	client, err := goph.NewUnknown("user", "10.10.10.181", auth)
+	logFatalIfError(err)
+
+	defer client.Close()
+
+	for _, item := range [][]string{
+		{"config.yml", "/home/user/config.yml"},
+		{"id_rsa_test", "/home/user/.ssh/id_rsa_test"},
+		{"resources.yml", "/home/user/resources.yml"},
+	} {
+		err = client.Upload(item[0], item[1])
+		logFatalIfError(err)
+	}
+
+	for _, sshCommand := range []string{
+		"ls -l /",
+		"sudo apt update && sudo apt -y install docker.io",
+		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
+		"sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml",
+		"sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml",
+	} {
+		out, err := client.Run(sshCommand)
+		logFatalIfError(err)
+		log.Printf("output: %s\n", out)
+	}
 }
