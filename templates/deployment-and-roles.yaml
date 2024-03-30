@@ -52,7 +52,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+   d8-sds-e2e-test
 spec:
   accessModes:
     - ReadWriteOnce
@@ -65,7 +65,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+   d8-sds-e2e-test
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -98,7 +98,7 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: d8-sds-e2e-test
-    namespace: default
+    namespace: d8-sds-e2e-test
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
