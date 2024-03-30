@@ -151,6 +151,7 @@ func main() {
 	sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml")
 
 	for _, sshCommand := range sshCommandList {
+		log.Printf("command: %s", sshCommand)
 		out, err := client.Run(sshCommand)
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
