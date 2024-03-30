@@ -69,6 +69,7 @@ func nodeInstall(nodeIP string, installScript string, username string, auth goph
 	fmt.Printf("Install node %s\n", nodeIP)
 
 	out, err = nodeClient.Run(fmt.Sprintf("sudo -i | base64 -d <<< %s | bash", installScript))
+	fmt.Printf(string(out))
 	logFatalIfError(err)
 
 	nodeClient.Close()
