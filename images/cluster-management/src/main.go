@@ -37,14 +37,14 @@ const (
 )
 
 func logFatalIfError(err error, exclude ...string) {
-	if len(exclude) > 0 {
-		for _, excludeError := range exclude {
-			if err.Error() == excludeError {
-				return
+	if err != nil {
+		if len(exclude) > 0 {
+			for _, excludeError := range exclude {
+				if err.Error() == excludeError {
+					return
+				}
 			}
 		}
-	}
-	if err != nil {
 		log.Fatal(err)
 	}
 }
