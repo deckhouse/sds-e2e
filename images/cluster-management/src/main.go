@@ -113,7 +113,6 @@ func main() {
 			if item.Status != v1alpha2.MachineRunning {
 				allVMUp = false
 			}
-			log.Printf("%s, #%v", item.Status, item.Status == v1alpha2.MachineRunning)
 		}
 
 		if allVMUp {
