@@ -42,7 +42,8 @@ deckhouse:
     cniCilium:
       tunnelMode: VXLAN
     flantIntegration:
-      enable: false
+      kubeall:
+        host: fake.host
 ---
 # Section with the parameters of the static cluster.
 # https://deckhouse.io/documentation/v1/installing/configuration.html#staticclusterconfiguration
