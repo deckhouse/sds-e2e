@@ -152,7 +152,6 @@ func main() {
 	tries = 600
 	for count := 0; count < tries; count++ {
 		client, err = goph.NewUnknown("user", installWorkerNodeIp, auth)
-		logFatalIfError(err)
 		if err == nil {
 			break
 		}
@@ -166,10 +165,6 @@ func main() {
 	logFatalIfError(err)
 
 	defer client.Close()
-
-	out, err := client.Run("ls -l /")
-	fmt.Printf(string(out))
-	fmt.Printf(err.Error())
 
 	for _, item := range [][]string{
 		{"config.yml", "/home/user/config.yml"},
