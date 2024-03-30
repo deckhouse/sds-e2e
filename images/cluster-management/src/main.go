@@ -146,7 +146,22 @@ func main() {
 	logFatalIfError(err)
 
 	goph.DefaultTimeout = 0
-	client, err := goph.NewUnknown("user", installWorkerNodeIp, auth)
+
+	var client *goph.Client
+
+	tries = 600
+	for count := 0; count < tries; count++ {
+		client, err = goph.NewUnknown("user", installWorkerNodeIp, auth)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(10 * time.Second)
+
+		if count == tries-1 {
+			log.Fatal("Timeout waiting for installer VM to be ready")
+		}
+	}
 	logFatalIfError(err)
 
 	defer client.Close()
