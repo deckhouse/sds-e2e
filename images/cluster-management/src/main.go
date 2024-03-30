@@ -65,6 +65,7 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	client, err := goph.NewUnknown(username, nodeIP, auth)
+	fmt.Printf(err.Error())
 	logFatalIfError(err)
 	defer client.Close()
 
