@@ -27,12 +27,27 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	namespaceName = "test1"
 )
+
+func logFatalIfError(err error, exclude ...string) {
+	if len(exclude) > 0 {
+		for _, excludeError := range exclude {
+			if err.Error() == excludeError {
+				return
+			}
+		}
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+}
 
 func checkAndGetSSHKeys() (sshPubKeyString string) {
 	if _, err := os.Stat("./id_rsa_test"); err == nil {
@@ -48,17 +63,15 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 	return string(sshPubKey)
 }
 
-func logFatalIfError(err error, exclude ...string) {
-	if len(exclude) > 0 {
-		for _, excludeError := range exclude {
-			if err.Error() == excludeError {
-				return
-			}
-		}
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
+func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
+	client, err := goph.NewUnknown(username, nodeIP, auth)
+	logFatalIfError(err)
+	defer client.Close()
+
+	out, err = client.Run(fmt.Sprintf("sudo base64 -d <<< %s | bash", installScript))
+	logFatalIfError(err)
+
+	return out
 }
 
 func main() {
@@ -143,7 +156,7 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
-	masterClient, err := goph.NewUnknown("user", "10.10.10.181", auth)
+	masterClient, err := goph.NewUnknown("user", "10.10.10.180", auth)
 	logFatalIfError(err)
 	defer masterClient.Close()
 
@@ -161,4 +174,28 @@ func main() {
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
 	}
+
+	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
+	logFatalIfError(err)
+	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
+
+	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
+	logFatalIfError(err)
+
+	var wg sync.WaitGroup
+
+	for _, newNodeIP := range []string{"10.10.10.181", "10.10.10.182"} {
+		needInstall := true
+		for _, nodeIP := range nodeList {
+			if nodeIP == newNodeIP {
+				needInstall = false
+			}
+		}
+
+		if needInstall == true {
+			wg.Add(1)
+			go nodeInstall(newNodeIP, string(nodeInstallScript), "user", auth)
+		}
+	}
+	wg.Wait()
 }
