@@ -152,6 +152,7 @@ func main() {
 	tries = 600
 	for count := 0; count < tries; count++ {
 		client, err = goph.NewUnknown("user", installWorkerNodeIp, auth)
+		logFatalIfError(err)
 		if err == nil {
 			break
 		}
