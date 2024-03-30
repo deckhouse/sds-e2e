@@ -1,30 +1,5 @@
 ---
 apiVersion: deckhouse.io/v1
-kind: IngressNginxController
-metadata:
-  name: nginx
-spec:
-  annotationValidationEnabled: false
-  chaosMonkey: false
-  controllerVersion: "1.9"
-  disableHTTP2: false
-  hostPort:
-    httpPort: 80
-    httpsPort: 443
-    realIPHeader: X-Forwarded-For
-  hsts: false
-  ingressClass: nginx
-  inlet: HostPort
-  maxReplicas: 1
-  minReplicas: 1
-  nodeSelector:
-    node.deckhouse.io/group: master
-  tolerations:
-    - operator: Exists
-  underscoresInHeaders: false
-  validationEnabled: true
----
-apiVersion: deckhouse.io/v1
 kind: User
 metadata:
   name: admin
