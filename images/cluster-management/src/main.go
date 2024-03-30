@@ -66,7 +66,7 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
 	logFatalIfError(err)
-	fmt.Printf("base64 -d <<< %s | sudo bash", installScript)
+	fmt.Printf("Install node %s\n", nodeIP)
 
 	out, err = nodeClient.Run(fmt.Sprintf("base64 -d <<< %s | sudo bash", installScript))
 	logFatalIfError(err)
