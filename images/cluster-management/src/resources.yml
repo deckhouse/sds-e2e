@@ -1,0 +1,117 @@
+---
+apiVersion: deckhouse.io/v1
+kind: IngressNginxController
+metadata:
+  name: nginx
+spec:
+  annotationValidationEnabled: false
+  chaosMonkey: false
+  controllerVersion: "1.9"
+  disableHTTP2: false
+  hostPort:
+    httpPort: 80
+    httpsPort: 443
+    realIPHeader: X-Forwarded-For
+  hsts: false
+  ingressClass: nginx
+  inlet: HostPort
+  maxReplicas: 1
+  minReplicas: 1
+  nodeSelector:
+    node.deckhouse.io/group: master
+  tolerations:
+    - operator: Exists
+  underscoresInHeaders: false
+  validationEnabled: true
+---
+apiVersion: deckhouse.io/v1
+kind: User
+metadata:
+  name: admin
+spec:
+  email: admin@cluster.local
+  password: JDJ5JDEwJGxTSHpOU25EOXlYUUY1UlVTRTB2V09zektSU29hdGhjOC5XY1o0ckEvblZZL0lvRGdVSmIyCgo=
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: Group
+metadata:
+  name: admins
+spec:
+  name: admins
+  members:
+    - kind: User
+      name: admin
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModulePullOverride
+metadata:
+  name: sds-local-volume
+spec:
+  imageTag: main
+  scanInterval: 15s
+  source: deckhouse
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: sds-local-volume
+spec:
+  enabled: false
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModulePullOverride
+metadata:
+  name: sds-replicated-volume
+spec:
+  imageTag: main
+  scanInterval: 15s
+  source: deckhouse
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: sds-replicated-volume
+spec:
+  enabled: false
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModulePullOverride
+metadata:
+  name: sds-node-configurator
+spec:
+  imageTag: main
+  scanInterval: 15s
+  source: deckhouse
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: sds-node-configurator
+spec:
+  enabled: false
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: flant-integration
+spec:
+  enabled: false
+  settings:
+    kubeall:
+      host: dev-rnd.fakehost
+  version: 1
+---
+apiVersion: deckhouse.io/v1
+kind: NodeGroup
+metadata:
+  name: worker
+spec:
+  disruptions:
+    approvalMode: Automatic
+  kubelet:
+    containerLogMaxFiles: 4
+    containerLogMaxSize: 50Mi
+    maxPods: 200
+    resourceReservation:
+      mode: "Off"
+  nodeType: Static
