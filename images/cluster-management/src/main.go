@@ -69,17 +69,9 @@ func main() {
 
 	ctx := context.Background()
 	cl, err := test.NewKubeClient()
-	//	if err != nil {
-	//		t.Error("kubeclient error", err)
-	//	}
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
-	if err != nil {
-		if err.Error() != fmt.Sprintf("namespaces \"%s\" already exists", namespaceName) {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	}
+	logFatalIfError(err, fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
 
 	sshPubKeyString := checkAndGetSSHKeys()
 
