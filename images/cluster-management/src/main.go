@@ -138,13 +138,19 @@ func main() {
 		logFatalIfError(err)
 	}
 
-	for _, sshCommand := range []string{
-		"ls -l /",
+	sshCommandList := []string{
 		"sudo apt update && sudo apt -y install docker.io",
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
-		"sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml",
-		"sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml",
-	} {
+	}
+
+	out, err := client.Run("ls -1 /opt/deckhouse/bin/kubectl")
+	logFatalIfError(err)
+	if string(out) != "/opt/deckhouse/bin/kubectl" {
+		sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml")
+	}
+	sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml")
+
+	for _, sshCommand := range sshCommandList {
 		out, err := client.Run(sshCommand)
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
