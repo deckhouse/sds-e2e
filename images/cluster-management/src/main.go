@@ -143,8 +143,12 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
+	masterClient, err := goph.NewUnknown("user", "10.10.10.181", auth)
+	logFatalIfError(err)
+	defer masterClient.Close()
+
 	log.Printf("Check Deckhouse existance")
-	out, err := client.Run("ls -1 /opt/deckhouse/bin/kubectl")
+	out, err := masterClient.Run("ls -1 /opt/deckhouse/bin/kubectl")
 	logFatalIfError(err)
 	if string(out) != "/opt/deckhouse/bin/kubectl" {
 		sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml")
