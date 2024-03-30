@@ -84,6 +84,8 @@ func nodeInstall(nodeIP string, installScript string, username string, auth goph
 }
 
 func main() {
+	var out []byte
+
 	_, err := test.NewKubeClient()
 	if err != nil {
 		panic(err)
