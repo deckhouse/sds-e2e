@@ -123,13 +123,13 @@ func main() {
 			break
 		}
 
-		time.Sleep(time.Second * 10)
+		time.Sleep(10 * time.Second)
 
 		if count == tries-1 {
 			log.Fatal("Timeout waiting for all VMs to be ready")
 		}
 
-		time.Sleep(120)
+		time.Sleep(120 * time.Second)
 	}
 
 	licenseKey := os.Getenv("licensekey")
@@ -183,7 +183,7 @@ func main() {
 		log.Printf("output: %s\n", out)
 	}
 
-	time.Sleep(120)
+	time.Sleep(120 * time.Second)
 
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
 	logFatalIfError(err)
