@@ -169,12 +169,24 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
-	masterClient, err := goph.NewUnknown("user", masterNodeIP, auth)
-	logFatalIfError(err)
+	var masterClient *goph.Client
+
+	tries = 600
+	for count := 0; count < tries; count++ {
+		masterClient, err = goph.NewUnknown("user", masterNodeIP, auth)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(10 * time.Second)
+
+		if count == tries-1 {
+			log.Fatal("Timeout waiting for master VM to be ready")
+		}
+	}
 	defer masterClient.Close()
 
 	log.Printf("Check Deckhouse existance")
-	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err)
 	fmt.Printf(string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
@@ -189,10 +201,19 @@ func main() {
 		log.Printf("output: %s\n", out)
 	}
 
-	time.Sleep(120 * time.Second)
+	tries = 600
+	for count := 0; count < tries; count++ {
+		out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
+		if err == nil {
+			break
+		}
 
-	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
-	logFatalIfError(err)
+		time.Sleep(10 * time.Second)
+
+		if count == tries-1 {
+			log.Fatal("Timeout while retrieving node list")
+		}
+	}
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
 	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
