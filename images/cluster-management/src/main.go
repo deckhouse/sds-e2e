@@ -68,7 +68,7 @@ func nodeInstall(nodeIP string, installScript string, username string, auth goph
 	logFatalIfError(err)
 	defer client.Close()
 
-	out, err = client.Run(fmt.Sprintf("sudo base64 -d <<< %s | bash", installScript))
+	out, err = client.Run(fmt.Sprintf("base64 -d <<< %s | sudo bash", installScript))
 	logFatalIfError(err)
 
 	return out
