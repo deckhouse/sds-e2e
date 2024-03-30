@@ -143,6 +143,7 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
+	log.Printf("Check Deckhouse existance")
 	out, err := client.Run("ls -1 /opt/deckhouse/bin/kubectl")
 	logFatalIfError(err)
 	if string(out) != "/opt/deckhouse/bin/kubectl" {
