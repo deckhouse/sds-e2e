@@ -36,7 +36,6 @@ const (
 
 func checkAndGetSSHKeys() (sshPubKeyString string) {
 	if _, err := os.Stat("./id_rsa_test"); err == nil {
-		fmt.Printf("RSA keys exists")
 	} else if errors.Is(err, os.ErrNotExist) {
 		funcs.GenerateRSAKeys("./id_rsa_test", "./id_rsa_test.pub")
 	}
@@ -49,7 +48,14 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 	return string(sshPubKey)
 }
 
-func logFatalIfError(err error) {
+func logFatalIfError(err error, exclude ...string) {
+	if len(exclude) > 0 {
+		for _, excludeError := range exclude {
+			if err.Error() == excludeError {
+				return
+			}
+		}
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,7 +90,7 @@ func main() {
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
 		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
-		logFatalIfError(err)
+		logFatalIfError(err, fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
 	}
 
 	tries := 600
