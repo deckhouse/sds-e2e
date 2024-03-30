@@ -196,7 +196,7 @@ func main() {
 
 		if needInstall == true {
 			wg.Add(1)
-			go nodeInstall(newNodeIP, strings.ReplaceAll(string(nodeInstallScript), "\r\n", "\n"), "user", auth)
+			go nodeInstall(newNodeIP, strings.ReplaceAll(string(nodeInstallScript), "\n", ""), "user", auth)
 		}
 	}
 	wg.Wait()
