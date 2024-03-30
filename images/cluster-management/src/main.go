@@ -45,7 +45,7 @@ func logFatalIfError(err error, exclude ...string) {
 				}
 			}
 		}
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 }
 
@@ -57,7 +57,7 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 
 	sshPubKey, err := os.ReadFile("./id_rsa_test.pub")
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(err.Error())
 	}
 
 	return string(sshPubKey)
