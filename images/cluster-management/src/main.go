@@ -164,6 +164,7 @@ func main() {
 	log.Printf("Check Deckhouse existance")
 	out, err := masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err)
+	fmt.Printf(string(out))
 	if string(out) == "0\n" {
 		sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml")
 	}
