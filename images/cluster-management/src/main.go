@@ -35,7 +35,10 @@ import (
 var wg sync.WaitGroup
 
 const (
-	namespaceName = "test1"
+	namespaceName       = "test1"
+	masterNodeIP        = "10.10.10.180"
+	installWorkerNodeIp = "10.10.10.181"
+	workerNode2         = "10.10.10.182"
 )
 
 func logFatalIfError(err error, exclude ...string) {
@@ -95,9 +98,9 @@ func main() {
 	sshPubKeyString := checkAndGetSSHKeys()
 
 	for _, vmItem := range [][]string{
-		{"vm1", "10.10.10.180", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
-		{"vm2", "10.10.10.181", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
-		{"vm3", "10.10.10.182", "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+		{"vm1", masterNodeIP, "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+		{"vm2", installWorkerNodeIp, "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
+		{"vm3", workerNode2, "4", "8Gi", "linstor-r1", "https://cloud-images.ubuntu.com/jammy/20240306/jammy-server-cloudimg-amd64.img"},
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
 		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
@@ -129,7 +132,6 @@ func main() {
 			log.Fatal("Timeout waiting for all VMs to be ready")
 		}
 
-		time.Sleep(120 * time.Second)
 	}
 
 	licenseKey := os.Getenv("licensekey")
@@ -144,10 +146,14 @@ func main() {
 	logFatalIfError(err)
 
 	goph.DefaultTimeout = 0
-	client, err := goph.NewUnknown("user", "10.10.10.181", auth)
+	client, err := goph.NewUnknown("user", installWorkerNodeIp, auth)
 	logFatalIfError(err)
 
 	defer client.Close()
+
+	out, err := client.Run("ls -l /")
+	fmt.Printf(string(out))
+	fmt.Printf(err.Error())
 
 	for _, item := range [][]string{
 		{"config.yml", "/home/user/config.yml"},
@@ -163,18 +169,18 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
-	masterClient, err := goph.NewUnknown("user", "10.10.10.180", auth)
+	masterClient, err := goph.NewUnknown("user", masterNodeIP, auth)
 	logFatalIfError(err)
 	defer masterClient.Close()
 
 	log.Printf("Check Deckhouse existance")
-	out, err := masterClient.Run("ls -1 /opt/deckhouse | wc -l")
+	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err)
 	fmt.Printf(string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
-		sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml")
+		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
-	sshCommandList = append(sshCommandList, "sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=10.10.10.180 --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml")
+	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
 		log.Printf("command: %s", sshCommand)
@@ -192,7 +198,7 @@ func main() {
 	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
 	logFatalIfError(err)
 
-	for _, newNodeIP := range []string{"10.10.10.181", "10.10.10.182"} {
+	for _, newNodeIP := range []string{installWorkerNodeIp, workerNode2} {
 		needInstall := true
 		for _, nodeIP := range nodeList {
 			if nodeIP == newNodeIP {
