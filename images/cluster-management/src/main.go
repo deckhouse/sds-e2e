@@ -32,6 +32,8 @@ import (
 	"time"
 )
 
+var wg sync.WaitGroup
+
 const (
 	namespaceName = "test1"
 )
@@ -64,6 +66,7 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 }
 
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
+	defer wg.Done()
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
 	logFatalIfError(err)
 	fmt.Printf("Install node %s\n", nodeIP)
@@ -125,6 +128,8 @@ func main() {
 		if count == tries-1 {
 			log.Fatal("Timeout waiting for all VMs to be ready")
 		}
+
+		time.Sleep(120)
 	}
 
 	licenseKey := os.Getenv("licensekey")
@@ -178,14 +183,14 @@ func main() {
 		log.Printf("output: %s\n", out)
 	}
 
+	time.Sleep(120)
+
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
 	logFatalIfError(err)
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
 	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
 	logFatalIfError(err)
-
-	var wg sync.WaitGroup
 
 	for _, newNodeIP := range []string{"10.10.10.181", "10.10.10.182"} {
 		needInstall := true
