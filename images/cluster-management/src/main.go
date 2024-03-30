@@ -200,6 +200,7 @@ func main() {
 	defer masterClient.Close()
 
 	log.Printf("Check Deckhouse existance")
+	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err)
 	fmt.Printf(string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
