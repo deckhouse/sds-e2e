@@ -197,15 +197,14 @@ func main() {
 			log.Fatal("Timeout waiting for master VM to be ready")
 		}
 	}
-	defer masterClient.Close()
 
 	log.Printf("Check Deckhouse existance")
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err)
-	fmt.Printf(string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
 		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
+	masterClient.Close()
 	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
@@ -214,10 +213,10 @@ func main() {
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
 	}
-
+	defer masterClient.Close()
 	tries = 600
 	for count := 0; count < tries; count++ {
-		out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
+		masterClient, err = goph.NewUnknown("user", masterNodeIP, auth)
 		if err == nil {
 			break
 		}
@@ -225,9 +224,13 @@ func main() {
 		time.Sleep(10 * time.Second)
 
 		if count == tries-1 {
-			log.Fatal("Timeout while retrieving node list")
+			log.Fatal("Timeout waiting for master VM to be ready")
 		}
 	}
+	defer masterClient.Close()
+
+	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'")
+	logFatalIfError(err)
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
 	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
