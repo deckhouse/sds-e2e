@@ -26,6 +26,7 @@ import (
 	"github.com/melbahja/goph"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -247,19 +248,18 @@ func main() {
 	}
 	wg.Wait()
 
-	tokenLength := 1
-	log.Println("test1")
-	for tokenLength == 1 {
-		log.Println("test2")
+	validTokenNonExists := true
+	for validTokenNonExists {
 		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
 		logFatalIfError(err, string(out))
-		log.Printf("output: %s\n", out)
 		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token | wc -l")
 		logFatalIfError(err, string(out))
-		log.Println(string(out))
-		tokenLength, err = strconv.Atoi(string(out))
-		log.Println(tokenLength)
-		log.Println("test3")
+		var validBase64 = regexp.MustCompile(`token: [A–Za–z0–9\+\/=_\.]{10,}`)
+		validTokenNonExists = validBase64.MatchString(string(out))
+		fmt.Print(validTokenNonExists)
+		fmt.Print(validBase64)
+		fmt.Print(string(out))
+		time.Sleep(1 * time.Second)
 	}
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
