@@ -245,6 +245,5 @@ func main() {
 	logFatalIfError(err)
 	log.Printf("output: %s\n", out)
 
-	masterClient.Download("/home/user/kube.config", "kube.config")
-
+	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"))
 }
