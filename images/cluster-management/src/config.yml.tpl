@@ -57,10 +57,6 @@ spec:
   version: 1
   settings:
     modules:
-      # Template that will be used for system apps domains within the cluster.
-      # E.g., Grafana for %s.example.com will be available as 'grafana.example.com'.
-      # The domain MUST NOT match the one specified in the clusterDomain parameter of the ClusterConfiguration resource.
-      # You can change it to your own or follow the steps in the guide and change it after installation.
       publicDomainTemplate: "%s.virtualmachines.local"
 ---
 # user-authn module settings.
