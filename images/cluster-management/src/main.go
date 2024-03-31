@@ -248,15 +248,15 @@ func main() {
 	}
 	wg.Wait()
 
-	validTokenNonExists := true
-	for validTokenNonExists {
+	validTokenExists := false
+	for !validTokenExists {
 		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
 		logFatalIfError(err, string(out))
-		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token | wc -l")
+		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token ")
 		logFatalIfError(err, string(out))
 		var validBase64 = regexp.MustCompile(`token: [A–Za–z0–9\+\/=_\.]{10,}`)
-		validTokenNonExists = validBase64.MatchString(string(out))
-		fmt.Print(validTokenNonExists)
+		validTokenExists = validBase64.MatchString(string(out))
+		fmt.Print(validTokenExists)
 		fmt.Print(validBase64)
 		fmt.Print(string(out))
 		time.Sleep(1 * time.Second)
