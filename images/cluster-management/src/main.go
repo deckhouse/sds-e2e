@@ -179,7 +179,6 @@ func main() {
 		{"config.yml", "/home/user/config.yml"},
 		{"id_rsa_test", "/home/user/.ssh/id_rsa_test"},
 		{"resources.yml", "/home/user/resources.yml"},
-		{"createuser.sh", "/home/user/createuser.sh"},
 	} {
 		err = client.Upload(item[0], item[1])
 		logFatalIfError(err)
@@ -201,6 +200,7 @@ func main() {
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
 		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
+
 	logFatalIfError(masterClient.Close())
 	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
@@ -212,6 +212,7 @@ func main() {
 	}
 
 	masterClient = getSSHClient(masterNodeIP, "user", auth)
+	masterClient.Upload("createuser.sh", "/home/user/createuser.sh")
 	defer masterClient.Close()
 
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'")
