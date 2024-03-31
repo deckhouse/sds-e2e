@@ -189,7 +189,7 @@ func main() {
 	out = []byte("Unable to lock directory")
 	for strings.Contains(string(out), "Unable to lock directory") {
 		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
-		logFatalIfError(err, string(out))
+		fmt.Println(string(out))
 	}
 
 	sshCommandList := []string{
