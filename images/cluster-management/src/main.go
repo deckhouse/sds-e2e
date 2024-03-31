@@ -252,9 +252,9 @@ func main() {
 	for !validTokenExists {
 		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
 		logFatalIfError(err, string(out))
-		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token ")
+		out, err = masterClient.Run("cat /home/user/kube.config")
 		logFatalIfError(err, string(out))
-		var validBase64 = regexp.MustCompile(`token: [A–Za–z0–9\+\/=_\.]{10,}`)
+		var validBase64 = regexp.MustCompile(`token: [A–Za-z0-9\+/=-_\.]{10,}`)
 		validTokenExists = validBase64.MatchString(string(out))
 		fmt.Print(validTokenExists)
 		fmt.Print(validBase64)
