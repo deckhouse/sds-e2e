@@ -80,14 +80,15 @@ metadata:
 spec:
   enabled: true
 apiVersion: deckhouse.io/v1alpha1
-#---
-#kind: ModuleSource
-#metadata:
-#  name: deckhouse
-#spec:
-#  registry:
-#    ca: ""
-#    dockerCfg: %s
-#    repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
-#    scheme: HTTPS
-#  releaseChannel: ""
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleSource
+metadata:
+  name: deckhouse
+spec:
+  registry:
+    ca: ""
+    dockerCfg: %s
+    repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
+    scheme: HTTPS
+  releaseChannel: ""
