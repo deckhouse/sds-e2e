@@ -33,7 +33,7 @@ EOF
 export CLUSTER_NAME=my-cluster
 export USER_NAME=gitlab-runner-deploy.my-cluster
 export CONTEXT_NAME=${CLUSTER_NAME}-${USER_NAME}
-export FILE_NAME=kube.config
+export FILE_NAME=/home/user/kube.config
 
 sudo -i kubectl get cm kube-root-ca.crt -o jsonpath='{ .data.ca\.crt }' > /tmp/ca.crt
 
@@ -51,3 +51,5 @@ sudo -i kubectl config set-context $CONTEXT_NAME \
   --kubeconfig=$FILE_NAME
 
 sudo -i kubectl config use-context $CONTEXT_NAME --kubeconfig=$FILE_NAME
+
+sudo chown user:user /home/user/kube.config
