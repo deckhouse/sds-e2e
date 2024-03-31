@@ -165,6 +165,7 @@ func main() {
 	for _, item := range [][]string{
 		{"config.yml.tpl", "config.yml"},
 		{"resources.yml.tpl", "resources.yml"},
+		{"ms.yml.tpl", "ms.yml"},
 	} {
 		template, err := os.ReadFile(item[0])
 		logFatalIfError(err, "")
@@ -188,6 +189,7 @@ func main() {
 		{"config.yml", "/home/user/config.yml"},
 		{"id_rsa_test", "/home/user/.ssh/id_rsa_test"},
 		{"resources.yml", "/home/user/resources.yml"},
+		{"ms.yml", "/home/user/ms.yml"},
 	} {
 		err = client.Upload(item[0], item[1])
 		logFatalIfError(err, "")
@@ -267,19 +269,6 @@ func main() {
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
 
-	msConfigApply := fmt.Sprintf(`sudo -i kubectl apply -f - <<EOF 
----
-kind: ModuleSource
-metadata:
-  name: deckhouse
-spec:
-  registry:
-    ca: ""
-    dockerCfg: %s
-    repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
-    scheme: HTTPS
-  releaseChannel: ""`, registryDockerCfg)
-
-	out, err = masterClient.Run(msConfigApply)
+	out, err = masterClient.Run("sudo -i kubectl apply -f /home/user/ms.yml")
 	logFatalIfError(err, string(out))
 }
