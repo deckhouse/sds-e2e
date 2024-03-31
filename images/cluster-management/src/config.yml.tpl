@@ -57,7 +57,7 @@ spec:
   version: 1
   settings:
     modules:
-      publicDomainTemplate: "%s.virtualmachines.local"
+      publicDomainTemplate: "%%s.virtualmachines.local"
 ---
 # user-authn module settings.
 # https://deckhouse.io/documentation/v1/modules/150-user-authn/configuration.html
