@@ -41,7 +41,10 @@ const (
 	workerNode2         = "10.10.10.182"
 )
 
-func logFatalIfError(err error, exclude ...string) {
+func logFatalIfError(err error, out string, exclude ...string) {
+	if out != "" {
+		fmt.Println(out)
+	}
 	if err != nil {
 		if len(exclude) > 0 {
 			for _, excludeError := range exclude {
@@ -91,12 +94,11 @@ func getSSHClient(ip string, username string, auth goph.Auth) *goph.Client {
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	defer wg.Done()
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
-	logFatalIfError(err)
+	logFatalIfError(err, "")
 	fmt.Printf("Install node %s\n", nodeIP)
 
 	out, err = nodeClient.Run(fmt.Sprintf("base64 -d <<< %s | sudo -i bash", installScript))
-	fmt.Printf(string(out))
-	logFatalIfError(err)
+	logFatalIfError(err, string(out))
 
 	nodeClient.Close()
 
@@ -115,7 +117,7 @@ func main() {
 	cl, err := test.NewKubeClient()
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
-	logFatalIfError(err, fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
+	logFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
 
 	sshPubKeyString := checkAndGetSSHKeys()
 
@@ -126,7 +128,7 @@ func main() {
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
 		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
-		logFatalIfError(err, fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
+		logFatalIfError(err, "", fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
 	}
 
 	tries := 600
@@ -135,9 +137,9 @@ func main() {
 	for count := 0; count < tries; count++ {
 		allVMUp = true
 		vmList, err := funcs.ListVM(ctx, cl, namespaceName)
-		logFatalIfError(err)
+		logFatalIfError(err, "")
 		vmList, err = funcs.ListVM(ctx, cl, namespaceName)
-		logFatalIfError(err)
+		logFatalIfError(err, "")
 		for _, item := range vmList {
 			if item.Status != v1alpha2.MachineRunning {
 				allVMUp = false
@@ -159,13 +161,13 @@ func main() {
 	licenseKey := os.Getenv("licensekey")
 	registryDockerCfg := os.Getenv("registryDockerCfg")
 	clusterConfig, err := os.ReadFile("config.yml.tpl")
-	logFatalIfError(err)
+	logFatalIfError(err, "")
 	clusterConfigString := fmt.Sprintf(string(clusterConfig), registryDockerCfg, "%s")
 	err = os.WriteFile("config.yml", []byte(clusterConfigString), 0644)
-	logFatalIfError(err)
+	logFatalIfError(err, "")
 
 	auth, err := goph.Key("./id_rsa_test", "")
-	logFatalIfError(err)
+	logFatalIfError(err, "")
 
 	goph.DefaultTimeout = 0
 
@@ -181,13 +183,13 @@ func main() {
 		{"resources.yml", "/home/user/resources.yml"},
 	} {
 		err = client.Upload(item[0], item[1])
-		logFatalIfError(err)
+		logFatalIfError(err, "")
 	}
 
 	out = []byte("Unable to lock directory")
 	for strings.Contains(string(out), "Unable to lock directory") {
 		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
-		logFatalIfError(err)
+		logFatalIfError(err, string(out))
 	}
 
 	sshCommandList := []string{
@@ -201,19 +203,18 @@ func main() {
 
 	log.Printf("Check Deckhouse existance")
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
-	logFatalIfError(err)
+	logFatalIfError(err, string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
 		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
 
-	logFatalIfError(masterClient.Close())
+	logFatalIfError(masterClient.Close(), "")
 	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
 		log.Printf("command: %s", sshCommand)
 		out, err := client.Run(sshCommand)
-		fmt.Println(string(out))
-		logFatalIfError(err)
+		logFatalIfError(err, string(out))
 		log.Printf("output: %s\n", out)
 	}
 
@@ -222,13 +223,13 @@ func main() {
 	defer masterClient.Close()
 
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'")
-	logFatalIfError(err)
+	logFatalIfError(err, string(out))
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
 	nodeInstallScript := []byte("not found")
 	for strings.Contains(string(nodeInstallScript), "not found") {
 		nodeInstallScript, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
-		logFatalIfError(err)
+		logFatalIfError(err, "")
 	}
 
 	for _, newNodeIP := range []string{installWorkerNodeIp, workerNode2} {
@@ -249,12 +250,12 @@ func main() {
 	tokenLength := 1
 	for tokenLength == 1 {
 		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
-		logFatalIfError(err)
+		logFatalIfError(err, string(out))
 		log.Printf("output: %s\n", out)
 		out, err = masterClient.Run("cat kube.config | grep -A3 token | wc -l")
-		logFatalIfError(err)
+		logFatalIfError(err, string(out))
 		tokenLength, err = strconv.Atoi(string(out))
 	}
 
-	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"))
+	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
 }
