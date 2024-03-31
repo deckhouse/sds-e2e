@@ -180,18 +180,25 @@ func main() {
 	goph.DefaultTimeout = 0
 
 	var client *goph.Client
+	var masterClient *goph.Client
 
 	client = getSSHClient(installWorkerNodeIp, "user", auth)
-
 	defer client.Close()
+	masterClient = getSSHClient(masterNodeIP, "user", auth)
+	defer masterClient.Close()
 
 	for _, item := range [][]string{
-		{"config.yml", "/home/user/config.yml"},
-		{"id_rsa_test", "/home/user/.ssh/id_rsa_test"},
-		{"resources.yml", "/home/user/resources.yml"},
-		{"ms.yml", "/home/user/ms.yml"},
+		{"config.yml", "/home/user/config.yml", "installWorker"},
+		{"id_rsa_test", "/home/user/.ssh/id_rsa_test", "installWorker"},
+		{"resources.yml", "/home/user/resources.yml", "installWorker"},
+		{"ms.yml", "/home/user/ms.yml", "masterNode"},
+		{"createuser.sh", "/home/user/createuser.sh", "masterNode"},
 	} {
-		err = client.Upload(item[0], item[1])
+		if item[2] == "installWorker" {
+			err = client.Upload(item[0], item[1])
+		} else {
+			err = masterClient.Upload(item[0], item[1])
+		}
 		logFatalIfError(err, "")
 	}
 
@@ -205,11 +212,6 @@ func main() {
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
-	var masterClient *goph.Client
-
-	masterClient = getSSHClient(masterNodeIP, "user", auth)
-	defer masterClient.Close()
-
 	log.Printf("Check Deckhouse existance")
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	logFatalIfError(err, string(out))
@@ -217,7 +219,7 @@ func main() {
 		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
 
-	logFatalIfError(masterClient.Close(), "")
+	//	logFatalIfError(masterClient.Close(), "")
 	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
@@ -227,9 +229,8 @@ func main() {
 		log.Printf("output: %s\n", out)
 	}
 
-	masterClient = getSSHClient(masterNodeIP, "user", auth)
-	masterClient.Upload("createuser.sh", "/home/user/createuser.sh")
-	defer masterClient.Close()
+	//	masterClient = getSSHClient(masterNodeIP, "user", auth)
+	//	defer masterClient.Close()
 
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'")
 	logFatalIfError(err, string(out))
