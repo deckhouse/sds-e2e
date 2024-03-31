@@ -254,7 +254,7 @@ func main() {
 		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
 		logFatalIfError(err, string(out))
 		log.Printf("output: %s\n", out)
-		out, err = masterClient.Run("cat kube.config | grep -A3 token | wc -l")
+		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token | wc -l")
 		logFatalIfError(err, string(out))
 		log.Println(out)
 		tokenLength, err = strconv.Atoi(string(out))
