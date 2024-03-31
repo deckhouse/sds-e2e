@@ -45,6 +45,7 @@ spec:
   settings:
     kubeall:
       host: fake.host
+  version: 1
 ---
 # Global Deckhouse settings.
 # https://deckhouse.ru/documentation/v1/deckhouse-configure-global.html#parameters
