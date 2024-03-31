@@ -68,6 +68,26 @@ func checkAndGetSSHKeys() (sshPubKeyString string) {
 	return string(sshPubKey)
 }
 
+func getSSHClient(ip string, username string, auth goph.Auth) *goph.Client {
+	var client *goph.Client
+	var err error
+	tries := 600
+	for count := 0; count < tries; count++ {
+		client, err = goph.NewUnknown(username, ip, auth)
+		if err == nil {
+			break
+		}
+
+		time.Sleep(10 * time.Second)
+
+		if count == tries-1 {
+			log.Fatal("Timeout waiting for installer VM to be ready")
+		}
+	}
+
+	return client
+}
+
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	defer wg.Done()
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
@@ -151,20 +171,7 @@ func main() {
 
 	var client *goph.Client
 
-	tries = 600
-	for count := 0; count < tries; count++ {
-		client, err = goph.NewUnknown("user", installWorkerNodeIp, auth)
-		if err == nil {
-			break
-		}
-
-		time.Sleep(10 * time.Second)
-
-		if count == tries-1 {
-			log.Fatal("Timeout waiting for installer VM to be ready")
-		}
-	}
-	logFatalIfError(err)
+	client = getSSHClient(installWorkerNodeIp, "user", auth)
 
 	defer client.Close()
 
@@ -184,19 +191,8 @@ func main() {
 
 	var masterClient *goph.Client
 
-	tries = 600
-	for count := 0; count < tries; count++ {
-		masterClient, err = goph.NewUnknown("user", masterNodeIP, auth)
-		if err == nil {
-			break
-		}
-
-		time.Sleep(10 * time.Second)
-
-		if count == tries-1 {
-			log.Fatal("Timeout waiting for master VM to be ready")
-		}
-	}
+	masterClient = getSSHClient(masterNodeIP, "user", auth)
+	defer masterClient.Close()
 
 	log.Printf("Check Deckhouse existance")
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
@@ -204,7 +200,7 @@ func main() {
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
 		sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/config.yml:/config.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --config=/config.yml", masterNodeIP))
 	}
-	masterClient.Close()
+	logFatalIfError(masterClient.Close())
 	sshCommandList = append(sshCommandList, fmt.Sprintf("sudo docker run -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/.ssh/:/tmp/.ssh/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/.ssh/id_rsa_test --resources=/resources.yml", masterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
@@ -213,28 +209,19 @@ func main() {
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
 	}
-	defer masterClient.Close()
-	tries = 600
-	for count := 0; count < tries; count++ {
-		masterClient, err = goph.NewUnknown("user", masterNodeIP, auth)
-		if err == nil {
-			break
-		}
 
-		time.Sleep(10 * time.Second)
-
-		if count == tries-1 {
-			log.Fatal("Timeout waiting for master VM to be ready")
-		}
-	}
+	masterClient = getSSHClient(masterNodeIP, "user", auth)
 	defer masterClient.Close()
 
 	out, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'")
 	logFatalIfError(err)
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
-	nodeInstallScript, err := masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
-	logFatalIfError(err)
+	nodeInstallScript := []byte("not found")
+	for strings.Contains(string(nodeInstallScript), "not found") {
+		nodeInstallScript, err = masterClient.Run("sudo /opt/deckhouse/bin/kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | jq '.data.\"bootstrap.sh\"' -r")
+		logFatalIfError(err)
+	}
 
 	for _, newNodeIP := range []string{installWorkerNodeIp, workerNode2} {
 		needInstall := true
