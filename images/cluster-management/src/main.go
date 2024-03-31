@@ -256,7 +256,7 @@ func main() {
 		log.Printf("output: %s\n", out)
 		out, err = masterClient.Run("cat /home/user/kube.config | grep -A3 token | wc -l")
 		logFatalIfError(err, string(out))
-		log.Println(out)
+		log.Println(string(out))
 		tokenLength, err = strconv.Atoi(string(out))
 		log.Println(tokenLength)
 		log.Println("test3")
