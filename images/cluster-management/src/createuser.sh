@@ -1,6 +1,6 @@
 #!/bin/bash
 
-kubectl create -f - <<EOF
+sudo -i kubectl create -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -17,7 +17,7 @@ metadata:
 type: kubernetes.io/service-account-token
 EOF
 
-kubectl create -f - <<EOF
+sudo -i kubectl create -f - <<EOF
 apiVersion: deckhouse.io/v1
 kind: ClusterAuthorizationRule
 metadata:
@@ -35,19 +35,19 @@ export USER_NAME=gitlab-runner-deploy.my-cluster
 export CONTEXT_NAME=${CLUSTER_NAME}-${USER_NAME}
 export FILE_NAME=kube.config
 
-kubectl get cm kube-root-ca.crt -o jsonpath='{ .data.ca\.crt }' > /tmp/ca.crt
+sudo -i kubectl get cm kube-root-ca.crt -o jsonpath='{ .data.ca\.crt }' > /tmp/ca.crt
 
-kubectl config set-cluster $CLUSTER_NAME --embed-certs=true \
+sudo -i kubectl config set-cluster $CLUSTER_NAME --embed-certs=true \
   --server=https://$(kubectl get ep kubernetes -o json | jq -rc '.subsets[0] | "\(.addresses[0].ip):\(.ports[0].port)"') \
   --certificate-authority=/tmp/ca.crt \
   --kubeconfig=$FILE_NAME
 
-kubectl config set-credentials $USER_NAME \
+sudo -i kubectl config set-credentials $USER_NAME \
   --token=$(kubectl -n d8-service-accounts get secret gitlab-runner-deploy-token -o json |jq -r '.data["token"]' | base64 -d) \
   --kubeconfig=$FILE_NAME
 
-kubectl config set-context $CONTEXT_NAME \
+sudo -i kubectl config set-context $CONTEXT_NAME \
   --cluster=$CLUSTER_NAME --user=$USER_NAME \
   --kubeconfig=$FILE_NAME
 
-kubectl config use-context $CONTEXT_NAME --kubeconfig=$FILE_NAME
+sudo -i kubectl config use-context $CONTEXT_NAME --kubeconfig=$FILE_NAME
