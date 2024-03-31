@@ -267,7 +267,7 @@ func main() {
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
 
-	msConfigApply := fmt.Sprintf(`kubectl apply -f <<< EOF 
+	msConfigApply := fmt.Sprintf(`sudo -i kubectl apply -f - <<EOF 
 ---
 kind: ModuleSource
 metadata:
