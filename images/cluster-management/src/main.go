@@ -256,9 +256,6 @@ func main() {
 		logFatalIfError(err, string(out))
 		var validBase64 = regexp.MustCompile(`token: [A–Za-z0-9\+/=-_\.]{10,}`)
 		validTokenExists = validBase64.MatchString(string(out))
-		fmt.Print(validTokenExists)
-		fmt.Print(validBase64)
-		fmt.Print(string(out))
 		time.Sleep(1 * time.Second)
 	}
 
