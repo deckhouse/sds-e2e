@@ -165,7 +165,7 @@ func main() {
 	for _, item := range [][]string{
 		{"config.yml.tpl", "config.yml"},
 		{"resources.yml.tpl", "resources.yml"},
-		{"ms.yml.tpl", "ms.yml"},
+		//	{"ms.yml.tpl", "ms.yml"},
 	} {
 		template, err := os.ReadFile(item[0])
 		logFatalIfError(err, "")
@@ -191,7 +191,7 @@ func main() {
 		{"config.yml", "/home/user/config.yml", "installWorker"},
 		{"id_rsa_test", "/home/user/.ssh/id_rsa_test", "installWorker"},
 		{"resources.yml", "/home/user/resources.yml", "installWorker"},
-		{"ms.yml", "/home/user/ms.yml", "masterNode"},
+		//{"ms.yml", "/home/user/ms.yml", "masterNode"},
 		{"createuser.sh", "/home/user/createuser.sh", "masterNode"},
 	} {
 		if item[2] == "installWorker" {
@@ -270,6 +270,6 @@ func main() {
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
 
-	out, err = masterClient.Run("sudo -i kubectl apply -f /home/user/ms.yml")
-	logFatalIfError(err, string(out))
+	//	out, err = masterClient.Run("sudo -i kubectl apply -f /home/user/ms.yml")
+	//	logFatalIfError(err, string(out))
 }
