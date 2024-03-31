@@ -258,6 +258,7 @@ func main() {
 		logFatalIfError(err, string(out))
 		log.Println(out)
 		tokenLength, err = strconv.Atoi(string(out))
+		log.Println(tokenLength)
 		log.Println("test3")
 	}
 
