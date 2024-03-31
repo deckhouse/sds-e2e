@@ -246,10 +246,15 @@ func main() {
 	}
 	wg.Wait()
 
-	out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
-	fmt.Printf(string(out))
-	logFatalIfError(err)
-	log.Printf("output: %s\n", out)
+	tokenLength := 1
+	for tokenLength == 1 {
+		out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
+		logFatalIfError(err)
+		log.Printf("output: %s\n", out)
+		out, err = masterClient.Run("cat kube.config | grep -A3 token | wc -l")
+		logFatalIfError(err)
+		tokenLength, err = strconv.Atoi(string(out))
+	}
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"))
 }
