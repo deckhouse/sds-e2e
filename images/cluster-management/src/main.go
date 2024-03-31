@@ -161,11 +161,17 @@ func main() {
 
 	licenseKey := os.Getenv("licensekey")
 	registryDockerCfg := os.Getenv("registryDockerCfg")
-	clusterConfig, err := os.ReadFile("config.yml.tpl")
-	logFatalIfError(err, "")
-	clusterConfigString := fmt.Sprintf(string(clusterConfig), registryDockerCfg, "%s")
-	err = os.WriteFile("config.yml", []byte(clusterConfigString), 0644)
-	logFatalIfError(err, "")
+
+	for _, item := range [][]string{
+		{"config.yml.tpl", "config.yml"},
+		{"resources.yml.tpl", "resources.yml"},
+	} {
+		template, err := os.ReadFile(item[0])
+		logFatalIfError(err, "")
+		renderedTemplateString := fmt.Sprintf(string(template), registryDockerCfg)
+		err = os.WriteFile(item[1], []byte(renderedTemplateString), 0644)
+		logFatalIfError(err, "")
+	}
 
 	auth, err := goph.Key("./id_rsa_test", "")
 	logFatalIfError(err, "")
