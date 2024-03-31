@@ -254,6 +254,7 @@ func main() {
 		log.Printf("output: %s\n", out)
 		out, err = masterClient.Run("cat kube.config | grep -A3 token | wc -l")
 		logFatalIfError(err, string(out))
+		fmt.Println(out)
 		tokenLength, err = strconv.Atoi(string(out))
 	}
 
