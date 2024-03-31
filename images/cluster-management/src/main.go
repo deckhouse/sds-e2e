@@ -184,8 +184,13 @@ func main() {
 		logFatalIfError(err)
 	}
 
+	out = []byte("Unable to lock directory")
+	for strings.Contains(string(out), "Unable to lock directory") {
+		out, err = client.Run("sudo apt update && sudo apt -y install docker.io")
+		logFatalIfError(err)
+	}
+
 	sshCommandList := []string{
-		"sudo apt update && sudo apt -y install docker.io",
 		fmt.Sprintf("sudo docker login -u license-token -p %s dev-registry.deckhouse.io", licenseKey),
 	}
 
