@@ -207,6 +207,7 @@ func main() {
 	for _, sshCommand := range sshCommandList {
 		log.Printf("command: %s", sshCommand)
 		out, err := client.Run(sshCommand)
+		fmt.Println(string(out))
 		logFatalIfError(err)
 		log.Printf("output: %s\n", out)
 	}
