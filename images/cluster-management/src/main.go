@@ -266,4 +266,20 @@ func main() {
 	}
 
 	logFatalIfError(masterClient.Download("/home/user/kube.config", "kube.config"), "")
+
+	msConfigApply := fmt.Sprintf(`kubectl apply -f <<< EOF 
+---
+kind: ModuleSource
+metadata:
+  name: deckhouse
+spec:
+  registry:
+    ca: ""
+    dockerCfg: %s
+    repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
+    scheme: HTTPS
+  releaseChannel: ""`, registryDockerCfg)
+
+	out, err = masterClient.Run(msConfigApply)
+	logFatalIfError(err, string(out))
 }
