@@ -239,7 +239,7 @@ func main() {
 	}
 	wg.Wait()
 
-	out, err = client.Run("sudo -i /bin/bash /home/user/createuser.sh")
+	out, err = masterClient.Run("sudo -i /bin/bash /home/user/createuser.sh")
 	fmt.Printf(string(out))
 	logFatalIfError(err)
 	log.Printf("output: %s\n", out)
