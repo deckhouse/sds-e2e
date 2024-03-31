@@ -179,6 +179,7 @@ func main() {
 		{"config.yml", "/home/user/config.yml"},
 		{"id_rsa_test", "/home/user/.ssh/id_rsa_test"},
 		{"resources.yml", "/home/user/resources.yml"},
+		{"createuser.sh", "/home/user/createuser.sh"},
 	} {
 		err = client.Upload(item[0], item[1])
 		logFatalIfError(err)
@@ -237,4 +238,9 @@ func main() {
 		}
 	}
 	wg.Wait()
+
+	out, err = client.Run("/bin/bash /home/user/createuser.sh")
+	logFatalIfError(err)
+	log.Printf("output: %s\n", out)
+
 }
