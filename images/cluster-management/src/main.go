@@ -252,5 +252,5 @@ func main() {
 		time.Sleep(10 * time.Second)
 	}
 
-	logFatalIfError(masterClient.Download(filepath.Join(remoteAppPath, kubeConfigName), kubeConfigName), "")
+	logFatalIfError(masterClient.Download(filepath.Join(remoteAppPath, kubeConfigName), filepath.Join(appTmpPath, kubeConfigName)), "")
 }
