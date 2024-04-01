@@ -13,6 +13,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	AppTmpPath = "/app/tmp"
+
+	PrivKeyName = "id_rsa_test"
+	PubKeyName  = "id_rsa_test.pub"
+)
+
 func NewKubeClient() (client.Client, error) {
 	var config *rest.Config
 	var err error
