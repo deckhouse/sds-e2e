@@ -18,6 +18,10 @@ const (
 
 	PrivKeyName = "id_rsa_test"
 	PubKeyName  = "id_rsa_test.pub"
+
+	masterNodeIP        = "10.10.10.180"
+	installWorkerNodeIp = "10.10.10.181"
+	workerNode2         = "10.10.10.182"
 )
 
 func NewKubeClient() (client.Client, error) {

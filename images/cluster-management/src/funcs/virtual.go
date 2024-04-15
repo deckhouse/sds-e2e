@@ -232,7 +232,7 @@ func CreateVM(ctx context.Context,
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmSystemDisk, err = CreateVMDFromCVMI(ctx, cl, namespaceName, vmdName, storageClass, 32, vmCVMI)
+		vmSystemDisk, err = CreateVMDFromCVMI(ctx, cl, namespaceName, vmdName, storageClass, 20, vmCVMI)
 		if err != nil {
 			return err
 		}
@@ -245,7 +245,7 @@ func CreateVM(ctx context.Context,
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 32)
+		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 20)
 		if err != nil {
 			return err
 		}
