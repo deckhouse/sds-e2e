@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -9,7 +10,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
-	"sds-node-configurator-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -45,7 +45,7 @@ func NewKubeClient() (client.Client, error) {
 
 	var (
 		resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
-			v1alpha1.AddToScheme,
+			v1alpha2.AddToScheme,
 			clientgoscheme.AddToScheme,
 			extv1.AddToScheme,
 			v1.AddToScheme,
