@@ -44,7 +44,7 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 }
 
 func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSearch string) ([]VMD, error) {
-	objs := v1alpha2.VirtualMachineDiskList{}
+	objs := v1alpha2.VirtualDiskList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
@@ -62,7 +62,7 @@ func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSea
 }
 
 func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI, error) {
-	objs := v1alpha2.ClusterVirtualMachineImageList{}
+	objs := v1alpha2.ClusterVirtualImageList{}
 	opts := client.ListOption(&client.ListOptions{})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
@@ -97,12 +97,12 @@ func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vm
 	return vmIPClaimList, nil
 }
 
-func CreateCVMI(ctx context.Context, cl client.Client, name string, url string) (*v1alpha2.ClusterVirtualMachineImage, error) {
-	vmCVMI := &v1alpha2.ClusterVirtualMachineImage{ObjectMeta: metav1.ObjectMeta{
+func CreateCVMI(ctx context.Context, cl client.Client, name string, url string) (*v1alpha2.ClusterVirtualImage, error) {
+	vmCVMI := &v1alpha2.ClusterVirtualImage{ObjectMeta: metav1.ObjectMeta{
 		Name: name,
 	},
-		Spec: v1alpha2.ClusterVirtualMachineImageSpec{
-			DataSource: v1alpha2.CVMIDataSource{Type: "HTTP", HTTP: &v1alpha2.DataSourceHTTP{URL: url}},
+		Spec: v1alpha2.ClusterVirtualImageSpec{
+			DataSource: v1alpha2.ClusterVirtualImageDataSource{Type: "HTTP", HTTP: &v1alpha2.DataSourceHTTP{URL: url}},
 		},
 	}
 
@@ -133,16 +133,16 @@ func CreateVMIPClaim(ctx context.Context, cl client.Client, namespaceName string
 	return vmClaim, nil
 }
 
-func CreateVMD(ctx context.Context, cl client.Client, namespaceName string, name string, storageClass string, sizeInGi int64) (*v1alpha2.VirtualMachineDisk, error) {
-	vmDisk := &v1alpha2.VirtualMachineDisk{
+func CreateVMD(ctx context.Context, cl client.Client, namespaceName string, name string, storageClass string, sizeInGi int64) (*v1alpha2.VirtualDisk, error) {
+	vmDisk := &v1alpha2.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespaceName,
 		},
-		Spec: v1alpha2.VirtualMachineDiskSpec{
-			PersistentVolumeClaim: v1alpha2.VMDPersistentVolumeClaim{
-				Size:             resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
-				StorageClassName: &storageClass,
+		Spec: v1alpha2.VirtualDiskSpec{
+			PersistentVolumeClaim: v1alpha2.VirtualDiskPersistentVolumeClaim{
+				Size:         resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
+				StorageClass: &storageClass,
 			},
 		},
 	}
@@ -155,20 +155,21 @@ func CreateVMD(ctx context.Context, cl client.Client, namespaceName string, name
 	return vmDisk, nil
 }
 
-func CreateVMDFromCVMI(ctx context.Context, cl client.Client, namespaceName string, name string, storageClass string, sizeInGi int64, vmCVMI *v1alpha2.ClusterVirtualMachineImage) (*v1alpha2.VirtualMachineDisk, error) {
-	vmDisk := &v1alpha2.VirtualMachineDisk{
+func CreateVMDFromCVMI(ctx context.Context, cl client.Client, namespaceName string, name string, storageClass string, sizeInGi int64, vmCVMI *v1alpha2.ClusterVirtualImage) (*v1alpha2.VirtualDisk, error) {
+	vmDisk := &v1alpha2.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespaceName,
 		},
-		Spec: v1alpha2.VirtualMachineDiskSpec{
-			PersistentVolumeClaim: v1alpha2.VMDPersistentVolumeClaim{
-				Size:             resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
-				StorageClassName: &storageClass,
+		Spec: v1alpha2.VirtualDiskSpec{
+			PersistentVolumeClaim: v1alpha2.VirtualDiskPersistentVolumeClaim{
+				Size:         resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
+				StorageClass: &storageClass,
 			},
-			DataSource: &v1alpha2.VMDDataSource{
-				Type: v1alpha2.DataSourceTypeClusterVirtualMachineImage,
-				ClusterVirtualMachineImage: &v1alpha2.DataSourceNamedRef{
+			DataSource: &v1alpha2.VirtualDiskDataSource{
+				Type: v1alpha2.DataSourceTypeObjectRef,
+				ObjectRef: &v1alpha2.VirtualDiskObjectRef{
+					Kind: v1alpha2.ClusterVirtualImageKind,
 					Name: vmCVMI.Name,
 				},
 			},
@@ -198,7 +199,7 @@ func CreateVM(ctx context.Context,
 
 	splittedUrl := strings.Split(url, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
-	vmCVMI := &v1alpha2.ClusterVirtualMachineImage{}
+	vmCVMI := &v1alpha2.ClusterVirtualImage{}
 	CVMIList, err := ListCVMI(ctx, cl, CVMIName)
 	if err != nil {
 		return err
@@ -225,7 +226,7 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmSystemDisk := &v1alpha2.VirtualMachineDisk{}
+	vmSystemDisk := &v1alpha2.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
 	vmdList, err := ListVMD(ctx, cl, namespaceName, vmdName)
 	if err != nil {
@@ -238,7 +239,7 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmDataDisk := &v1alpha2.VirtualMachineDisk{}
+	vmDataDisk := &v1alpha2.VirtualDisk{}
 	vmdName = fmt.Sprintf("%s-data", vmName)
 	vmdList, err = ListVMD(ctx, cl, namespaceName, vmdName)
 	if err != nil {
@@ -258,21 +259,21 @@ func CreateVM(ctx context.Context,
 			Labels:    map[string]string{"vm": "linux", "service": "v1"},
 		},
 		Spec: v1alpha2.VirtualMachineSpec{
-			EnableParavirtualization:         true,
-			RunPolicy:                        v1alpha2.RunPolicy("AlwaysOn"),
-			OsType:                           v1alpha2.OsType("Generic"),
-			Bootloader:                       v1alpha2.BootloaderType("BIOS"),
-			VirtualMachineIPAddressClaimName: vmIPClaim.Name,
-			CPU:                              v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%", ModelName: "generic-v1"},
-			Memory:                           v1alpha2.MemorySpec{Size: memory},
-			BlockDevices: []v1alpha2.BlockDeviceSpec{
+			EnableParavirtualization:     true,
+			RunPolicy:                    v1alpha2.RunPolicy("AlwaysOn"),
+			OsType:                       v1alpha2.OsType("Generic"),
+			Bootloader:                   v1alpha2.BootloaderType("BIOS"),
+			VirtualMachineIPAddressClaim: vmIPClaim.Name,
+			CPU:                          v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%", VirtualMachineCPUModel: "generic-v1"},
+			Memory:                       v1alpha2.MemorySpec{Size: memory},
+			BlockDeviceRefs: []v1alpha2.BlockDeviceSpecRef{
 				{
-					Type:               v1alpha2.DiskDevice,
-					VirtualMachineDisk: &v1alpha2.DiskDeviceSpec{Name: vmSystemDisk.Name},
+					Kind: v1alpha2.DiskDevice,
+					Name: vmSystemDisk.Name,
 				},
 				{
-					Type:               v1alpha2.DiskDevice,
-					VirtualMachineDisk: &v1alpha2.DiskDeviceSpec{Name: vmDataDisk.Name},
+					Kind: v1alpha2.DiskDevice,
+					Name: vmDataDisk.Name,
 				},
 			},
 			Provisioning: &v1alpha2.Provisioning{
