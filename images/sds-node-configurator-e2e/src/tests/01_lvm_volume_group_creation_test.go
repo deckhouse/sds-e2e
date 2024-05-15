@@ -42,5 +42,6 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			t.Fatal("vgdisplay -C error", err)
 		}
+		t.Log("vgdisplay -C", string(out))
 	}
 }
