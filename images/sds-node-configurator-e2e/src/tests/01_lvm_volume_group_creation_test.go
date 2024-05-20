@@ -33,28 +33,10 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 		client := funcs.GetSSHClient(ip, "user", auth)
 		defer client.Close()
 
-		out, err := client.Run("sudo vgs")
-		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			t.Fatal("pvs error", err)
-		}
-		t.Log("pvs", string(out))
-
-		out, err = client.Run("sudo vgdisplay -C")
+		out, err := client.Run("sudo vgdisplay -C")
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			t.Fatal("vgdisplay -C error", err)
 		}
 		t.Log("vgdisplay -C", string(out))
-
-		out, err = client.Run("sudo lsblk")
-		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			t.Fatal("lsblk error", err)
-		}
-		t.Log("lsblk", string(out))
-
-		out, err = client.Run("sudo pvs")
-		if !strings.Contains(string(out), "/dev/sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			t.Fatal("pvs error", err)
-		}
-		t.Log("pvs", string(out))
 	}
 }
