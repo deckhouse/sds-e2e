@@ -17,8 +17,8 @@ func TestLvmPartsSizeChange(t *testing.T) {
 		client := funcs.GetSSHClient(ip, "user", auth)
 		defer client.Close()
 		out, err := client.Run("sudo vgs")
-		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			t.Fatal("pvs error", string(out), err)
+		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20.00g") || err != nil {
+			t.Fatal("vgs error", string(out), err)
 		}
 		t.Log("pvs", string(out))
 
