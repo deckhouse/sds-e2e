@@ -9,12 +9,6 @@ import (
 	"testing"
 )
 
-const (
-	appTmpPath = "/app/tmp"
-
-	privKeyName = "id_rsa_test"
-)
-
 func TestLvmVolumeGroupCreation(t *testing.T) {
 	ctx := context.Background()
 	cl, err := NewKubeClient()
@@ -32,16 +26,35 @@ func TestLvmVolumeGroupCreation(t *testing.T) {
 	}
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
-		auth, err := goph.Key(filepath.Join(appTmpPath, privKeyName), "")
+		auth, err := goph.Key(filepath.Join(AppTmpPath, PrivKeyName), "")
 		if err != nil {
 			t.Fatal(err)
 		}
 		client := funcs.GetSSHClient(ip, "user", auth)
 		defer client.Close()
-		out, err := client.Run("sudo vgdisplay -C")
+
+		out, err := client.Run("sudo vgs")
+		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
+			t.Fatal("pvs error", err)
+		}
+		t.Log("pvs", string(out))
+
+		out, err = client.Run("sudo vgdisplay -C")
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			t.Fatal("vgdisplay -C error", err)
 		}
 		t.Log("vgdisplay -C", string(out))
+
+		out, err = client.Run("sudo lsblk")
+		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
+			t.Fatal("lsblk error", err)
+		}
+		t.Log("lsblk", string(out))
+
+		out, err = client.Run("sudo pvs")
+		if !strings.Contains(string(out), "/dev/sdc") || !strings.Contains(string(out), "20G") || err != nil {
+			t.Fatal("pvs error", err)
+		}
+		t.Log("pvs", string(out))
 	}
 }

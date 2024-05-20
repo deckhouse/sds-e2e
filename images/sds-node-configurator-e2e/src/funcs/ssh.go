@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+const (
+	AppTmpPath = "/app/tmp"
+
+	PrivKeyName = "id_rsa_test"
+)
+
 // generatePrivateKey creates an RSA Private Key of specified byte size
 func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 	// Private Key generation

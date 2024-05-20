@@ -25,15 +25,7 @@ func NewKubeClient() (client.Client, error) {
 	var err error
 
 	kubeconfigPath := os.Getenv("kubeconfig")
-	//	if kubeconfigPath == "" {
-	//		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
 	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//	} else {
-	//		config = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	//			clientcmd.NewDefaultClientConfigLoadingRules(),
-	//			&clientcmd.ConfigOverrides{},
-	//		)
-	//	}
 
 	if err != nil {
 		return nil, err
