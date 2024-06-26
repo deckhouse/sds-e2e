@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+package cluster_management
 
 import (
-	"cluster-management/funcs"
-	"cluster-management/tests"
 	"context"
 	"fmt"
+	"github.com/deckhouse/sds-e2e/funcs"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"github.com/melbahja/goph"
 	"log"
@@ -99,13 +98,13 @@ func main() {
 		logFatalIfError(os.Mkdir(appTmpPath, 0644), "Cannot create temp dir")
 	}
 
-	_, err := tests.NewKubeClient()
+	_, err := funcs.NewKubeClient()
 	if err != nil {
 		panic(err)
 	}
 
 	ctx := context.Background()
-	cl, err := tests.NewKubeClient()
+	cl, err := funcs.NewKubeClient()
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
 	logFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
