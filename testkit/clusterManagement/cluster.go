@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package cluster_management
+package clusterManagement
 
 import (
 	"context"
@@ -91,7 +91,7 @@ func nodeInstall(nodeIP string, installScript string, username string, auth goph
 	return out
 }
 
-func main() {
+func InitClusterCreate() {
 	var out []byte
 
 	if _, err := os.Stat(appTmpPath); os.IsNotExist(err) {

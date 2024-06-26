@@ -16,8 +16,8 @@ limitations under the License.
 
 package main
 
-import "fmt"
+import "github.com/deckhouse/sds-e2e/clusterManagement"
 
 func main() {
-	fmt.Print("hello world")
+	clusterManagement.InitClusterCreate()
 }
