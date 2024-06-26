@@ -3,7 +3,7 @@ module cluster-management
 go 1.21
 
 require (
-	github.com/deckhouse/virtualization/api v0.0.0-20240507071904-0f7cd4172a03
+	github.com/deckhouse/virtualization/api v0.0.0-20240626143814-2c05d75b7fd9
 	github.com/melbahja/goph v1.4.0
 	golang.org/x/crypto v0.16.0
 	k8s.io/api v0.29.2
