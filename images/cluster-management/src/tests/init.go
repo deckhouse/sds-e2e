@@ -1,4 +1,4 @@
-package test
+package tests
 
 import (
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"

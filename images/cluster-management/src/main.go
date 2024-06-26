@@ -99,13 +99,13 @@ func main() {
 		logFatalIfError(os.Mkdir(appTmpPath, 0644), "Cannot create temp dir")
 	}
 
-	_, err := test.NewKubeClient()
+	_, err := tests.NewKubeClient()
 	if err != nil {
 		panic(err)
 	}
 
 	ctx := context.Background()
-	cl, err := test.NewKubeClient()
+	cl, err := tests.NewKubeClient()
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
 	logFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
