@@ -309,5 +309,7 @@ ssh_authorized_keys:
 		},
 	}
 
+	fmt.Println(vmObj.Spec.VirtualMachineIPAddressClaim)
+
 	return cl.Create(ctx, vmObj)
 }
