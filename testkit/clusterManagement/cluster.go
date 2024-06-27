@@ -231,6 +231,7 @@ func InitClusterCreate() {
 	for strings.Contains(string(nodeInstallScript), "not found") {
 		log.Printf(nodeInstallGenerationCommand)
 		nodeInstallScript, err = masterClient.Run("whereis jq")
+		log.Printf(string(nodeInstallScript))
 		nodeInstallScript, err = masterClient.Run(nodeInstallGenerationCommand)
 		log.Printf(string(nodeInstallScript))
 		logFatalIfError(err, "")
