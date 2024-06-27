@@ -221,12 +221,15 @@ func CreateVM(ctx context.Context,
 	if err != nil {
 		return err
 	}
+	fmt.Println(len(vmIPClaimList))
 	if len(vmIPClaimList) == 0 {
 		vmIPClaim, err = CreateVMIPClaim(ctx, cl, namespaceName, vmIPClaimName, ip)
+		fmt.Println(vmIPClaim.Name)
 		if err != nil {
 			return err
 		}
 	}
+	fmt.Println(vmIPClaim.Name)
 
 	vmSystemDisk := &v1alpha2.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
