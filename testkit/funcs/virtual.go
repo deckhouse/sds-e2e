@@ -252,6 +252,9 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
+	fmt.Println(vmIPClaim.Name)
+	fmt.Println(vmIPClaim.Spec.Address)
+
 	vmObj := &v1alpha2.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
