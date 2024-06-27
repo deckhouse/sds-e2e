@@ -5,7 +5,7 @@ go 1.22.0
 toolchain go1.22.4
 
 require (
-	github.com/deckhouse/virtualization/api v0.0.0-20240626155217-16895807f7ad
+	github.com/deckhouse/virtualization/api v0.0.0-20240613164317-493080f7d725
 	github.com/melbahja/goph v1.4.0
 	golang.org/x/crypto v0.24.0
 	k8s.io/api v0.30.2
