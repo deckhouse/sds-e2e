@@ -215,15 +215,25 @@ func InitClusterCreate() {
 		log.Printf("output: %s\n", out)
 	}
 
+	log.Printf("Nodes listing")
+
 	out, err = masterClient.Run(nodesListCommand)
 	logFatalIfError(err, string(out))
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
+
+	for _, nodeItem := range nodeList {
+		fmt.Println("node: ", nodeItem)
+	}
+
+	log.Printf("Getting master install script")
 
 	nodeInstallScript := []byte("not found")
 	for strings.Contains(string(nodeInstallScript), "not found") {
 		nodeInstallScript, err = masterClient.Run(nodeInstallGenerationCommand)
 		logFatalIfError(err, "")
 	}
+
+	log.Printf("Setting up nodes")
 
 	for _, newNodeIP := range []string{installWorkerNodeIp, workerNode2} {
 		needInstall := true
