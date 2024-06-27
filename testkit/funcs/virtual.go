@@ -79,7 +79,7 @@ func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI,
 	return cvmiList, nil
 }
 
-func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vmIPClaimSearch string) ([]IPClaim, error) {
+func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vmIPClaimSearch string) ([]v1alpha2.VirtualMachineIPAddressClaim, error) {
 	objs := v1alpha2.VirtualMachineIPAddressClaimList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
@@ -87,10 +87,10 @@ func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vm
 		return nil, err
 	}
 
-	vmIPClaimList := []IPClaim{}
+	vmIPClaimList := []v1alpha2.VirtualMachineIPAddressClaim{}
 	for _, item := range objs.Items {
 		if vmIPClaimSearch == "" || vmIPClaimSearch == item.Name {
-			vmIPClaimList = append(vmIPClaimList, IPClaim{Name: item.Name})
+			vmIPClaimList = append(vmIPClaimList, item)
 		}
 	}
 
@@ -228,6 +228,8 @@ func CreateVM(ctx context.Context,
 		if err != nil {
 			return err
 		}
+	} else {
+		vmIPClaim = &vmIPClaimList[0]
 	}
 	fmt.Println(vmIPClaim.Name)
 
