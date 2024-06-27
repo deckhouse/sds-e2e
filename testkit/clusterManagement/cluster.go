@@ -231,7 +231,7 @@ func InitClusterCreate() {
 	for strings.Contains(string(nodeInstallScript), "not found") {
 		log.Printf(nodeInstallGenerationCommand)
 		nodeInstallScript, err = masterClient.Run(nodeInstallGenerationCommand)
-		log.Printf(fmt.Sprintf("%b", nodeInstallScript))
+		log.Printf(string(nodeInstallScript))
 		logFatalIfError(err, "")
 	}
 
