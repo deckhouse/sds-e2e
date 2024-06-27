@@ -221,17 +221,14 @@ func CreateVM(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	fmt.Println(len(vmIPClaimList))
 	if len(vmIPClaimList) == 0 {
 		vmIPClaim, err = CreateVMIPClaim(ctx, cl, namespaceName, vmIPClaimName, ip)
-		fmt.Println(vmIPClaim.Name)
 		if err != nil {
 			return err
 		}
 	} else {
 		vmIPClaim = &vmIPClaimList[0]
 	}
-	fmt.Println(vmIPClaim.Name)
 
 	vmSystemDisk := &v1alpha2.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
@@ -258,9 +255,6 @@ func CreateVM(ctx context.Context,
 			return err
 		}
 	}
-
-	fmt.Println(vmIPClaim.Name)
-	fmt.Println(vmIPClaim.Spec.Address)
 
 	vmObj := &v1alpha2.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
@@ -308,17 +302,6 @@ ssh_authorized_keys:
 			},
 		},
 	}
-
-	fmt.Println("vm name")
-	fmt.Println(vmObj.Name)
-	fmt.Println("vm namespace name")
-	fmt.Println(vmObj.Namespace)
-	fmt.Println("vm IP claim name")
-	fmt.Println(vmObj.Spec.VirtualMachineIPAddressClaim)
-	fmt.Println("IP claim name")
-	fmt.Println(vmIPClaim.Name)
-	fmt.Println("IP claim namespace")
-	fmt.Println(vmIPClaim.Namespace)
 
 	return cl.Create(ctx, vmObj)
 }
