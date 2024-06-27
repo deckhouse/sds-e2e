@@ -94,6 +94,8 @@ func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vm
 		}
 	}
 
+	fmt.Println(vmIPClaimList)
+
 	return vmIPClaimList, nil
 }
 
