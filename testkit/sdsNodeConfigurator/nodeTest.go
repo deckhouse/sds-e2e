@@ -67,7 +67,7 @@ func LvmPartsSizeChange() {
 		funcs.LogFatalIfError(err, "Kubeclient problem")
 	}
 
-	extCl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
+	extCl, err := funcs.NewKubeClient("")
 	if err != nil {
 		funcs.LogFatalIfError(err, "Parent cluster kubeclient problem")
 	}
