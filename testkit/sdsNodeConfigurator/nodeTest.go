@@ -84,9 +84,8 @@ func LvmPartsSizeChange() {
 		}
 	}
 
-	vmList, err := funcs.ListVM(ctx, extCl, funcs.NamespaceName)
-	fmt.Print(err)
-	for count, vm := range vmList {
+	vmdList, err := funcs.ListVMD(ctx, extCl, funcs.NamespaceName, "")
+	for count, vm := range vmdList {
 		fmt.Print(count, vm)
 	}
 
