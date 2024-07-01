@@ -61,30 +61,14 @@ const (
 	nodesListCommand             = "sudo -i kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'"
 )
 
-func logFatalIfError(err error, out string, exclude ...string) {
-	if out != "" {
-		fmt.Println(out)
-	}
-	if err != nil {
-		if len(exclude) > 0 {
-			for _, excludeError := range exclude {
-				if err.Error() == excludeError {
-					return
-				}
-			}
-		}
-		log.Fatal(err.Error())
-	}
-}
-
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	defer wg.Done()
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
-	logFatalIfError(err, "")
+	funcs.LogFatalIfError(err, "")
 	fmt.Printf("Install node %s\n", nodeIP)
 
 	out, err = nodeClient.Run(fmt.Sprintf("base64 -d <<< %s | sudo -i bash", installScript))
-	logFatalIfError(err, string(out))
+	funcs.LogFatalIfError(err, string(out))
 
 	nodeClient.Close()
 
@@ -95,7 +79,7 @@ func InitClusterCreate() {
 	var out []byte
 
 	if _, err := os.Stat(appTmpPath); os.IsNotExist(err) {
-		logFatalIfError(os.Mkdir(appTmpPath, 0644), "Cannot create temp dir")
+		funcs.LogFatalIfError(os.Mkdir(appTmpPath, 0644), "Cannot create temp dir")
 	}
 
 	_, err := funcs.NewKubeClient()
@@ -107,7 +91,7 @@ func InitClusterCreate() {
 	cl, err := funcs.NewKubeClient()
 
 	err = funcs.CreateNamespace(ctx, cl, namespaceName)
-	logFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
+	funcs.LogFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
 
 	sshPubKeyString := funcs.CheckAndGetSSHKeys(appTmpPath, privKeyName, pubKeyName)
 
@@ -118,7 +102,7 @@ func InitClusterCreate() {
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
 		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
-		logFatalIfError(err, "", fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
+		funcs.LogFatalIfError(err, "", fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
 	}
 
 	tries := 600
@@ -127,9 +111,9 @@ func InitClusterCreate() {
 	for count := 0; count < tries; count++ {
 		allVMUp = true
 		vmList, err := funcs.ListVM(ctx, cl, namespaceName)
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 		vmList, err = funcs.ListVM(ctx, cl, namespaceName)
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 		for _, item := range vmList {
 			if item.Status != v1alpha2.MachineRunning {
 				allVMUp = false
@@ -156,14 +140,14 @@ func InitClusterCreate() {
 		{resourcesTplName, filepath.Join(appTmpPath, resourcesName)},
 	} {
 		template, err := os.ReadFile(item[0])
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 		renderedTemplateString := fmt.Sprintf(string(template), registryDockerCfg)
 		err = os.WriteFile(item[1], []byte(renderedTemplateString), 0644)
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 	}
 
 	auth, err := goph.Key(filepath.Join(appTmpPath, privKeyName), "")
-	logFatalIfError(err, "")
+	funcs.LogFatalIfError(err, "")
 
 	goph.DefaultTimeout = 0
 
@@ -186,7 +170,7 @@ func InitClusterCreate() {
 		} else {
 			err = masterClient.Upload(item[0], item[1])
 		}
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 	}
 
 	out = []byte("Unable to lock directory")
@@ -201,7 +185,7 @@ func InitClusterCreate() {
 
 	log.Printf("Check Deckhouse existance")
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
-	logFatalIfError(err, string(out))
+	funcs.LogFatalIfError(err, string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
 		sshCommandList = append(sshCommandList, fmt.Sprintf(deckhouseInstallCommand, masterNodeIP))
 	}
@@ -211,14 +195,14 @@ func InitClusterCreate() {
 	for _, sshCommand := range sshCommandList {
 		log.Printf("command: %s", sshCommand)
 		out, err := client.Run(sshCommand)
-		logFatalIfError(err, string(out))
+		funcs.LogFatalIfError(err, string(out))
 		log.Printf("output: %s\n", out)
 	}
 
 	log.Printf("Nodes listing")
 
 	out, err = masterClient.Run(nodesListCommand)
-	logFatalIfError(err, string(out))
+	funcs.LogFatalIfError(err, string(out))
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
 	for _, nodeItem := range nodeList {
@@ -229,12 +213,8 @@ func InitClusterCreate() {
 
 	nodeInstallScript := []byte("not found")
 	for strings.Contains(string(nodeInstallScript), "not found") {
-		log.Printf(nodeInstallGenerationCommand)
-		nodeInstallScript, err = masterClient.Run("whereis jq")
-		log.Printf(string(nodeInstallScript))
 		nodeInstallScript, err = masterClient.Run(nodeInstallGenerationCommand)
-		log.Printf(string(nodeInstallScript))
-		logFatalIfError(err, "")
+		funcs.LogFatalIfError(err, "")
 	}
 
 	log.Printf("Setting up nodes")
@@ -257,13 +237,13 @@ func InitClusterCreate() {
 	validTokenExists := false
 	for !validTokenExists {
 		out, err = masterClient.Run(fmt.Sprintf("sudo -i /bin/bash %s", filepath.Join(remoteAppPath, userCreateScriptName)))
-		logFatalIfError(err, string(out))
+		funcs.LogFatalIfError(err, string(out))
 		out, err = masterClient.Run(fmt.Sprintf("cat %s", filepath.Join(remoteAppPath, kubeConfigName)))
-		logFatalIfError(err, string(out))
+		funcs.LogFatalIfError(err, string(out))
 		var validBase64 = regexp.MustCompile(`token: [A–Za-z0-9\+/=-_\.]{10,}`)
 		validTokenExists = validBase64.MatchString(string(out))
 		time.Sleep(10 * time.Second)
 	}
 
-	logFatalIfError(masterClient.Download(filepath.Join(remoteAppPath, kubeConfigName), filepath.Join(appTmpPath, kubeConfigName)), "")
+	funcs.LogFatalIfError(masterClient.Download(filepath.Join(remoteAppPath, kubeConfigName), filepath.Join(appTmpPath, kubeConfigName)), "")
 }

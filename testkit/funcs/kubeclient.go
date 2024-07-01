@@ -1,6 +1,7 @@
 package funcs
 
 import (
+	"github.com/deckhouse/sds-e2e/sdsNodeConfiguratorApi"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
@@ -46,6 +47,7 @@ func NewKubeClient() (client.Client, error) {
 	var (
 		resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
 			v1alpha2.AddToScheme,
+			sdsNodeConfiguratorApi.AddToScheme,
 			clientgoscheme.AddToScheme,
 			extv1.AddToScheme,
 			v1.AddToScheme,
