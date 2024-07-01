@@ -14,31 +14,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const (
-	AppTmpPath = "/app/tmp"
-
-	PrivKeyName = "id_rsa_test"
-	PubKeyName  = "id_rsa_test.pub"
-
-	masterNodeIP        = "10.10.10.180"
-	installWorkerNodeIp = "10.10.10.181"
-	workerNode2         = "10.10.10.182"
-)
-
-func NewKubeClient() (client.Client, error) {
+func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 	var config *rest.Config
 	var err error
 
-	kubeconfigPath := os.Getenv("kubeconfig")
-	//	if kubeconfigPath == "" {
-	//		kubeconfigPath = filepath.Join("/app", "kube.config.internal")
+	if kubeconfigPath == "" {
+		kubeconfigPath = os.Getenv("kubeconfig")
+	}
+
 	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
-	//	} else {
-	//		config = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-	//			clientcmd.NewDefaultClientConfigLoadingRules(),
-	//			&clientcmd.ConfigOverrides{},
-	//		)
-	//	}
 
 	if err != nil {
 		return nil, err

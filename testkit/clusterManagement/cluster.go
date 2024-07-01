@@ -34,33 +34,6 @@ import (
 
 var wg sync.WaitGroup
 
-const (
-	namespaceName       = "test1"
-	masterNodeIP        = "10.10.10.180"
-	installWorkerNodeIp = "10.10.10.181"
-	workerNode2         = "10.10.10.182"
-
-	appTmpPath    = "/app/tmp"
-	remoteAppPath = "/home/user"
-
-	privKeyName          = "id_rsa_test"
-	pubKeyName           = "id_rsa_test.pub"
-	configTplName        = "config.yml.tpl"
-	configName           = "config.yml"
-	resourcesTplName     = "resources.yml.tpl"
-	resourcesName        = "resources.yml"
-	userCreateScriptName = "createuser.sh"
-	kubeConfigName       = "kube.config"
-
-	ubuntuCloudImage = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-
-	deckhouseInstallCommand          = "sudo -i docker run --network=host -t -v '/home/user/config.yml:/config.yml' -v '/home/user/:/tmp/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --config=/config.yml"
-	deckhouseResourcesInstallCommand = "sudo -i docker run --network=host -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/:/tmp/' dev-registry.deckhouse.io/sys/deckhouse-oss/install:main dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --resources=/resources.yml"
-
-	nodeInstallGenerationCommand = "sudo -i kubectl -n d8-cloud-instance-manager get secret manual-bootstrap-for-worker -o json | /opt/deckhouse/bin/jq '.data.\"bootstrap.sh\"' -r"
-	nodesListCommand             = "sudo -i kubectl get nodes -owide | grep -v NAME | awk '{ print $6 }'"
-)
-
 func nodeInstall(nodeIP string, installScript string, username string, auth goph.Auth) (out []byte) {
 	defer wg.Done()
 	nodeClient, err := goph.NewUnknown(username, nodeIP, auth)
@@ -78,30 +51,28 @@ func nodeInstall(nodeIP string, installScript string, username string, auth goph
 func InitClusterCreate() {
 	var out []byte
 
-	if _, err := os.Stat(appTmpPath); os.IsNotExist(err) {
-		funcs.LogFatalIfError(os.Mkdir(appTmpPath, 0644), "Cannot create temp dir")
-	}
-
-	_, err := funcs.NewKubeClient()
-	if err != nil {
-		panic(err)
+	if _, err := os.Stat(funcs.AppTmpPath); os.IsNotExist(err) {
+		funcs.LogFatalIfError(os.Mkdir(funcs.AppTmpPath, 0644), "Cannot create temp dir")
 	}
 
 	ctx := context.Background()
-	cl, err := funcs.NewKubeClient()
+	cl, err := funcs.NewKubeClient("")
+	if err != nil {
+		funcs.LogFatalIfError(err, fmt.Sprintf("kubeclient connection problem %s", err))
+	}
 
-	err = funcs.CreateNamespace(ctx, cl, namespaceName)
-	funcs.LogFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", namespaceName))
+	err = funcs.CreateNamespace(ctx, cl, funcs.NamespaceName)
+	funcs.LogFatalIfError(err, "", fmt.Sprintf("namespaces \"%s\" already exists", funcs.NamespaceName))
 
-	sshPubKeyString := funcs.CheckAndGetSSHKeys(appTmpPath, privKeyName, pubKeyName)
+	sshPubKeyString := funcs.CheckAndGetSSHKeys(funcs.AppTmpPath, funcs.PrivKeyName, funcs.PubKeyName)
 
 	for _, vmItem := range [][]string{
-		{"vm1", masterNodeIP, "4", "8Gi", "linstor-r1", ubuntuCloudImage},
-		{"vm2", installWorkerNodeIp, "4", "8Gi", "linstor-r1", ubuntuCloudImage},
-		{"vm3", workerNode2, "4", "8Gi", "linstor-r1", ubuntuCloudImage},
+		{"vm1", funcs.MasterNodeIP, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
+		{"vm2", funcs.InstallWorkerNodeIp, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
+		{"vm3", funcs.WorkerNode2, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
-		err = funcs.CreateVM(ctx, cl, namespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
+		err = funcs.CreateVM(ctx, cl, funcs.NamespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
 		funcs.LogFatalIfError(err, "", fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
 	}
 
@@ -110,9 +81,9 @@ func InitClusterCreate() {
 
 	for count := 0; count < tries; count++ {
 		allVMUp = true
-		vmList, err := funcs.ListVM(ctx, cl, namespaceName)
+		vmList, err := funcs.ListVM(ctx, cl, funcs.NamespaceName)
 		funcs.LogFatalIfError(err, "")
-		vmList, err = funcs.ListVM(ctx, cl, namespaceName)
+		vmList, err = funcs.ListVM(ctx, cl, funcs.NamespaceName)
 		funcs.LogFatalIfError(err, "")
 		for _, item := range vmList {
 			if item.Status != v1alpha2.MachineRunning {
@@ -136,8 +107,8 @@ func InitClusterCreate() {
 	registryDockerCfg := os.Getenv("registryDockerCfg")
 
 	for _, item := range [][]string{
-		{configTplName, filepath.Join(appTmpPath, configName)},
-		{resourcesTplName, filepath.Join(appTmpPath, resourcesName)},
+		{funcs.ConfigTplName, filepath.Join(funcs.AppTmpPath, funcs.ConfigName)},
+		{funcs.ResourcesTplName, filepath.Join(funcs.AppTmpPath, funcs.ResourcesName)},
 	} {
 		template, err := os.ReadFile(item[0])
 		funcs.LogFatalIfError(err, "")
@@ -146,7 +117,7 @@ func InitClusterCreate() {
 		funcs.LogFatalIfError(err, "")
 	}
 
-	auth, err := goph.Key(filepath.Join(appTmpPath, privKeyName), "")
+	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 	funcs.LogFatalIfError(err, "")
 
 	goph.DefaultTimeout = 0
@@ -154,16 +125,16 @@ func InitClusterCreate() {
 	var client *goph.Client
 	var masterClient *goph.Client
 
-	client = funcs.GetSSHClient(installWorkerNodeIp, "user", auth)
+	client = funcs.GetSSHClient(funcs.InstallWorkerNodeIp, "user", auth)
 	defer client.Close()
-	masterClient = funcs.GetSSHClient(masterNodeIP, "user", auth)
+	masterClient = funcs.GetSSHClient(funcs.MasterNodeIP, "user", auth)
 	defer masterClient.Close()
 
 	for _, item := range [][]string{
-		{filepath.Join(appTmpPath, configName), filepath.Join(remoteAppPath, configName), "installWorker"},
-		{filepath.Join(appTmpPath, privKeyName), filepath.Join(remoteAppPath, privKeyName), "installWorker"},
-		{filepath.Join(appTmpPath, resourcesName), filepath.Join(remoteAppPath, resourcesName), "installWorker"},
-		{userCreateScriptName, filepath.Join(remoteAppPath, userCreateScriptName), "masterNode"},
+		{filepath.Join(funcs.AppTmpPath, funcs.ConfigName), filepath.Join(funcs.RemoteAppPath, funcs.ConfigName), "installWorker"},
+		{filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), filepath.Join(funcs.RemoteAppPath, funcs.PrivKeyName), "installWorker"},
+		{filepath.Join(funcs.AppTmpPath, funcs.ResourcesName), filepath.Join(funcs.RemoteAppPath, funcs.ResourcesName), "installWorker"},
+		{funcs.UserCreateScriptName, filepath.Join(funcs.RemoteAppPath, funcs.UserCreateScriptName), "masterNode"},
 	} {
 		if item[2] == "installWorker" {
 			err = client.Upload(item[0], item[1])
@@ -187,10 +158,10 @@ func InitClusterCreate() {
 	out, err = masterClient.Run("ls -1 /opt/deckhouse | wc -l")
 	funcs.LogFatalIfError(err, string(out))
 	if strings.Contains(string(out), "cannot access '/opt/deckhouse'") {
-		sshCommandList = append(sshCommandList, fmt.Sprintf(deckhouseInstallCommand, masterNodeIP))
+		sshCommandList = append(sshCommandList, fmt.Sprintf(funcs.DeckhouseInstallCommand, funcs.MasterNodeIP))
 	}
 
-	sshCommandList = append(sshCommandList, fmt.Sprintf(deckhouseResourcesInstallCommand, masterNodeIP))
+	sshCommandList = append(sshCommandList, fmt.Sprintf(funcs.DeckhouseResourcesInstallCommand, funcs.MasterNodeIP))
 
 	for _, sshCommand := range sshCommandList {
 		log.Printf("command: %s", sshCommand)
@@ -201,7 +172,7 @@ func InitClusterCreate() {
 
 	log.Printf("Nodes listing")
 
-	out, err = masterClient.Run(nodesListCommand)
+	out, err = masterClient.Run(funcs.NodesListCommand)
 	funcs.LogFatalIfError(err, string(out))
 	nodeList := strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n")
 
@@ -213,13 +184,13 @@ func InitClusterCreate() {
 
 	nodeInstallScript := []byte("not found")
 	for strings.Contains(string(nodeInstallScript), "not found") {
-		nodeInstallScript, err = masterClient.Run(nodeInstallGenerationCommand)
+		nodeInstallScript, err = masterClient.Run(funcs.NodeInstallGenerationCommand)
 		funcs.LogFatalIfError(err, "")
 	}
 
 	log.Printf("Setting up nodes")
 
-	for _, newNodeIP := range []string{installWorkerNodeIp, workerNode2} {
+	for _, newNodeIP := range []string{funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
 		needInstall := true
 		for _, nodeIP := range nodeList {
 			if nodeIP == newNodeIP {
@@ -236,14 +207,14 @@ func InitClusterCreate() {
 
 	validTokenExists := false
 	for !validTokenExists {
-		out, err = masterClient.Run(fmt.Sprintf("sudo -i /bin/bash %s", filepath.Join(remoteAppPath, userCreateScriptName)))
+		out, err = masterClient.Run(fmt.Sprintf("sudo -i /bin/bash %s", filepath.Join(funcs.RemoteAppPath, funcs.UserCreateScriptName)))
 		funcs.LogFatalIfError(err, string(out))
-		out, err = masterClient.Run(fmt.Sprintf("cat %s", filepath.Join(remoteAppPath, kubeConfigName)))
+		out, err = masterClient.Run(fmt.Sprintf("cat %s", filepath.Join(funcs.RemoteAppPath, funcs.KubeConfigName)))
 		funcs.LogFatalIfError(err, string(out))
 		var validBase64 = regexp.MustCompile(`token: [A–Za-z0-9\+/=-_\.]{10,}`)
 		validTokenExists = validBase64.MatchString(string(out))
 		time.Sleep(10 * time.Second)
 	}
 
-	funcs.LogFatalIfError(masterClient.Download(filepath.Join(remoteAppPath, kubeConfigName), filepath.Join(appTmpPath, kubeConfigName)), "")
+	funcs.LogFatalIfError(masterClient.Download(filepath.Join(funcs.RemoteAppPath, funcs.KubeConfigName), filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName)), "")
 }

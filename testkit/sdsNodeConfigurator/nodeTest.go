@@ -26,17 +26,9 @@ import (
 	"strings"
 )
 
-const (
-	AppTmpPath    = "/app/tmp"
-	RemoteAppPath = "/home/user"
-
-	PrivKeyName = "id_rsa_test"
-	PubKeyName  = "id_rsa_test.pub"
-)
-
 func LvmVolumeGroupCreation() {
 	ctx := context.Background()
-	cl, err := funcs.NewKubeClient()
+	cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
 	if err != nil {
 		funcs.LogFatalIfError(err, "kubeclient problem")
 	}
@@ -50,8 +42,8 @@ func LvmVolumeGroupCreation() {
 		log.Printf("%s", funcs.CreateLvmVolumeGroup(ctx, cl, item.Status.NodeName, []string{item.ObjectMeta.Name}))
 	}
 
-	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
-		auth, err := goph.Key(filepath.Join(AppTmpPath, PrivKeyName), "")
+	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
 			funcs.LogFatalIfError(err, "SSH connecton problem")
 		}
@@ -67,8 +59,8 @@ func LvmVolumeGroupCreation() {
 }
 
 func LvmPartsSizeChange() {
-	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
-		auth, err := goph.Key(filepath.Join(AppTmpPath, PrivKeyName), "")
+	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
 			funcs.LogFatalIfError(err, "SSH connection problem")
 		}
