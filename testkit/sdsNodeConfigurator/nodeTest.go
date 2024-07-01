@@ -27,6 +27,7 @@ import (
 )
 
 func LvmVolumeGroupCreation() {
+	log.Printf("LVM VG creation")
 	ctx := context.Background()
 	cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
 	if err != nil {
@@ -59,6 +60,7 @@ func LvmVolumeGroupCreation() {
 }
 
 func LvmPartsSizeChange() {
+	log.Printf("LVM size change")
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
 		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
