@@ -67,10 +67,10 @@ func LvmPartsSizeChange() {
 		funcs.LogFatalIfError(err, "Kubeclient problem")
 	}
 
-	//extCl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
-	//if err != nil {
-	//	funcs.LogFatalIfError(err, "Parent cluster kubeclient problem")
-	//}
+	extCl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
+	if err != nil {
+		funcs.LogFatalIfError(err, "Parent cluster kubeclient problem")
+	}
 
 	log.Printf("LVM size change")
 
@@ -82,6 +82,11 @@ func LvmPartsSizeChange() {
 		} else {
 			fmt.Printf("node name: %s, size ok: %s, %s\n", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 		}
+	}
+
+	vmList, err := funcs.ListVM(ctx, extCl, funcs.NamespaceName)
+	for count, vm := range vmList {
+		fmt.Print(count, vm)
 	}
 
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
