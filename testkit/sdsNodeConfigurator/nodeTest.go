@@ -74,7 +74,9 @@ func LvmPartsSizeChange() {
 
 	lmvvgs, err := funcs.GetLvmVolumeGroups(ctx, cl)
 
-	fmt.Print(lmvvgs)
+	for nodeName, LVMVG := range lmvvgs {
+		fmt.Print(nodeName, LVMVG.Spec)
+	}
 
 	log.Printf("LVM size change")
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
