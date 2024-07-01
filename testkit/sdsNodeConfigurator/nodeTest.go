@@ -72,13 +72,18 @@ func LvmPartsSizeChange() {
 	//	funcs.LogFatalIfError(err, "Parent cluster kubeclient problem")
 	//}
 
+	log.Printf("LVM size change")
+
 	lmvvgs, err := funcs.GetLvmVolumeGroups(ctx, cl)
 
 	for nodeName, LVMVG := range lmvvgs {
-		fmt.Print(nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
+		if LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
+			funcs.LogFatalIfError(nil, fmt.Sprintf("node name: %s, problem with size: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
+		} else {
+			fmt.Printf("node name: %s, problem with size: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
+		}
 	}
 
-	log.Printf("LVM size change")
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
 		log.Printf("LVM size change on %s", ip)
 		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
