@@ -80,7 +80,7 @@ func LvmPartsSizeChange() {
 		if LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
 			funcs.LogFatalIfError(nil, fmt.Sprintf("node name: %s, problem with size: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
 		} else {
-			fmt.Printf("node name: %s, problem with size: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
+			fmt.Printf("node name: %s, size ok: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 		}
 	}
 
