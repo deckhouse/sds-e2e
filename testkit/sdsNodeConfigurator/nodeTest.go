@@ -61,6 +61,21 @@ func LvmVolumeGroupCreation() {
 }
 
 func LvmPartsSizeChange() {
+	ctx := context.Background()
+	cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
+	if err != nil {
+		funcs.LogFatalIfError(err, "Kubeclient problem")
+	}
+
+	//extCl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
+	//if err != nil {
+	//	funcs.LogFatalIfError(err, "Parent cluster kubeclient problem")
+	//}
+
+	lmvvgs, err := funcs.GetLvmVolumeGroups(ctx, cl)
+
+	fmt.Print(lmvvgs)
+
 	log.Printf("LVM size change")
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
 		log.Printf("LVM size change on %s", ip)

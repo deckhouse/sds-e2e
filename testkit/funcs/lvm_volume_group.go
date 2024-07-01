@@ -24,7 +24,7 @@ func CreateLvmVolumeGroup(ctx context.Context, cl client.Client, lvmVolumeGroupN
 	return cl.Create(ctx, lvmVolumeGroup)
 }
 
-func GetAPILvmVolumeGroup(ctx context.Context, cl client.Client) (map[string]sdsNodeConfiguratorApi.LvmVolumeGroup, error) {
+func GetLvmVolumeGroups(ctx context.Context, cl client.Client) (map[string]sdsNodeConfiguratorApi.LvmVolumeGroup, error) {
 	listDevice := &sdsNodeConfiguratorApi.LvmVolumeGroupList{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "LvmVolumeGroup",
