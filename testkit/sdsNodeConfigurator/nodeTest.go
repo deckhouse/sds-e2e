@@ -44,6 +44,7 @@ func LvmVolumeGroupCreation() {
 	}
 
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+		log.Printf("LVM VG creation on %s", ip)
 		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
 			funcs.LogFatalIfError(err, "SSH connecton problem")
@@ -62,6 +63,7 @@ func LvmVolumeGroupCreation() {
 func LvmPartsSizeChange() {
 	log.Printf("LVM size change")
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+		log.Printf("LVM size change on %s", ip)
 		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
 			funcs.LogFatalIfError(err, "SSH connection problem")
