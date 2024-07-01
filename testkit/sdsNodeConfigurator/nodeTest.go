@@ -40,7 +40,7 @@ func LvmVolumeGroupCreation() {
 	}
 
 	for _, item := range devices {
-		log.Printf("%s", funcs.CreateLvmVolumeGroup(ctx, cl, item.Status.NodeName, []string{item.ObjectMeta.Name}))
+		log.Printf("%s: LVM VG creation:\n%s", item.Status.NodeName, funcs.CreateLvmVolumeGroup(ctx, cl, item.Status.NodeName, []string{item.ObjectMeta.Name}))
 	}
 
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
@@ -56,7 +56,7 @@ func LvmVolumeGroupCreation() {
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			funcs.LogFatalIfError(err, "vgdisplay -C error")
 		}
-		log.Printf("vgdisplay -C %s", out)
+		log.Printf("%s: vgdisplay -C %s", ip, out)
 	}
 }
 
@@ -74,25 +74,25 @@ func LvmPartsSizeChange() {
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			funcs.LogFatalIfError(err, fmt.Sprintf("vgs error: %s", out))
 		}
-		log.Printf("pvs", string(out))
+		log.Printf("%s: pvs\n%s", ip, out)
 
 		out, err = client.Run("sudo vgdisplay -C")
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			funcs.LogFatalIfError(err, fmt.Sprintf("vgdisplay -C error: %s", out))
 
 		}
-		log.Printf("vgdisplay -C %s", out)
+		log.Printf("%s: vgdisplay -C\n%s", ip, out)
 
 		out, err = client.Run("sudo lsblk")
 		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
 			funcs.LogFatalIfError(err, fmt.Sprintf("lsblk error: %s", out))
 		}
-		log.Printf("lsblk %s", out)
+		log.Printf("%s: lsblk \n%s", ip, out)
 
 		out, err = client.Run("sudo pvs")
 		if !strings.Contains(string(out), "/dev/sdc") || !strings.Contains(string(out), "20G") || err != nil {
 			funcs.LogFatalIfError(err, fmt.Sprintf("pvs error: %s", out))
 		}
-		log.Printf("pvs %s", out)
+		log.Printf("%s: pvs \n%s", ip, out)
 	}
 }
