@@ -85,41 +85,28 @@ func LvmPartsSizeChange() {
 	}
 
 	vmdList, err := funcs.ListVMD(ctx, extCl, funcs.NamespaceName, "")
-	for count, vm := range vmdList {
-		fmt.Print(count, vm)
+	for _, vmd := range vmdList {
+		if strings.Contains(vmd.Name, "-data") {
+			vmd.Spec.PersistentVolumeClaim.Size.Set(32212254720)
+			err := extCl.Update(ctx, &vmd)
+			if err != nil {
+				funcs.LogFatalIfError(err, "Disk update problem")
+			}
+		}
 	}
 
 	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
-		log.Printf("LVM size change on %s", ip)
+		log.Printf("LVM size change check on %s", ip)
 		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 		if err != nil {
 			funcs.LogFatalIfError(err, "SSH connection problem")
 		}
 		client := funcs.GetSSHClient(ip, "user", auth)
 		defer client.Close()
-		out, err := client.Run("sudo vgs")
-		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
-			funcs.LogFatalIfError(err, fmt.Sprintf("vgs error: %s", out))
-		}
-		log.Printf("%s: pvs\n%s", ip, out)
 
-		out, err = client.Run("sudo vgdisplay -C")
-		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
-			funcs.LogFatalIfError(err, fmt.Sprintf("vgdisplay -C error: %s", out))
-
-		}
-		log.Printf("%s: vgdisplay -C\n%s", ip, out)
-
-		out, err = client.Run("sudo lsblk")
-		if !strings.Contains(string(out), "sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			funcs.LogFatalIfError(err, fmt.Sprintf("lsblk error: %s", out))
-		}
-		log.Printf("%s: lsblk \n%s", ip, out)
-
-		out, err = client.Run("sudo pvs")
-		if !strings.Contains(string(out), "/dev/sdc") || !strings.Contains(string(out), "20G") || err != nil {
-			funcs.LogFatalIfError(err, fmt.Sprintf("pvs error: %s", out))
-		}
-		log.Printf("%s: pvs \n%s", ip, out)
+		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgs", []string{"data", "20.00g"})
+		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgdisplay -C", []string{"data", "20.00g"})
+		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo lsblk", []string{"sdc", "20G"})
+		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo pvs", []string{"/dev/sdc", "20G"})
 	}
 }

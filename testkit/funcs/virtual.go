@@ -43,7 +43,7 @@ func ListVM(ctx context.Context, cl client.Client, namespaceName string) ([]VM, 
 	return vmList, nil
 }
 
-func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSearch string) ([]VMD, error) {
+func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSearch string) ([]v1alpha2.VirtualDisk, error) {
 	objs := v1alpha2.VirtualDiskList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
@@ -51,10 +51,10 @@ func ListVMD(ctx context.Context, cl client.Client, namespaceName string, VMDSea
 		return nil, err
 	}
 
-	vmdList := []VMD{}
+	vmdList := []v1alpha2.VirtualDisk{}
 	for _, item := range objs.Items {
 		if VMDSearch == "" || VMDSearch == item.Name {
-			vmdList = append(vmdList, VMD{Name: item.Name})
+			vmdList = append(vmdList, item)
 		}
 	}
 

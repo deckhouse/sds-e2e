@@ -1,10 +1,9 @@
 module github.com/deckhouse/sds-e2e
 
-go 1.22.0
-
-toolchain go1.22.4
+go 1.22.3
 
 require (
+	github.com/deckhouse/sds-node-configurator/api v0.0.0-20240705130854-dcda6fe6b793
 	github.com/deckhouse/virtualization/api v0.0.0-20240613164317-493080f7d725
 	github.com/melbahja/goph v1.4.0
 	golang.org/x/crypto v0.24.0

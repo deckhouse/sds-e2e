@@ -6,11 +6,13 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"github.com/melbahja/goph"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -135,4 +137,14 @@ func GetSSHClient(ip string, username string, auth goph.Auth) *goph.Client {
 	}
 
 	return client
+}
+
+func ExecuteSSHCommandWithCheck(client *goph.Client, ip string, command string, checkStrings []string) {
+	out, err := client.Run(command)
+	for _, checkString := range checkStrings {
+		if !strings.Contains(string(out), checkString) || err != nil {
+			LogFatalIfError(err, fmt.Sprintf("%s error: %s", command, out))
+		}
+	}
+	log.Printf("%s: %s \n%s", ip, command, out)
 }
