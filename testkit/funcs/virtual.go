@@ -79,15 +79,15 @@ func ListCVMI(ctx context.Context, cl client.Client, CVMISearch string) ([]CVMI,
 	return cvmiList, nil
 }
 
-func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vmIPClaimSearch string) ([]v1alpha2.VirtualMachineIPAddressClaim, error) {
-	objs := v1alpha2.VirtualMachineIPAddressClaimList{}
+func ListIPClaim(ctx context.Context, cl client.Client, namespaceName string, vmIPClaimSearch string) ([]v1alpha2.VirtualMachineIPAddress, error) {
+	objs := v1alpha2.VirtualMachineIPAddressList{}
 	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	vmIPClaimList := []v1alpha2.VirtualMachineIPAddressClaim{}
+	vmIPClaimList := []v1alpha2.VirtualMachineIPAddress{}
 	for _, item := range objs.Items {
 		if vmIPClaimSearch == "" || vmIPClaimSearch == item.Name {
 			vmIPClaimList = append(vmIPClaimList, item)
@@ -114,14 +114,14 @@ func CreateCVMI(ctx context.Context, cl client.Client, name string, url string) 
 	return vmCVMI, nil
 }
 
-func CreateVMIPClaim(ctx context.Context, cl client.Client, namespaceName string, name string, ip string) (*v1alpha2.VirtualMachineIPAddressClaim, error) {
-	vmClaim := &v1alpha2.VirtualMachineIPAddressClaim{ObjectMeta: metav1.ObjectMeta{
+func CreateVMIPClaim(ctx context.Context, cl client.Client, namespaceName string, name string, ip string) (*v1alpha2.VirtualMachineIPAddress, error) {
+	vmClaim := &v1alpha2.VirtualMachineIPAddress{ObjectMeta: metav1.ObjectMeta{
 		Name:      name,
 		Namespace: namespaceName,
 	},
-		Spec: v1alpha2.VirtualMachineIPAddressClaimSpec{
-			Address:       ip,
-			ReclaimPolicy: "Delete",
+		Spec: v1alpha2.VirtualMachineIPAddressSpec{
+			Type:     v1alpha2.VirtualMachineIPAddressTypeStatic,
+			StaticIP: ip,
 		},
 	}
 
@@ -213,7 +213,7 @@ func CreateVM(ctx context.Context,
 		vmCVMI.Name = CVMIList[0].Name
 	}
 
-	vmIPClaim := &v1alpha2.VirtualMachineIPAddressClaim{}
+	vmIPClaim := &v1alpha2.VirtualMachineIPAddress{}
 	vmIPClaimName := fmt.Sprintf("%s-0", vmName)
 	vmIPClaimList, err := ListIPClaim(ctx, cl, namespaceName, vmIPClaimName)
 	if err != nil {
@@ -254,6 +254,11 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
+	currentMemory, err := resource.ParseQuantity(memory)
+	if err != nil {
+		return err
+	}
+
 	vmObj := &v1alpha2.VirtualMachine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmName,
@@ -261,13 +266,13 @@ func CreateVM(ctx context.Context,
 			Labels:    map[string]string{"vm": "linux", "service": "v1"},
 		},
 		Spec: v1alpha2.VirtualMachineSpec{
-			EnableParavirtualization:     true,
-			RunPolicy:                    v1alpha2.RunPolicy("AlwaysOn"),
-			OsType:                       v1alpha2.OsType("Generic"),
-			Bootloader:                   v1alpha2.BootloaderType("BIOS"),
-			VirtualMachineIPAddressClaim: vmIPClaim.Name,
-			CPU:                          v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%", VirtualMachineCPUModel: "generic-v1"},
-			Memory:                       v1alpha2.MemorySpec{Size: memory},
+			EnableParavirtualization: true,
+			RunPolicy:                v1alpha2.RunPolicy("AlwaysOn"),
+			OsType:                   v1alpha2.OsType("Generic"),
+			Bootloader:               v1alpha2.BootloaderType("BIOS"),
+			VirtualMachineIPAddress:  vmIPClaim.Name,
+			CPU:                      v1alpha2.CPUSpec{Cores: cpu, CoreFraction: "100%"},
+			Memory:                   v1alpha2.MemorySpec{Size: currentMemory},
 			BlockDeviceRefs: []v1alpha2.BlockDeviceSpecRef{
 				{
 					Kind: v1alpha2.DiskDevice,
