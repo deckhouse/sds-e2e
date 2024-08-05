@@ -266,6 +266,7 @@ func CreateVM(ctx context.Context,
 			Labels:    map[string]string{"vm": "linux", "service": "v1"},
 		},
 		Spec: v1alpha2.VirtualMachineSpec{
+			VirtualMachineClassName:  "generic",
 			EnableParavirtualization: true,
 			RunPolicy:                v1alpha2.RunPolicy("AlwaysOn"),
 			OsType:                   v1alpha2.OsType("Generic"),
