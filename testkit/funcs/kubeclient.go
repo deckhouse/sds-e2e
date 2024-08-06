@@ -2,7 +2,8 @@ package funcs
 
 import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-	"github.com/deckhouse/virtualization/api/core/v1alpha2"
+	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
+	virtualization "github.com/deckhouse/virtualization/api/core/v1alpha2"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -30,7 +31,8 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 
 	var (
 		resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
-			v1alpha2.AddToScheme,
+			virtualization.AddToScheme,
+			srv.AddToScheme,
 			snc.AddToScheme,
 			clientgoscheme.AddToScheme,
 			extv1.AddToScheme,

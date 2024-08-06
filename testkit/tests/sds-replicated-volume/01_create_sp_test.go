@@ -14,7 +14,7 @@ func TestCreatePool(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreatePools(ctx, cl)
+	err = funcs.CreateReplicatedStoragePool(ctx, cl)
 	if err != nil {
 		t.Error("Pool creation error", err)
 	}

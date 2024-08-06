@@ -23,7 +23,7 @@ func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoo
 	return cl.Create(ctx, lvmVolumeGroup)
 }
 
-func CreateDrbdStorageClass(ctx context.Context, cl client.Client, drbdStorageClassName string, replication string, isDefault bool) error {
+func CreateReplicatedStorageClass(ctx context.Context, cl client.Client, drbdStorageClassName string, replication string, isDefault bool) error {
 	lvmVolumeGroup := &srv.ReplicatedStorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: drbdStorageClassName,
@@ -41,7 +41,7 @@ func CreateDrbdStorageClass(ctx context.Context, cl client.Client, drbdStorageCl
 	return cl.Create(ctx, lvmVolumeGroup)
 }
 
-func CreatePools(ctx context.Context, cl client.Client) error {
+func CreateReplicatedStoragePool(ctx context.Context, cl client.Client) error {
 	var lvmVolumeGroupList []srv.ReplicatedStoragePoolLVMVolumeGroups
 	listedResources, _ := GetLvmVolumeGroups(ctx, cl)
 	for _, item := range listedResources {
@@ -56,14 +56,14 @@ func CreatePools(ctx context.Context, cl client.Client) error {
 		}
 	}
 
-	err = CreateDrbdStorageClass(ctx, cl, "linstor-r1", "None", false)
+	err = CreateReplicatedStorageClass(ctx, cl, "linstor-r1", "None", false)
 	if err != nil {
 		if err.Error() != "replicatedstorageclasses.storage.deckhouse.io \"linstor-r1\" already exists" {
 			return err
 		}
 	}
 
-	err = CreateDrbdStorageClass(ctx, cl, "linstor-r2", "Availability", true)
+	err = CreateReplicatedStorageClass(ctx, cl, "linstor-r2", "Availability", true)
 	if err != nil {
 		if err.Error() != "replicatedstorageclasses.storage.deckhouse.io \"linstor-r2\" already exists" {
 			return err

@@ -22,14 +22,7 @@ func CreateLvmVolumeGroup(ctx context.Context, cl client.Client, lvmVolumeGroupN
 }
 
 func GetLvmVolumeGroups(ctx context.Context, cl client.Client) (map[string]snc.LvmVolumeGroup, error) {
-	listDevice := &snc.LvmVolumeGroupList{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "LvmVolumeGroup",
-			APIVersion: "v1alpha1",
-		},
-		ListMeta: metav1.ListMeta{},
-		Items:    []snc.LvmVolumeGroup{},
-	}
+	listDevice := &snc.LvmVolumeGroupList{}
 
 	err := cl.List(ctx, listDevice)
 	if err != nil {
