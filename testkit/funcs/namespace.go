@@ -31,9 +31,9 @@ func DeleteNamespace(ctx context.Context, cl client.Client, namespaceName string
 	return cl.Delete(ctx, namespace)
 }
 
-func ListNamespace(ctx context.Context, cl client.Client, namespaceName string, namespaceSearch string) ([]Namespace, error) {
+func ListNamespace(ctx context.Context, cl client.Client, namespaceSearch string) ([]Namespace, error) {
 	objs := corev1.NamespaceList{}
-	opts := client.ListOption(&client.ListOptions{Namespace: namespaceName})
+	opts := client.ListOption(&client.ListOptions{})
 	err := cl.List(ctx, &objs, opts)
 	if err != nil {
 		return nil, err

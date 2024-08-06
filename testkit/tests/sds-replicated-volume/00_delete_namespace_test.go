@@ -1,15 +1,15 @@
-package test
+package sds_replicated_volume
 
 import (
 	"context"
-	"sds-replicated-volume-e2e/funcs"
+	"github.com/deckhouse/sds-e2e/funcs"
 	"testing"
 	"time"
 )
 
 func TestInitialDeleteNamespace(t *testing.T) {
 	ctx := context.Background()
-	cl, err := NewKubeClient()
+	cl, err := funcs.NewKubeClient("")
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}

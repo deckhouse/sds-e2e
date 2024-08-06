@@ -2,21 +2,21 @@ package funcs
 
 import (
 	"context"
+	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sds-replicated-volume-e2e/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoolName string, lvmVolumeGroups []v1alpha1.ReplicatedStoragePoolLVMVolumeGroups) error {
-	lvmVolumeGroup := &v1alpha1.ReplicatedStoragePool{
+func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoolName string, lvmVolumeGroups []srv.ReplicatedStoragePoolLVMVolumeGroups) error {
+	lvmVolumeGroup := &srv.ReplicatedStoragePool{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: drbdStoragePoolName,
 		},
-		Spec: v1alpha1.ReplicatedStoragePoolSpec{
+		Spec: srv.ReplicatedStoragePoolSpec{
 			LvmVolumeGroups: lvmVolumeGroups,
 			Type:            "LVM",
 		},
-		Status: v1alpha1.ReplicatedStoragePoolStatus{
+		Status: srv.ReplicatedStoragePoolStatus{
 			Phase: "Updating",
 		},
 	}
@@ -24,11 +24,11 @@ func CreateDrbdStoragePool(ctx context.Context, cl client.Client, drbdStoragePoo
 }
 
 func CreateDrbdStorageClass(ctx context.Context, cl client.Client, drbdStorageClassName string, replication string, isDefault bool) error {
-	lvmVolumeGroup := &v1alpha1.ReplicatedStorageClass{
+	lvmVolumeGroup := &srv.ReplicatedStorageClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: drbdStorageClassName,
 		},
-		Spec: v1alpha1.ReplicatedStorageClassSpec{
+		Spec: srv.ReplicatedStorageClassSpec{
 			IsDefault:     isDefault,
 			StoragePool:   "data",
 			ReclaimPolicy: "Delete",
@@ -42,11 +42,11 @@ func CreateDrbdStorageClass(ctx context.Context, cl client.Client, drbdStorageCl
 }
 
 func CreatePools(ctx context.Context, cl client.Client) error {
-	var lvmVolumeGroupList []v1alpha1.ReplicatedStoragePoolLVMVolumeGroups
-	listedResources, _ := GetAPILvmVolumeGroup(ctx, cl)
+	var lvmVolumeGroupList []srv.ReplicatedStoragePoolLVMVolumeGroups
+	listedResources, _ := GetLvmVolumeGroups(ctx, cl)
 	for _, item := range listedResources {
 		lvmVolumeGroupName := item.ObjectMeta.Name
-		lvmVolumeGroupList = append(lvmVolumeGroupList, v1alpha1.ReplicatedStoragePoolLVMVolumeGroups{Name: lvmVolumeGroupName, ThinPoolName: ""})
+		lvmVolumeGroupList = append(lvmVolumeGroupList, srv.ReplicatedStoragePoolLVMVolumeGroups{Name: lvmVolumeGroupName, ThinPoolName: ""})
 	}
 
 	err := CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList)

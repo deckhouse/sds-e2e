@@ -5,6 +5,12 @@ import (
 	"log"
 )
 
+type patchUInt32Value struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value string `json:"value"`
+}
+
 func LogFatalIfError(err error, out string, exclude ...string) {
 	if out != "" {
 		fmt.Println(out)

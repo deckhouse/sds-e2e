@@ -14,12 +14,6 @@ import (
 const stsCount = 50
 const pvSize = "5Gi"
 
-type patchUInt32Value struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value string `json:"value"`
-}
-
 func CreateSts(ctx context.Context, cl client.Client, namespaceName string) error {
 	for count := 0; count <= stsCount; count++ {
 		fs := corev1.PersistentVolumeFilesystem
