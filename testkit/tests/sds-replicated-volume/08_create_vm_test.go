@@ -26,6 +26,6 @@ func TestCreateVm(t *testing.T) {
 		fmt.Println(count)
 		cpuCount, err := strconv.Atoi(vmCores)
 		err = funcs.CreateVM(ctx, cl, testNamespace, vmName, vmIP, cpuCount, vmMemory, vmStorageClass, funcs.UbuntuCloudImage, sshPubKeyString, 6, 1)
-		funcs.LogFatalIfError(err, "", fmt.Sprintf("virtualmachine \"%s\" already exists", vmName))
+		t.Error(fmt.Sprintf("virtualmachine \"%s\" already exists", vmName), err)
 	}
 }
