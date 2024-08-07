@@ -193,7 +193,9 @@ func CreateVM(ctx context.Context,
 	memory string,
 	storageClass string,
 	url string,
-	sshPubKey string) error {
+	sshPubKey string,
+	systemDriveSize int64,
+	dataDriveSize int64) error {
 
 	fmt.Printf("Creating VM %s\n", vmName)
 
@@ -235,7 +237,7 @@ func CreateVM(ctx context.Context,
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmSystemDisk, err = CreateVMDFromCVMI(ctx, cl, namespaceName, vmdName, storageClass, 20, vmCVMI)
+		vmSystemDisk, err = CreateVMDFromCVMI(ctx, cl, namespaceName, vmdName, storageClass, systemDriveSize, vmCVMI)
 		if err != nil {
 			return err
 		}
@@ -248,7 +250,7 @@ func CreateVM(ctx context.Context,
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, 20)
+		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, dataDriveSize)
 		if err != nil {
 			return err
 		}

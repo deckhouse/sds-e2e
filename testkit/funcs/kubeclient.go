@@ -4,6 +4,7 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	virtualization "github.com/deckhouse/virtualization/api/core/v1alpha2"
+	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	sv1 "k8s.io/api/storage/v1"
 	extv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -12,7 +13,9 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func NewKubeClient(kubeconfigPath string) (client.Client, error) {
@@ -22,6 +25,8 @@ func NewKubeClient(kubeconfigPath string) (client.Client, error) {
 	if kubeconfigPath == "" {
 		kubeconfigPath = os.Getenv("kubeconfig")
 	}
+
+	controllerruntime.SetLogger(logr.New(ctrllog.NullLogSink{}))
 
 	config, err = clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 

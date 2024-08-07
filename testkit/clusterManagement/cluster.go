@@ -72,7 +72,7 @@ func InitClusterCreate() {
 		{"vm3", funcs.WorkerNode2, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
-		err = funcs.CreateVM(ctx, cl, funcs.NamespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString)
+		err = funcs.CreateVM(ctx, cl, funcs.NamespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString, 20, 20)
 		funcs.LogFatalIfError(err, "", fmt.Sprintf("virtualmachines.virtualization.deckhouse.io \"%s\" already exists", vmItem[0]))
 	}
 
