@@ -20,7 +20,6 @@ func TestCreateVm(t *testing.T) {
 	sshPubKeyString := ""
 
 	for count := 0; count <= 20; count++ {
-		fmt.Printf("Create VM test-%d\n", count)
 		vmName := fmt.Sprintf("test-%d", count)
 		vmIP := fmt.Sprintf("10.10.10.%d", count+2)
 		vmCores := "1"
