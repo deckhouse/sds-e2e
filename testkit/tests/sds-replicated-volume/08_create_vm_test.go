@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestCreateVm(t *testing.T) {
@@ -17,15 +19,44 @@ func TestCreateVm(t *testing.T) {
 
 	sshPubKeyString := ""
 
-	for count := 2; count <= 12; count++ {
+	for count := 0; count <= 20; count++ {
+		fmt.Printf("Create VM test-%d\n", count)
 		vmName := fmt.Sprintf("test-%d", count)
-		vmIP := fmt.Sprintf("10.10.10.%d", count)
+		vmIP := fmt.Sprintf("10.10.10.%d", count+2)
 		vmCores := "1"
 		vmMemory := "1Gi"
 		vmStorageClass := "linstor-r2"
-		fmt.Println(count)
 		cpuCount, err := strconv.Atoi(vmCores)
 		err = funcs.CreateVM(ctx, cl, testNamespace, vmName, vmIP, cpuCount, vmMemory, vmStorageClass, funcs.UbuntuCloudImage, sshPubKeyString, 6, 1)
-		t.Error(fmt.Sprintf("virtualmachine \"%s\" already exists", vmName), err)
+		if err != nil {
+			t.Error(fmt.Sprintf("virtualmachine \"%s\" creation problem", vmName), err)
+		}
+	}
+
+	tries := 600
+	allVMUp := true
+
+	for count := 0; count < tries; count++ {
+		allVMUp = true
+		vmList, err := funcs.ListVM(ctx, cl, testNamespace)
+		funcs.LogFatalIfError(err, "")
+		vmList, err = funcs.ListVM(ctx, cl, testNamespace)
+		funcs.LogFatalIfError(err, "")
+		for _, item := range vmList {
+			if item.Status != v1alpha2.MachineRunning {
+				allVMUp = false
+			}
+		}
+
+		if allVMUp {
+			break
+		}
+
+		time.Sleep(10 * time.Second)
+
+		if count == tries-1 {
+			t.Error("Timeout waiting for all VMs to be ready")
+		}
+
 	}
 }
