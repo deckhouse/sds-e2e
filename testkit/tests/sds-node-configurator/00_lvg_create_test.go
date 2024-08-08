@@ -52,6 +52,7 @@ func TestCreateLVG(t *testing.T) {
 		defer client.Close()
 
 		out, err := client.Run("sudo vgdisplay -C")
+		fmt.Println(string(out))
 		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
 			t.Error("error running vgdisplay -C", err)
 		}
