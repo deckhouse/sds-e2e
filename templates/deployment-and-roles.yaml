@@ -80,6 +80,17 @@ rules:
       - get
       - list
       - watch
+      - create
+      - update
+      - delete
+    apiGroups:
+      - storage.deckhouse.io
+    resources:
+      - blockdevices
+  - verbs:
+      - get
+      - list
+      - watch
     apiGroups:
       - virtualization.deckhouse.io
     resources:
