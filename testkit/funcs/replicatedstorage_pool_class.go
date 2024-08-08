@@ -2,6 +2,7 @@ package funcs
 
 import (
 	"context"
+	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,13 +44,19 @@ func CreateReplicatedStorageClass(ctx context.Context, cl client.Client, drbdSto
 
 func CreateReplicatedStoragePool(ctx context.Context, cl client.Client) error {
 	var lvmVolumeGroupList []srv.ReplicatedStoragePoolLVMVolumeGroups
-	listedResources, _ := GetLvmVolumeGroups(ctx, cl)
-	for _, item := range listedResources {
+	listDevice := &snc.LvmVolumeGroupList{}
+
+	err := cl.List(ctx, listDevice)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range listDevice.Items {
 		lvmVolumeGroupName := item.ObjectMeta.Name
 		lvmVolumeGroupList = append(lvmVolumeGroupList, srv.ReplicatedStoragePoolLVMVolumeGroups{Name: lvmVolumeGroupName, ThinPoolName: ""})
 	}
 
-	err := CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList)
+	err = CreateDrbdStoragePool(ctx, cl, "data", lvmVolumeGroupList)
 	if err != nil {
 		if err.Error() != "replicatedstoragepools.storage.deckhouse.io \"data\" already exists" {
 			return err

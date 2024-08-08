@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
+	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	"github.com/melbahja/goph"
 	"path/filepath"
 	"strings"
@@ -22,13 +23,17 @@ func TestChangeLVGSize(t *testing.T) {
 		t.Error("Parent cluster kubeclient problem", err)
 	}
 
-	lmvvgs, err := funcs.GetLvmVolumeGroups(ctx, cl)
+	listDevice := &snc.LvmVolumeGroupList{}
+	err = cl.List(ctx, listDevice)
+	if err != nil {
+		t.Error(err)
+	}
 
-	for nodeName, LVMVG := range lmvvgs {
+	for _, LVMVG := range listDevice.Items {
 		if LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
-			t.Error(fmt.Sprintf("node name: %s, problem with size: %s, %s", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
+			t.Error(fmt.Sprintf("node name: %s, problem with size: %s, %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
 		} else {
-			fmt.Printf("node name: %s, size ok: %s, %s\n", nodeName, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
+			fmt.Printf("node name: %s, size ok: %s, %s\n", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 		}
 	}
 
