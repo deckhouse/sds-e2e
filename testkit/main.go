@@ -18,11 +18,8 @@ package main
 
 import (
 	"github.com/deckhouse/sds-e2e/clusterManagement"
-	"github.com/deckhouse/sds-e2e/sdsNodeConfigurator"
 )
 
 func main() {
 	clusterManagement.InitClusterCreate()
-	sdsNodeConfigurator.LvmVolumeGroupCreation()
-	sdsNodeConfigurator.LvmPartsSizeChange()
 }
