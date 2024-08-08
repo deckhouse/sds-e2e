@@ -23,7 +23,7 @@ func TestCreateLVG(t *testing.T) {
 
 	err = cl.List(ctx, listDevice)
 	if err != nil {
-		t.Error("error listing block devices")
+		t.Error("error listing block devices", err)
 	}
 
 	for _, device := range listDevice.Items {
