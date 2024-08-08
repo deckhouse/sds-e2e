@@ -68,8 +68,8 @@ func InitClusterCreate() {
 
 	for _, vmItem := range [][]string{
 		{"vm1", funcs.MasterNodeIP, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
-		{"vm2", funcs.InstallWorkerNodeIp, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
-		{"vm3", funcs.WorkerNode2, "4", "8Gi", "linstor-r1", funcs.UbuntuCloudImage},
+		{"vm2", funcs.InstallWorkerNodeIp, "2", "4Gi", "linstor-r1", funcs.UbuntuCloudImage},
+		{"vm3", funcs.WorkerNode2, "2", "4Gi", "linstor-r1", funcs.UbuntuCloudImage},
 	} {
 		cpuCount, err := strconv.Atoi(vmItem[2])
 		err = funcs.CreateVM(ctx, cl, funcs.NamespaceName, vmItem[0], vmItem[1], cpuCount, vmItem[3], vmItem[4], vmItem[5], sshPubKeyString, 20, 20)
