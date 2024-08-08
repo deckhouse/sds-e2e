@@ -216,7 +216,7 @@ func CreateVM(ctx context.Context,
 	}
 
 	vmIPClaim := &v1alpha2.VirtualMachineIPAddress{}
-	vmIPClaimName := fmt.Sprintf("%s-0", vmName)
+	vmIPClaimName := fmt.Sprintf("%s-ipaddress-0", vmName)
 	vmIPClaimList, err := ListIPClaim(ctx, cl, namespaceName, vmIPClaimName)
 	if err != nil {
 		return err
