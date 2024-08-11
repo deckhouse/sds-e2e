@@ -317,7 +317,7 @@ ssh_authorized_keys:
 			},
 		},
 	})
-	if err != nil {
+	if err != nil && !strings.Contains(err.Error(), "already exists") {
 		return err
 	}
 
