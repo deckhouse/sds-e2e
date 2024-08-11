@@ -30,11 +30,11 @@ func TestChangeLVGSize(t *testing.T) {
 	}
 
 	for _, LVMVG := range listDevice.Items {
+		fmt.Println(LVMVG.Status.Nodes)
+		fmt.Println(LVMVG.Status.Nodes[0].Name)
+		fmt.Println(LVMVG.Status.Nodes[0].Devices[0].PVSize.String())
+		fmt.Println(LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 		if LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
-			fmt.Println(LVMVG.Status.Nodes)
-			fmt.Println(LVMVG.Status.Nodes[0].Name)
-			fmt.Println(LVMVG.Status.Nodes[0].Devices[0].PVSize.String())
-			fmt.Println(LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 			t.Error(fmt.Sprintf("node name: %s, problem with size: %s, %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
 		} else {
 			fmt.Printf("node name: %s, size ok: %s, %s\n", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
