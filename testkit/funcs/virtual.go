@@ -307,7 +307,7 @@ ssh_authorized_keys:
 
 	err = cl.Create(ctx, &v1alpha2.VirtualMachineBlockDeviceAttachment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      vmDataDisk.Name,
+			Name:      vmdName,
 			Namespace: namespaceName,
 		},
 		Spec: v1alpha2.VirtualMachineBlockDeviceAttachmentSpec{
