@@ -322,6 +322,9 @@ ssh_authorized_keys:
 			},
 		},
 	})
+	if err != nil {
+		return err
+	}
 
 	return cl.Create(ctx, vmObj)
 }
