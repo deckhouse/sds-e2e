@@ -30,7 +30,7 @@ func TestAddBDtoLVG(t *testing.T) {
 			t.Error("Disk creation failed", err)
 		}
 
-		err = cl.Create(ctx, &v1alpha2.VirtualMachineBlockDeviceAttachment{
+		err = extCl.Create(ctx, &v1alpha2.VirtualMachineBlockDeviceAttachment{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      vmdName,
 				Namespace: funcs.NamespaceName,
