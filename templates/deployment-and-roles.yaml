@@ -2,34 +2,34 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: d8-sds-e2e-test
+  name: sds-e2e-test
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+  name: sds-e2e-test
+  namespace: sds-e2e-test
 spec:
   progressDeadlineSeconds: 600
   replicas: 1
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      component: d8-sds-e2e-test
+      component: sds-e2e-test
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        component: d8-sds-e2e-test
+        component: sds-e2e-test
     spec:
       containers:
         - command:
             - sleep
             - infinity
-          image: golang:1.21.3-bullseye
+          image: golang:1.22.4-bullseye
           imagePullPolicy: Always
-          name: d8-sds-e2e-test
+          name: sds-e2e-test
           ports:
             - containerPort: 80
               protocol: TCP
@@ -38,25 +38,25 @@ spec:
           terminationMessagePolicy: File
           volumeMounts:
             - mountPath: /app
-              name: d8-sds-e2e-test
+              name: sds-e2e-test
       dnsPolicy: ClusterFirst
       imagePullSecrets:
         - name: registrysecret
       restartPolicy: Always
       schedulerName: default-scheduler
       securityContext: {}
-      serviceAccountName: d8-sds-e2e-test
+      serviceAccountName: sds-e2e-test
       terminationGracePeriodSeconds: 30
       volumes:
-        - name: d8-sds-e2e-test
+        - name: sds-e2e-test
           persistentVolumeClaim:
-            claimName: d8-sds-e2e-test
+            claimName: sds-e2e-test
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+  name: sds-e2e-test
+  namespace: sds-e2e-test
 spec:
   accessModes:
     - ReadWriteOnce
@@ -68,14 +68,25 @@ spec:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+  name: sds-e2e-test
+  namespace: sds-e2e-test
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: d8:d8-sds-e2e-test
+  name: d8:sds-e2e-test
 rules:
+  - verbs:
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - delete
+    apiGroups:
+      - storage.deckhouse.io
+    resources:
+      - blockdevices
   - verbs:
       - get
       - list
@@ -94,21 +105,21 @@ rules:
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: d8:d8-sds-e2e-test
+  name: d8:sds-e2e-test
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: d8:d8-sds-e2e-test
+  name: d8:sds-e2e-test
 subjects:
   - kind: ServiceAccount
-    name: d8-sds-e2e-test
-    namespace: d8-sds-e2e-test
+    name: sds-e2e-test
+    namespace: sds-e2e-test
 ---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: d8:d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+  name: d8:sds-e2e-test
+  namespace: sds-e2e-test
 rules:
   - verbs:
       - get
@@ -121,13 +132,13 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: d8:d8-sds-e2e-test
-  namespace: d8-sds-e2e-test
+  name: d8:sds-e2e-test
+  namespace: sds-e2e-test
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: d8:d8-sds-e2e-test
+  name: d8:sds-e2e-test
 subjects:
   - kind: ServiceAccount
-    name: d8-sds-e2e-test
-    namespace: d8-sds-e2e-test
+    name: sds-e2e-test
+    namespace: sds-e2e-test
