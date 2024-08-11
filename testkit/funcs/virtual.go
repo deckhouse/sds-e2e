@@ -243,14 +243,13 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmDataDisk := &v1alpha2.VirtualDisk{}
 	vmdName = fmt.Sprintf("%s-data", vmName)
 	vmdList, err = ListVMD(ctx, cl, namespaceName, vmdName)
 	if err != nil {
 		return err
 	}
 	if len(vmdList) == 0 {
-		vmDataDisk, err = CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, dataDriveSize)
+		_, err := CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, dataDriveSize)
 		if err != nil {
 			return err
 		}
