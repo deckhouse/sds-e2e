@@ -281,10 +281,6 @@ func CreateVM(ctx context.Context,
 					Kind: v1alpha2.DiskDevice,
 					Name: vmSystemDisk.Name,
 				},
-				{
-					Kind: v1alpha2.DiskDevice,
-					Name: vmDataDisk.Name,
-				},
 			},
 			Provisioning: &v1alpha2.Provisioning{
 				Type: v1alpha2.ProvisioningType("UserData"),
