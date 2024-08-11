@@ -309,5 +309,15 @@ ssh_authorized_keys:
 		},
 	}
 
+	err = cl.Create(ctx, &v1alpha2.VirtualMachineBlockDeviceAttachment{
+		Spec: v1alpha2.VirtualMachineBlockDeviceAttachmentSpec{
+			VirtualMachineName: vmName,
+			BlockDeviceRef: v1alpha2.VMBDAObjectRef{
+				Kind: "VirtualMachine",
+				Name: vmDataDisk.Name,
+			},
+		},
+	})
+
 	return cl.Create(ctx, vmObj)
 }
