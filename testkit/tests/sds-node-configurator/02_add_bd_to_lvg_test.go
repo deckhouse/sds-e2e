@@ -6,17 +6,16 @@ import (
 	"github.com/deckhouse/sds-e2e/funcs"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"path/filepath"
 	"strings"
 	"testing"
 )
 
 func TestAddBDtoLVG(t *testing.T) {
 	ctx := context.Background()
-	cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
-	if err != nil {
-		t.Error("Kubeclient problem", err)
-	}
+	//cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
+	//if err != nil {
+	//	t.Error("Kubeclient problem", err)
+	//}
 
 	extCl, err := funcs.NewKubeClient("")
 	if err != nil {
