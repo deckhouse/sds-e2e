@@ -44,7 +44,7 @@ func TestAddBDtoLVG(t *testing.T) {
 			},
 		})
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
-			t.Error("Disk attack failed", err)
+			t.Error("Disk attach failed", err)
 		}
 
 	}
