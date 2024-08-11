@@ -317,7 +317,7 @@ ssh_authorized_keys:
 		Spec: v1alpha2.VirtualMachineBlockDeviceAttachmentSpec{
 			VirtualMachineName: vmName,
 			BlockDeviceRef: v1alpha2.VMBDAObjectRef{
-				Kind: "VirtualMachine",
+				Kind: "VirtualDisk",
 				Name: vmDataDisk.Name,
 			},
 		},
