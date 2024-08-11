@@ -8,6 +8,7 @@ const (
 	PubKeyName  = "id_rsa_test.pub"
 
 	NamespaceName       = "test1"
+	StorageClass        = "linstor-r1"
 	MasterNodeIP        = "10.10.10.180"
 	InstallWorkerNodeIp = "10.10.10.181"
 	WorkerNode2         = "10.10.10.182"
