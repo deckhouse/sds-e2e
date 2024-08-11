@@ -314,7 +314,7 @@ ssh_authorized_keys:
 			VirtualMachineName: vmName,
 			BlockDeviceRef: v1alpha2.VMBDAObjectRef{
 				Kind: "VirtualDisk",
-				Name: vmDataDisk.Name,
+				Name: vmdName,
 			},
 		},
 	})
