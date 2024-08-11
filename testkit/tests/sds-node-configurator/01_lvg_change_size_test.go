@@ -30,7 +30,9 @@ func TestChangeLVGSize(t *testing.T) {
 	}
 
 	for _, LVMVG := range listDevice.Items {
-		if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
+		if len(LVMVG.Status.Nodes) == 0 {
+			t.Error("LVMVG node is empty", LVMVG.Name)
+		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || LVMVG.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
 			t.Error(fmt.Sprintf("node name: %s, problem with size: %s, %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
 		} else {
 			fmt.Printf("node name: %s, size ok: %s, %s\n", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
