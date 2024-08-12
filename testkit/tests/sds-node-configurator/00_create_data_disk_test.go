@@ -48,7 +48,7 @@ func TestCreateDataDisks(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	for {
-		notAllVDRun := false
+		allVDRun := true
 		listDataDisks := &v1alpha2.VirtualDiskList{}
 		err = extCl.List(ctx, listDataDisks)
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
@@ -56,10 +56,10 @@ func TestCreateDataDisks(t *testing.T) {
 		}
 		for _, disk := range listDataDisks.Items {
 			if disk.Status.Phase != "Ready" {
-				notAllVDRun = true
+				allVDRun = false
 			}
 		}
-		if notAllVDRun {
+		if allVDRun {
 			break
 		}
 	}
