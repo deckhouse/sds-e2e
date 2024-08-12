@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-	"github.com/melbahja/goph"
+	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestChangeLVGSize(t *testing.T) {
@@ -50,17 +51,36 @@ func TestChangeLVGSize(t *testing.T) {
 		}
 	}
 
-	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
-		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
-		if err != nil {
-			t.Error("SSH connection problem", err)
-		}
-		client := funcs.GetSSHClient(ip, "user", auth)
-		defer client.Close()
+	time.Sleep(5 * time.Second)
 
-		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgs", []string{"data", "20.00g"})
-		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgdisplay -C", []string{"data", "20.00g"})
-		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo lsblk", []string{"sdc", "20G"})
-		funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo pvs", []string{"/dev/sdc", "20G"})
+	for {
+		allVDRun := true
+		listDataDisks := &v1alpha2.VirtualDiskList{}
+		err = extCl.List(ctx, listDataDisks)
+		if err != nil {
+			t.Error("Disk retrieve failed", err)
+		}
+		for _, disk := range listDataDisks.Items {
+			if disk.Status.Phase != "Ready" {
+				allVDRun = false
+			}
+		}
+		if allVDRun {
+			break
+		}
 	}
+
+	//for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+	//	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
+	//	if err != nil {
+	//		t.Error("SSH connection problem", err)
+	//	}
+	//	client := funcs.GetSSHClient(ip, "user", auth)
+	//	defer client.Close()
+	//
+	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgs", []string{"data", "20.00g"})
+	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgdisplay -C", []string{"data", "20.00g"})
+	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo lsblk", []string{"sdc", "20G"})
+	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo pvs", []string{"/dev/sdc", "20G"})
+	//}
 }

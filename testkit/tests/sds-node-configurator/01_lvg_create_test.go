@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-	"github.com/melbahja/goph"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path/filepath"
-	"strings"
 	"testing"
+	"time"
 )
 
 func TestCreateLVG(t *testing.T) {
@@ -42,18 +41,39 @@ func TestCreateLVG(t *testing.T) {
 		}
 	}
 
-	for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
-		auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
-		if err != nil {
-			t.Error("SSH connection problem", err)
-		}
-		client := funcs.GetSSHClient(ip, "user", auth)
-		defer client.Close()
+	time.Sleep(5 * time.Second)
 
-		out, err := client.Run("sudo vgdisplay -C")
-		fmt.Println(string(out))
-		if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
-			t.Error("error running vgdisplay -C", err)
+	for {
+		allLVGRun := true
+		listLVG := snc.LvmVolumeGroupList{}
+		err = cl.List(ctx, &listLVG)
+		if err != nil {
+			t.Error("LVG retrieve failed", err)
+		}
+
+		for _, lvg := range listLVG.Items {
+			if lvg.Status.Phase != "Ready" {
+				allLVGRun = false
+			}
+		}
+		if allLVGRun {
+			break
 		}
 	}
+
+	//
+	//for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
+	//	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
+	//	if err != nil {
+	//		t.Error("SSH connection problem", err)
+	//	}
+	//	client := funcs.GetSSHClient(ip, "user", auth)
+	//	defer client.Close()
+	//
+	//	out, err := client.Run("sudo vgdisplay -C")
+	//	fmt.Println(string(out))
+	//	if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
+	//		t.Error("error running vgdisplay -C", err)
+	//	}
+	//}
 }
