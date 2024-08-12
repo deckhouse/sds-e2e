@@ -43,4 +43,22 @@ func TestCreateDataDisks(t *testing.T) {
 			t.Error("Disk attach failed", err)
 		}
 	}
+
+	for {
+		notAllVDRun := false
+		listDataDisks := &v1alpha2.VirtualDiskList{}
+		err = extCl.List(ctx, listDataDisks)
+		if err != nil && !strings.Contains(err.Error(), "already exists") {
+			t.Error("Disk retrieve failed", err)
+		}
+		for _, disk := range listDataDisks.Items {
+			if disk.Status.Phase != "Ready" {
+				notAllVDRun = true
+			}
+		}
+		if notAllVDRun {
+			break
+		}
+	}
+
 }

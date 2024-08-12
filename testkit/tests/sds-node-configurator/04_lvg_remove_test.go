@@ -23,6 +23,8 @@ func TestRemoveLVG(t *testing.T) {
 
 	for _, item := range listDevice.Items {
 		err = cl.Delete(ctx, &item)
-		t.Error("lvmVolumeGroup delete error", err)
+		if err != nil {
+			t.Error("lvmVolumeGroup delete error", err)
+		}
 	}
 }
