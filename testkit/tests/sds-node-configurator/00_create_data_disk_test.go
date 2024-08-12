@@ -10,12 +10,8 @@ import (
 	"testing"
 )
 
-func TestAddBDtoLVG(t *testing.T) {
+func TestCreateDataDisks(t *testing.T) {
 	ctx := context.Background()
-	//cl, err := funcs.NewKubeClient(filepath.Join(funcs.AppTmpPath, funcs.KubeConfigName))
-	//if err != nil {
-	//	t.Error("Kubeclient problem", err)
-	//}
 
 	extCl, err := funcs.NewKubeClient("")
 	if err != nil {
@@ -23,7 +19,8 @@ func TestAddBDtoLVG(t *testing.T) {
 	}
 
 	for _, vmName := range []string{"vm1", "vm2", "vm3"} {
-		vmdName := fmt.Sprintf("%s-data-add", vmName)
+		vmdName := fmt.Sprintf("%s-data", vmName)
+
 		_, err = funcs.CreateVMD(ctx, extCl, funcs.NamespaceName, vmdName, funcs.StorageClass, 5)
 		if err != nil {
 			t.Error("Disk creation failed", err)
@@ -45,7 +42,5 @@ func TestAddBDtoLVG(t *testing.T) {
 		if err != nil && !strings.Contains(err.Error(), "already exists") {
 			t.Error("Disk attach failed", err)
 		}
-
 	}
-
 }
