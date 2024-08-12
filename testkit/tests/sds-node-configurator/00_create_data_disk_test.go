@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCreateDataDisks(t *testing.T) {
@@ -43,6 +44,8 @@ func TestCreateDataDisks(t *testing.T) {
 			t.Error("Disk attach failed", err)
 		}
 	}
+
+	time.Sleep(5 * time.Second)
 
 	for {
 		notAllVDRun := false
