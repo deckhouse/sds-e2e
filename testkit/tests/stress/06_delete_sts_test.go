@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-func TestCreatePool(t *testing.T) {
+func TestDeleteStsPods(t *testing.T) {
 	ctx := context.Background()
 	cl, err := funcs.NewKubeClient("")
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreateReplicatedStoragePool(ctx, cl)
+	err = funcs.DeleteSts(ctx, cl, testNamespace)
 	if err != nil {
-		t.Error("Pool creation error", err)
+		t.Error("Sts delete error", err)
 	}
 
 	time.Sleep(time.Second * 10)

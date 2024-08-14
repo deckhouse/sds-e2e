@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"
@@ -14,7 +14,7 @@ func TestCreateStsLogs(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.CreateSts(ctx, cl, testNamespace)
+	err = funcs.CreateSts(ctx, cl, testNamespace, pvSize, stsCount, storageClassName)
 	if err != nil {
 		t.Error("sts creation error", err)
 	}
