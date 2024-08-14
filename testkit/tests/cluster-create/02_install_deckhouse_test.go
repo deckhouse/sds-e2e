@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	"github.com/melbahja/goph"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,6 +14,7 @@ func TestInstallDeckhouse(t *testing.T) {
 	var out []byte
 
 	fmt.Println(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName))
+	fmt.Println(os.Stat(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName)))
 
 	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
 	funcs.LogFatalIfError(err, fmt.Sprintf("access error"))
