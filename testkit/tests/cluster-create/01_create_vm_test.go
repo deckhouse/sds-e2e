@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-func TestCreateLVG(t *testing.T) {
+func TestCreateVM(t *testing.T) {
 	if _, err := os.Stat(funcs.AppTmpPath); os.IsNotExist(err) {
 		funcs.LogFatalIfError(os.Mkdir(funcs.AppTmpPath, 0644), "Cannot create temp dir")
 	}

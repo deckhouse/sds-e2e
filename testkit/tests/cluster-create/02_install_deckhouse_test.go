@@ -13,7 +13,7 @@ func TestInstallDeckhouse(t *testing.T) {
 	var out []byte
 
 	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
-	funcs.LogFatalIfError(err, "")
+	funcs.LogFatalIfError(err, fmt.Sprintf("%s access error", filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName)))
 
 	goph.DefaultTimeout = 0
 
