@@ -11,13 +11,9 @@ import (
 	"strings"
 )
 
-const stsCount = 50
-const pvSize = "5Gi"
-
-func CreateSts(ctx context.Context, cl client.Client, namespaceName string) error {
+func CreateSts(ctx context.Context, cl client.Client, namespaceName string, pvSize string, stsCount int, storageClassName string) error {
 	for count := 0; count <= stsCount; count++ {
 		fs := corev1.PersistentVolumeFilesystem
-		storageClassName := "linstor-r2"
 		var replicas int32 = 3
 		sts := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{

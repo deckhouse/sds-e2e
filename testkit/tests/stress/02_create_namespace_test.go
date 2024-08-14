@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-func TestDeleteStsPods(t *testing.T) {
+func TestCreateNamespace(t *testing.T) {
 	ctx := context.Background()
 	cl, err := funcs.NewKubeClient("")
 	if err != nil {
 		t.Error("kubeclient error", err)
 	}
 
-	err = funcs.DeleteSts(ctx, cl, testNamespace)
+	err = funcs.CreateNamespace(ctx, cl, testNamespace)
 	if err != nil {
-		t.Error("Sts delete error", err)
+		t.Error("namespace creation error", err)
 	}
 
 	time.Sleep(time.Second * 10)

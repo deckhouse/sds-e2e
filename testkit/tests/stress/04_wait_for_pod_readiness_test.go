@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"

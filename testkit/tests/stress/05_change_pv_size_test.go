@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"
@@ -16,7 +16,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
 	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name)
+		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, pvResizedSize)
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
@@ -24,8 +24,6 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	allPvcChanged := true
 	for count := 0; count < 600; count++ {
-		//		fmt.Printf("Wait for all pvc to change size\n")
-
 		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
 		if err != nil {
 
@@ -33,7 +31,12 @@ func TestChangeStsPvcSize(t *testing.T) {
 		}
 		allPvcChanged = true
 		for _, pvc := range pvcList {
-			if pvc.Size != "5347738Ki" {
+			kiPvResizedSize, err := funcs.ConvertUnit(pvResizedSize, "Ki")
+			if err != nil {
+
+				t.Error("PVC size change error (incorrect size)", err)
+			}
+			if pvc.Size != kiPvResizedSize {
 				allPvcChanged = false
 			}
 		}

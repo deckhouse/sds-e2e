@@ -1,4 +1,4 @@
-package sds_replicated_volume
+package stress
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestDeleteNamespace(t *testing.T) {
+func TestInitialDeleteNamespace(t *testing.T) {
 	ctx := context.Background()
 	cl, err := funcs.NewKubeClient("")
 	if err != nil {
