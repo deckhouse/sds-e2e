@@ -1,8 +1,10 @@
 package cluster_create
 
-import "os"
+import (
+	"flag"
+)
 
 var (
-	licenseKey        = os.Getenv("licensekey")
-	registryDockerCfg = os.Getenv("registryDockerCfg")
+	licenseKey        = *flag.String("licensekey", "", "Registry license key")
+	registryDockerCfg = *flag.String("registryDockerCfg", "", "Registry docker config")
 )
