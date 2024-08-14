@@ -14,11 +14,11 @@ const (
 
 	RemoteAppPath = "/home/user"
 
-	ConfigTplName        = "config.yml.tpl"
-	ConfigName           = "config.yml"
-	ResourcesTplName     = "resources.yml.tpl"
-	ResourcesName        = "resources.yml"
-	UserCreateScriptName = "createuser.sh"
+	ConfigTplName        = "../../config.yml.tpl"
+	ConfigName           = "../../config.yml"
+	ResourcesTplName     = "../../resources.yml.tpl"
+	ResourcesName        = "../../resources.yml"
+	UserCreateScriptName = "../../createuser.sh"
 
 	UbuntuCloudImage = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 
