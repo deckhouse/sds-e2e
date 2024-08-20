@@ -79,37 +79,37 @@ func ConvertUnit(fromValue, toUnit string) (string, error) {
 	}
 
 	switch fromUnit {
-	case "GI":
+	case "Gi":
 		switch toUnit {
-		case "MI":
+		case "Mi":
 			convertedValue = GiBToMiB(value)
-		case "KI":
+		case "Ki":
 			convertedValue = GiBToKiB(value)
-		case "GI":
+		case "Gi":
 			convertedValue = value
 		default:
 			return "", errors.New(fmt.Sprintf("unsupported unit conversion: %s to %s", fromUnit, toUnit))
 		}
 
-	case "MI":
+	case "Mi":
 		switch toUnit {
-		case "GI":
+		case "Gi":
 			convertedValue = MiBToGiB(value)
-		case "KI":
+		case "Ki":
 			convertedValue = MiBToKiB(value)
-		case "MI":
+		case "Mi":
 			convertedValue = value
 		default:
 			return "", errors.New(fmt.Sprintf("unsupported unit conversion: %s to %s", fromUnit, toUnit))
 		}
 
-	case "KI":
+	case "Ki":
 		switch toUnit {
-		case "GI":
+		case "Gi":
 			convertedValue = KiBToGiB(value)
-		case "MI":
+		case "Mi":
 			convertedValue = KiBToMiB(value)
-		case "KI":
+		case "Ki":
 			convertedValue = value
 		default:
 			return "", errors.New(fmt.Sprintf("unsupported unit conversion: %s to %s", fromUnit, toUnit))
