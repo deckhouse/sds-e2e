@@ -3,6 +3,9 @@ package stress
 import (
 	"context"
 	"github.com/deckhouse/sds-e2e/funcs"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"testing"
 	"time"
 )
@@ -14,9 +17,16 @@ func TestChangeStsPvcSize(t *testing.T) {
 		t.Error("kubeclient error", err)
 	}
 
-	pvcList, err := funcs.ListPvcs(ctx, cl, testNamespace)
-	for _, pvc := range pvcList {
-		err = funcs.ChangePvcSize(ctx, cl, testNamespace, pvc.Name, pvResizedSize)
+	pvcList := corev1.PersistentVolumeClaimList{}
+	opts := client.ListOption(&client.ListOptions{Namespace: testNamespace})
+	err = cl.List(ctx, &pvcList, opts)
+	if err != nil {
+		t.Error("pvc list error", err)
+	}
+
+	for _, pvc := range pvcList.Items {
+		pvc.Spec.Resources.Requests[corev1.ResourceStorage] = resource.MustParse(pvResizedSize)
+		err = cl.Update(ctx, &pvc)
 		if err != nil {
 			t.Error("PVC size change error", err)
 		}
@@ -24,19 +34,16 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	allPvcChanged := true
 	for count := 0; count < 600; count++ {
-		pvcList, err = funcs.ListPvcs(ctx, cl, testNamespace)
+		pvcList := corev1.PersistentVolumeClaimList{}
+		opts := client.ListOption(&client.ListOptions{Namespace: testNamespace})
+		err = cl.List(ctx, &pvcList, opts)
 		if err != nil {
-
-			t.Error("PVC size change error", err)
+			t.Error("pvc list error", err)
 		}
-		allPvcChanged = true
-		for _, pvc := range pvcList {
-			kiPvResizedSize, err := funcs.ConvertUnit(pvResizedSize, "Ki")
-			if err != nil {
 
-				t.Error("PVC size change error (incorrect size)", err)
-			}
-			if pvc.Size != kiPvResizedSize {
+		allPvcChanged = true
+		for _, pvc := range pvcList.Items {
+			if pvc.Spec.Resources.Requests[corev1.ResourceStorage] != resource.MustParse(pvResizedSize) {
 				allPvcChanged = false
 			}
 		}
