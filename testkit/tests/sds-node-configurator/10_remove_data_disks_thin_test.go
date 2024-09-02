@@ -2,6 +2,7 @@ package sds_node_configurator
 
 import (
 	"context"
+	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,6 +59,7 @@ func TestDeleteThinDataDisks(t *testing.T) {
 		for _, disk := range listDataDisks.Items {
 			if disk.Status.Phase != "Ready" {
 				allVDRun = false
+				t.Log(fmt.Sprintf("Waiting: VD %s status: %s", disk.Name, disk.Status.Phase))
 			}
 		}
 		if allVDRun {
