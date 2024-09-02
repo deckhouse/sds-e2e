@@ -7,6 +7,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDeleteDataDisks(t *testing.T) {
@@ -42,6 +43,25 @@ func TestDeleteDataDisks(t *testing.T) {
 			if err != nil {
 				t.Error("error deleting vd", err)
 			}
+		}
+	}
+
+	time.Sleep(5 * time.Second)
+
+	for {
+		allVDRun := true
+		listDataDisks := &v1alpha2.VirtualDiskList{}
+		err = extCl.List(ctx, listDataDisks)
+		if err != nil {
+			t.Error("Disk retrieve failed", err)
+		}
+		for _, disk := range listDataDisks.Items {
+			if disk.Status.Phase != "Ready" {
+				allVDRun = false
+			}
+		}
+		if allVDRun {
+			break
 		}
 	}
 }
