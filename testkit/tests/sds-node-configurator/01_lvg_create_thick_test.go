@@ -62,19 +62,11 @@ func TestCreateLVG(t *testing.T) {
 		}
 	}
 
-	//
-	//for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
-	//	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
-	//	if err != nil {
-	//		t.Error("SSH connection problem", err)
-	//	}
-	//	client := funcs.GetSSHClient(ip, "user", auth)
-	//	defer client.Close()
-	//
-	//	out, err := client.Run("sudo vgdisplay -C")
-	//	fmt.Println(string(out))
-	//	if !strings.Contains(string(out), "data") || !strings.Contains(string(out), "20.00g") || err != nil {
-	//		t.Error("error running vgdisplay -C", err)
-	//	}
-	//}
+	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
+		client := funcs.GetSSHClient(ip, "user")
+		out, _ := funcs.GetPVDisplay(client)
+		fmt.Printf(out)
+		out, _ = funcs.GetVGDisplay(client)
+		fmt.Printf(out)
+	}
 }

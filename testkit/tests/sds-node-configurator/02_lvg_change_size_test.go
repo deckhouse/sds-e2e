@@ -72,17 +72,15 @@ func TestChangeLVGSize(t *testing.T) {
 		}
 	}
 
-	//for _, ip := range []string{funcs.MasterNodeIP, funcs.InstallWorkerNodeIp, funcs.WorkerNode2} {
-	//	auth, err := goph.Key(filepath.Join(funcs.AppTmpPath, funcs.PrivKeyName), "")
-	//	if err != nil {
-	//		t.Error("SSH connection problem", err)
-	//	}
-	//	client := funcs.GetSSHClient(ip, "user", auth)
-	//	defer client.Close()
-	//
-	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgs", []string{"data", "20.00g"})
-	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo vgdisplay -C", []string{"data", "20.00g"})
-	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo lsblk", []string{"sdc", "20G"})
-	//	funcs.ExecuteSSHCommandWithCheck(client, ip, "sudo pvs", []string{"/dev/sdc", "20G"})
-	//}
+	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
+		client := funcs.GetSSHClient(ip, "user")
+		out, _ := funcs.GetLSBLK(client)
+		fmt.Printf(out)
+		out, _ = funcs.GetPVS(client)
+		fmt.Printf(out)
+		out, _ = funcs.GetVGS(client)
+		fmt.Printf(out)
+		out, _ = funcs.GetVGDisplay(client)
+		fmt.Printf(out)
+	}
 }

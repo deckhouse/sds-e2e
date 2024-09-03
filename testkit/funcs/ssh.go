@@ -6,13 +6,11 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"github.com/melbahja/goph"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -119,9 +117,11 @@ func CheckAndGetSSHKeys(appTmpPath string, privateKeyName string, pubKeyName str
 	return string(sshPubKey)
 }
 
-func GetSSHClient(ip string, username string, auth goph.Auth) *goph.Client {
+func GetSSHClient(ip string, username string) *goph.Client {
 	var client *goph.Client
-	var err error
+
+	auth, err := goph.Key(filepath.Join(AppTmpPath, PrivKeyName), "")
+
 	tries := 600
 	for count := 0; count < tries; count++ {
 		client, err = goph.NewUnknown(username, ip, auth)
@@ -132,19 +132,44 @@ func GetSSHClient(ip string, username string, auth goph.Auth) *goph.Client {
 		time.Sleep(10 * time.Second)
 
 		if count == tries-1 {
-			log.Fatal("Timeout waiting for installer VM to be ready")
+			log.Fatal("Timeout waiting SSH client to be ready")
 		}
 	}
 
 	return client
 }
 
-func ExecuteSSHCommandWithCheck(client *goph.Client, ip string, command string, checkStrings []string) {
+func ExecuteSSHCommandWithCheck(client *goph.Client, command string) (output string, err error) {
 	out, err := client.Run(command)
-	for _, checkString := range checkStrings {
-		if !strings.Contains(string(out), checkString) || err != nil {
-			LogFatalIfError(err, fmt.Sprintf("%s error: %s", command, out))
-		}
-	}
-	log.Printf("%s: %s \n%s", ip, command, out)
+	return string(out), err
+}
+
+func GetVGDisplay(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo vgdisplay -C | grep -v Size")
+	return out, err
+}
+
+func GetPVDisplay(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo pvdisplay -C | grep -v Size")
+	return out, err
+}
+
+func GetLVS(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo lvs | grep -v Size")
+	return out, err
+}
+
+func GetPVS(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo pvs | grep -v Size")
+	return out, err
+}
+
+func GetVGS(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo vgs | grep -v Size")
+	return out, err
+}
+
+func GetLSBLK(client *goph.Client) (string, error) {
+	out, err := ExecuteSSHCommandWithCheck(client, "sudo lsblk")
+	return out, err
 }

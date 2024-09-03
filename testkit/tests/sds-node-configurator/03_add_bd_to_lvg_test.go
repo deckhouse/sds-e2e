@@ -116,4 +116,12 @@ func TestAddBDtoLVG(t *testing.T) {
 			break
 		}
 	}
+
+	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
+		client := funcs.GetSSHClient(ip, "user")
+		out, _ := funcs.GetVGS(client)
+		fmt.Printf(out)
+		out, _ = funcs.GetVGDisplay(client)
+		fmt.Printf(out)
+	}
 }

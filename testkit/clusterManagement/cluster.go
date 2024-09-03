@@ -125,9 +125,9 @@ func InitClusterCreate() {
 	var client *goph.Client
 	var masterClient *goph.Client
 
-	client = funcs.GetSSHClient(funcs.InstallWorkerNodeIp, "user", auth)
+	client = funcs.GetSSHClient(funcs.InstallWorkerNodeIp, "user")
 	defer client.Close()
-	masterClient = funcs.GetSSHClient(funcs.MasterNodeIP, "user", auth)
+	masterClient = funcs.GetSSHClient(funcs.MasterNodeIP, "user")
 	defer masterClient.Close()
 
 	for _, item := range [][]string{
