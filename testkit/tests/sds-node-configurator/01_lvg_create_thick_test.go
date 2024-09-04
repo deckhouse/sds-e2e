@@ -39,7 +39,7 @@ func TestCreateLVG(t *testing.T) {
 		}
 		err = cl.Create(ctx, lvmVolumeGroup)
 		if err != nil {
-			t.Error("error creating lvm volume group")
+			t.Error(fmt.Sprintf("error creating lvm volume group %s: %v", lvmVolumeGroup.Name, err))
 		}
 	}
 
