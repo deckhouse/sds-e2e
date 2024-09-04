@@ -52,7 +52,7 @@ func TestAddBDtoLVG(t *testing.T) {
 		}
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(30 * time.Second)
 
 	for {
 		allVDRun := true
