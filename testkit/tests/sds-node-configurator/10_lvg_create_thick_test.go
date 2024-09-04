@@ -19,9 +19,14 @@ func TestCreateLVG(t *testing.T) {
 	}
 
 	listDevice := &snc.BlockDeviceList{}
-	err = cl.List(ctx, listDevice)
-	if err != nil {
-		t.Error("error listing block devices", err)
+	for {
+		err = cl.List(ctx, listDevice)
+		if err != nil {
+			t.Error("error listing block devices", err)
+		}
+		if len(listDevice.Items) == 3 {
+			break
+		}
 	}
 
 	t.Log(fmt.Sprintf("Waiting: LVG to create"))
