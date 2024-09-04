@@ -67,7 +67,7 @@ func TestRemovePreviousArtifacts(t *testing.T) {
 		t.Error("BlockDevice list error", err)
 	}
 
-	for _, item := range listDevice.Items {
+	for _, item := range listBlockDevice.Items {
 		item.Finalizers = []string{}
 		err = cl.Update(ctx, &item)
 		if err != nil {
