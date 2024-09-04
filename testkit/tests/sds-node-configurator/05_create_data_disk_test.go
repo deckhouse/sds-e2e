@@ -24,7 +24,7 @@ func TestCreateDataDisks(t *testing.T) {
 	for _, vmName := range []string{"vm1", "vm2", "vm3"} {
 		vmdName := fmt.Sprintf("%s-data", vmName)
 
-		_, err = funcs.CreateVMD(ctx, extCl, funcs.NamespaceName, vmdName, funcs.StorageClass, 5)
+		_, err = funcs.CreateVMD(ctx, extCl, funcs.NamespaceName, vmdName, funcs.StorageClass, 20)
 		if err != nil {
 			t.Error("Disk creation failed", err)
 		}
