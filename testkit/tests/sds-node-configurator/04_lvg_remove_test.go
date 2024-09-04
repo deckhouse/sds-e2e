@@ -17,6 +17,8 @@ func TestRemoveLVG(t *testing.T) {
 		t.Error("Kubeclient problem", err)
 	}
 
+	t.Log(fmt.Sprintf("Waiting: deleting LVG"))
+
 	listDevice := &snc.LvmVolumeGroupList{}
 	err = cl.List(ctx, listDevice)
 	if err != nil {
@@ -49,6 +51,9 @@ func TestRemoveLVG(t *testing.T) {
 			break
 		}
 	}
+
+	t.Log(fmt.Sprintf("LVG deleted"))
+
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 		client := funcs.GetSSHClient(ip, "user")
 		out, _ := funcs.GetPVDisplay(client)

@@ -19,6 +19,8 @@ func TestCreateThinDataDisks(t *testing.T) {
 		t.Error("Parent cluster kubeclient problem", err)
 	}
 
+	t.Log(fmt.Sprintf("Waiting: Creating VD"))
+
 	for _, vmName := range []string{"vm1", "vm2", "vm3"} {
 		vmdName := fmt.Sprintf("%s-thindata", vmName)
 
@@ -63,5 +65,7 @@ func TestCreateThinDataDisks(t *testing.T) {
 			break
 		}
 	}
+
+	t.Log(fmt.Sprintf("VD created"))
 
 }

@@ -63,7 +63,7 @@ func TestCreateLVG(t *testing.T) {
 		}
 	}
 
-	t.Log(fmt.Sprintf("LVG created"))
+	t.Log(fmt.Sprintf("LVGs created"))
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 		client := funcs.GetSSHClient(ip, "user")

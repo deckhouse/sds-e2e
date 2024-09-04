@@ -2,6 +2,7 @@ package sds_node_configurator
 
 import (
 	"context"
+	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,6 +18,8 @@ func TestDeleteDataDisks(t *testing.T) {
 	if err != nil {
 		t.Error("Parent cluster kubeclient problem", err)
 	}
+
+	t.Log(fmt.Sprintf("Waiting: deleting VD"))
 
 	listDataDisksAttachments := &v1alpha2.VirtualMachineBlockDeviceAttachmentList{}
 	err = extCl.List(ctx, listDataDisksAttachments, &client.ListOptions{Namespace: funcs.NamespaceName})
@@ -47,6 +50,8 @@ func TestDeleteDataDisks(t *testing.T) {
 	}
 
 	time.Sleep(5 * time.Second)
+
+	t.Log(fmt.Sprintf("VD deleted"))
 
 	for {
 		allVDRun := true

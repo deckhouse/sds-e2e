@@ -25,6 +25,8 @@ func TestAddBDtoLVG(t *testing.T) {
 		t.Error("Parent cluster kubeclient problem", err)
 	}
 
+	t.Log(fmt.Sprintf("Waiting: creating VD"))
+
 	for _, vmName := range []string{"vm1", "vm2", "vm3"} {
 		vmdName := fmt.Sprintf("%s-data-add", vmName)
 		_, err = funcs.CreateVMD(ctx, extCl, funcs.NamespaceName, vmdName, funcs.StorageClass, 5)
@@ -68,6 +70,10 @@ func TestAddBDtoLVG(t *testing.T) {
 			break
 		}
 	}
+
+	t.Log(fmt.Sprintf("VD created"))
+
+	t.Log(fmt.Sprintf("Waiting: creating LVG"))
 
 	listLVG := &snc.LvmVolumeGroupList{}
 	err = cl.List(ctx, listLVG)
@@ -115,6 +121,8 @@ func TestAddBDtoLVG(t *testing.T) {
 			break
 		}
 	}
+
+	t.Log(fmt.Sprintf("LVG created"))
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 		client := funcs.GetSSHClient(ip, "user")
