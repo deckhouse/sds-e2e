@@ -19,6 +19,8 @@ func TestCreateDataDisks(t *testing.T) {
 		t.Error("Parent cluster kubeclient problem", err)
 	}
 
+	t.Log(fmt.Sprintf("Waiting: VD to create"))
+
 	for _, vmName := range []string{"vm1", "vm2", "vm3"} {
 		vmdName := fmt.Sprintf("%s-data", vmName)
 
@@ -62,6 +64,17 @@ func TestCreateDataDisks(t *testing.T) {
 		if allVDRun {
 			break
 		}
+	}
+
+	t.Log(fmt.Sprintf("VD created"))
+
+	listDataDisks := &v1alpha2.VirtualDiskList{}
+	err = extCl.List(ctx, listDataDisks)
+	if err != nil {
+		t.Error("Disk retrieve failed", err)
+	}
+	for _, disk := range listDataDisks.Items {
+		t.Log(fmt.Sprintf("Disk name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
 	}
 
 }

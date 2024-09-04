@@ -24,6 +24,8 @@ func TestCreateLVG(t *testing.T) {
 		t.Error("error listing block devices", err)
 	}
 
+	t.Log(fmt.Sprintf("Waiting: LVG to create"))
+
 	for _, device := range listDevice.Items {
 		lvmVolumeGroup := &snc.LvmVolumeGroup{
 			ObjectMeta: metav1.ObjectMeta{
@@ -60,6 +62,8 @@ func TestCreateLVG(t *testing.T) {
 			break
 		}
 	}
+
+	t.Log(fmt.Sprintf("LVG created"))
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 		client := funcs.GetSSHClient(ip, "user")

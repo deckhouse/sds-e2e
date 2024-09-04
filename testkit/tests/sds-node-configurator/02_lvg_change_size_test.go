@@ -81,7 +81,7 @@ func TestChangeLVGSize(t *testing.T) {
 		t.Error("Disk retrieve failed", err)
 	}
 	for _, disk := range listDataDisks.Items {
-		t.Log(fmt.Sprintf("Disk status: %s, size: %s", disk.Status.Phase, disk.Status.Capacity))
+		t.Log(fmt.Sprintf("Disk name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
 	}
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
