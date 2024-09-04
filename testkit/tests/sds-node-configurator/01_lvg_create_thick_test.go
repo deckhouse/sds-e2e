@@ -27,6 +27,7 @@ func TestCreateLVG(t *testing.T) {
 	t.Log(fmt.Sprintf("Waiting: LVG to create"))
 
 	for _, device := range listDevice.Items {
+		t.Log(fmt.Sprintf("%s: %s", device.Name, device.Status.NodeName))
 		lvmVolumeGroup := &snc.LvmVolumeGroup{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("%s-lvg", device.Status.NodeName),
