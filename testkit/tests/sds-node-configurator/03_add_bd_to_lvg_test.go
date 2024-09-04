@@ -109,7 +109,6 @@ func TestAddBDtoLVG(t *testing.T) {
 		for _, lvg := range listLVG.Items {
 			if lvg.Status.Phase != "Ready" {
 				allLVGRun = false
-				t.Log(fmt.Sprintf("Waiting: LVG %s status: %s", lvg.Name, lvg.Status.Phase))
 			}
 		}
 		if allLVGRun {

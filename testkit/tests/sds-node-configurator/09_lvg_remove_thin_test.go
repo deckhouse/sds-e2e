@@ -2,7 +2,6 @@ package sds_node_configurator
 
 import (
 	"context"
-	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	"path/filepath"
@@ -43,7 +42,6 @@ func TestRemoveThinLVG(t *testing.T) {
 		for _, lvg := range listLVG.Items {
 			if lvg.Status.Phase != "Ready" {
 				allLVGRun = false
-				t.Log(fmt.Sprintf("Waiting: LVG %s status: %s", lvg.Name, lvg.Status.Phase))
 			}
 		}
 		if allLVGRun {

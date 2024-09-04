@@ -62,7 +62,6 @@ func TestAddBDtoThinLVG(t *testing.T) {
 		for _, disk := range listDataDisks.Items {
 			if disk.Status.Phase != "Ready" {
 				allVDRun = false
-				t.Log(fmt.Sprintf("Waiting: VD %s status: %s", disk.Name, disk.Status.Phase))
 			}
 		}
 		if allVDRun {
@@ -110,7 +109,6 @@ func TestAddBDtoThinLVG(t *testing.T) {
 		for _, lvg := range listLVG.Items {
 			if lvg.Status.Phase != "Ready" {
 				allLVGRun = false
-				t.Log(fmt.Sprintf("Waiting: LVG %s status: %s", lvg.Name, lvg.Status.Phase))
 			}
 		}
 		if allLVGRun {

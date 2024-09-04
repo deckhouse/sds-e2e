@@ -54,6 +54,8 @@ func TestChangeLVGSize(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
+	t.Log(fmt.Sprintf("Waiting: VD to resize"))
+
 	for {
 		allVDRun := true
 		listDataDisks := &v1alpha2.VirtualDiskList{}
@@ -64,12 +66,22 @@ func TestChangeLVGSize(t *testing.T) {
 		for _, disk := range listDataDisks.Items {
 			if disk.Status.Phase != "Ready" {
 				allVDRun = false
-				t.Log(fmt.Sprintf("Waiting: VD %s status: %s", disk.Name, disk.Status.Phase))
 			}
 		}
 		if allVDRun {
 			break
 		}
+	}
+
+	t.Log(fmt.Sprintf("VD resized"))
+
+	listDataDisks := &v1alpha2.VirtualDiskList{}
+	err = extCl.List(ctx, listDataDisks)
+	if err != nil {
+		t.Error("Disk retrieve failed", err)
+	}
+	for _, disk := range listDataDisks.Items {
+		t.Log(fmt.Sprintf("Disk status: %s, size: %s", disk.Status.Phase, disk.Status.Capacity))
 	}
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
