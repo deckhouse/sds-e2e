@@ -100,10 +100,7 @@ func TestAddBDtoLVG(t *testing.T) {
 	for _, lvg := range listLVG.Items {
 		devices := []string{}
 		for _, disk := range listBlockDevice.Items {
-			t.Log(disk.Name)
-			t.Log(disk.Status.NodeName)
-			t.Log(lvg.Status.Nodes[0].Name)
-			if strings.Contains(disk.Name, "-data") && disk.Status.NodeName == lvg.Status.Nodes[0].Name {
+			if disk.Status.NodeName == lvg.Status.Nodes[0].Name {
 				devices = append(devices, disk.Name)
 			}
 		}
