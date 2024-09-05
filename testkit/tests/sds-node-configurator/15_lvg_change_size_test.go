@@ -100,7 +100,7 @@ func TestChangeLVGSize(t *testing.T) {
 		}
 
 		for _, lvg := range listLVG.Items {
-			t.Log(fmt.Sprintf("%s", lvg.Status))
+			t.Log(fmt.Sprintf("%s", lvg.Status.Phase))
 
 			if lvg.Status.Phase != "Ready" {
 				allLVGRun = false
