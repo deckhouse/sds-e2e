@@ -144,8 +144,8 @@ func TestAddBDtoLVG(t *testing.T) {
 	for _, LVMVG := range listLVG.Items {
 		if len(LVMVG.Status.Nodes) == 0 {
 			t.Error("LVMVG node is empty", LVMVG.Name)
-		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.VGSize != resource.MustParse("30Gi") {
-			t.Error(fmt.Sprintf("LVG name: %s, problem with size (must be 30Gi): %s (%s)\n", LVMVG.Name, LVMVG.Status.VGSize.String(), LVMVG.Spec.BlockDeviceNames))
+		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.VGSize != resource.MustParse("35Gi") {
+			t.Error(fmt.Sprintf("LVG name: %s, problem with size (must be 35Gi): %s (%s)\n", LVMVG.Name, LVMVG.Status.VGSize.String(), LVMVG.Spec.BlockDeviceNames))
 		} else {
 			fmt.Printf("LVG name: %s, size ok: %s (%s)\n", LVMVG.Name, LVMVG.Status.VGSize.String(), LVMVG.Spec.BlockDeviceNames)
 		}
