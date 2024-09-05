@@ -154,10 +154,6 @@ func TestAddBDtoLVG(t *testing.T) {
 		}
 	}
 
-	t.Error("finish")
-
-	time.Sleep(180 * time.Second)
-
 	//for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 	//	client := funcs.GetSSHClient(ip, "user")
 	//	out, _ := funcs.GetVGS(client)
