@@ -100,11 +100,8 @@ func TestChangeLVGSize(t *testing.T) {
 		}
 
 		for _, lvg := range listLVG.Items {
-			if lvg.Status.ConfigurationApplied != "True" {
-				t.Log("False")
-			}
 			t.Log(lvg.Status.ConfigurationApplied)
-			if lvg.Status.Phase != "Ready" {
+			if lvg.Status.Phase != "Ready" || lvg.Status.ConfigurationApplied != "True" {
 				allLVGRun = false
 			}
 		}
