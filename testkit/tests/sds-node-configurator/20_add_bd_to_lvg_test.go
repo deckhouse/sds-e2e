@@ -125,8 +125,6 @@ func TestAddBDtoLVG(t *testing.T) {
 		for _, lvg := range listLVG.Items {
 			if lvg.Status.Phase != "Ready" || lvg.Status.ConfigurationApplied != "True" {
 				allLVGRun = false
-			} else {
-				t.Log(fmt.Sprintf("Name: %s Size: %s Status: %s ConfigurationApplied: %s", lvg.Name, lvg.Status.VGSize.String(), lvg.Status.Phase, lvg.Status.ConfigurationApplied))
 			}
 		}
 		if allLVGRun {
