@@ -87,11 +87,35 @@ func TestChangeLVGSize(t *testing.T) {
 		t.Log(fmt.Sprintf("Disk OK. Name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
 	}
 
+	time.Sleep(5 * time.Second)
+
+	t.Log(fmt.Sprintf("Waiting: LVGs resize"))
+
+	for {
+		allLVGRun := true
+		listLVG := snc.LvmVolumeGroupList{}
+		err = cl.List(ctx, &listLVG)
+		if err != nil {
+			t.Error("LVG retrieve failed", err)
+		}
+
+		for _, lvg := range listLVG.Items {
+			if lvg.Status.Phase != "Ready" {
+				allLVGRun = false
+			}
+		}
+		if allLVGRun {
+			break
+		}
+	}
+
+	t.Log(fmt.Sprintf("LVGs resized"))
+
 	for _, LVMVG := range listDevice.Items {
 		if len(LVMVG.Status.Nodes) == 0 {
 			t.Error("LVMVG node is empty", LVMVG.Name)
 		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.Nodes[0].Devices[0].PVSize != resource.MustParse("30Gi") {
-			t.Error(fmt.Sprintf("node name: %s, problem with size: %s, %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
+			t.Error(fmt.Sprintf("node name: %s, problem with size (must be 30Gi): %s, %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String()))
 		} else {
 			fmt.Printf("node name: %s, size ok: %s, %s\n", LVMVG.Status.Nodes[0].Name, LVMVG.Status.Nodes[0].Devices[0].PVSize.String(), LVMVG.Status.Nodes[0].Devices[0].DevSize.String())
 		}
