@@ -123,7 +123,7 @@ func TestAddBDtoLVG(t *testing.T) {
 		}
 
 		for _, lvg := range listLVG.Items {
-			if lvg.Status.Phase != "Ready" {
+			if lvg.Status.Phase != "Ready" || lvg.Status.ConfigurationApplied != "True" {
 				allLVGRun = false
 			}
 		}
