@@ -76,16 +76,15 @@ func TestCreateLVG(t *testing.T) {
 	if err != nil {
 		t.Error("LVG retrieve failed", err)
 	}
-
 	for _, lvg := range listLVG.Items {
-		t.Log(fmt.Sprintf("LVG name: %s, status: %s, size: %s", lvg.Name, lvg.Status.Phase, lvg.Status.VGSize.String()))
+		t.Log(fmt.Sprintf("LVG OK. Name: %s, status: %s, size: %s", lvg.Name, lvg.Status.Phase, lvg.Status.VGSize.String()))
 	}
 
-	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
-		client := funcs.GetSSHClient(ip, "user")
-		out, _ := funcs.GetPVDisplay(client)
-		fmt.Printf(out)
-		out, _ = funcs.GetVGDisplay(client)
-		fmt.Printf(out)
-	}
+	//for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
+	//	client := funcs.GetSSHClient(ip, "user")
+	//	out, _ := funcs.GetPVDisplay(client)
+	//	fmt.Printf(out)
+	//	out, _ = funcs.GetVGDisplay(client)
+	//	fmt.Printf(out)
+	//}
 }

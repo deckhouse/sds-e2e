@@ -54,11 +54,11 @@ func TestRemoveLVG(t *testing.T) {
 
 	t.Log(fmt.Sprintf("LVG deleted"))
 
-	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
-		client := funcs.GetSSHClient(ip, "user")
-		out, _ := funcs.GetPVDisplay(client)
-		fmt.Printf(out)
-		out, _ = funcs.GetVGDisplay(client)
-		fmt.Printf(out)
-	}
+	//for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
+	//	client := funcs.GetSSHClient(ip, "user")
+	//	out, _ := funcs.GetPVDisplay(client)
+	//	fmt.Printf(out)
+	//	out, _ = funcs.GetVGDisplay(client)
+	//	fmt.Printf(out)
+	//}
 }

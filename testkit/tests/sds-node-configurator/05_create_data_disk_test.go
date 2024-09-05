@@ -74,7 +74,10 @@ func TestCreateDataDisks(t *testing.T) {
 		t.Error("Disk retrieve failed", err)
 	}
 	for _, disk := range listDataDisks.Items {
-		t.Log(fmt.Sprintf("Disk name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
+		if strings.Contains(disk.Name, "-system") {
+			continue
+		}
+		t.Log(fmt.Sprintf("Disk OK. Name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
 	}
 
 }
