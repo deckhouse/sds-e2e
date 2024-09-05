@@ -112,6 +112,8 @@ func TestChangeLVGSize(t *testing.T) {
 
 	t.Log(fmt.Sprintf("LVGs resized"))
 
+	time.Sleep(5 * time.Second)
+
 	for _, LVMVG := range listDevice.Items {
 		if len(LVMVG.Status.Nodes) == 0 {
 			t.Error("LVMVG node is empty", LVMVG.Name)
