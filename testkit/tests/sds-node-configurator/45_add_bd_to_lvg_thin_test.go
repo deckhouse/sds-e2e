@@ -84,7 +84,7 @@ func TestAddBDtoThinLVG(t *testing.T) {
 	for _, lvg := range listLVG.Items {
 		devices := []string{}
 		for _, disk := range listBlockDevice.Items {
-			if strings.Contains(disk.Name, "-thindata") && disk.Status.NodeName == lvg.Status.Nodes[0].Name {
+			if disk.Status.NodeName == lvg.Status.Nodes[0].Name {
 				devices = append(devices, disk.Name)
 			}
 		}
