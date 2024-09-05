@@ -40,12 +40,12 @@ func TestCreateThinLVG(t *testing.T) {
 				ActualVGNameOnTheNode: "datathin",
 				BlockDeviceNames:      []string{device.Name},
 				Type:                  "Local",
-				ThinPools:             []snc.LvmVolumeGroupThinPoolSpec{{Name: "thinpool", Size: "50%"}},
+				ThinPools:             []snc.LvmVolumeGroupThinPoolSpec{{Name: "thinpool", Size: "100%"}},
 			},
 		}
 		err = cl.Create(ctx, lvmVolumeGroup)
 		if err != nil {
-			t.Error("error creating lvm volume group")
+			t.Error("error creating lvm volume group", err)
 		}
 	}
 
