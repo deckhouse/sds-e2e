@@ -100,7 +100,6 @@ func TestChangeLVGSize(t *testing.T) {
 		}
 
 		for _, lvg := range listLVG.Items {
-			t.Log(lvg.Status.ConfigurationApplied)
 			if lvg.Status.Phase != "Ready" || lvg.Status.ConfigurationApplied != "True" {
 				allLVGRun = false
 			}
@@ -118,9 +117,9 @@ func TestChangeLVGSize(t *testing.T) {
 		if len(LVMVG.Status.Nodes) == 0 {
 			t.Error("LVMVG node is empty", LVMVG.Name)
 		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.VGSize != resource.MustParse("30Gi") {
-			t.Error(fmt.Sprintf("node name: %s, problem with size (must be 30Gi): %s", LVMVG.Status.Nodes[0].Name, LVMVG.Status.VGSize.String()))
+			t.Error(fmt.Sprintf("LVG name: %s, problem with size (must be 30Gi): %s", LVMVG.Name, LVMVG.Status.VGSize.String()))
 		} else {
-			fmt.Printf("node name: %s, size ok: %s\n", LVMVG.Status.Nodes[0].Name, LVMVG.Status.VGSize.String())
+			fmt.Printf("LVG name: %s, size ok: %s\n", LVMVG.Name, LVMVG.Status.VGSize.String())
 		}
 	}
 
