@@ -78,7 +78,7 @@ func TestCreateLVG(t *testing.T) {
 	}
 
 	for _, lvg := range listLVG.Items {
-		t.Log(fmt.Sprintf("LVG name: %s, status: %s, size: %s", lvg.Name, lvg.Status.Phase, lvg.Status.VGSize))
+		t.Log(fmt.Sprintf("LVG name: %s, status: %s, size: %s", lvg.Name, lvg.Status.Phase, lvg.Status.VGSize.String()))
 	}
 
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
