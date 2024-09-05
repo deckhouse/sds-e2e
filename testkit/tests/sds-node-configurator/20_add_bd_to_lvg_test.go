@@ -73,6 +73,15 @@ func TestAddBDtoLVG(t *testing.T) {
 
 	t.Log(fmt.Sprintf("VD created"))
 
+	listDataDisks := &v1alpha2.VirtualDiskList{}
+	err = extCl.List(ctx, listDataDisks)
+	if err != nil {
+		t.Error("Disk retrieve failed", err)
+	}
+	for _, disk := range listDataDisks.Items {
+		t.Log(fmt.Sprintf("Disk name: %s, status: %s, size: %s", disk.Name, disk.Status.Phase, disk.Status.Capacity))
+	}
+
 	t.Log(fmt.Sprintf("Waiting: creating LVG"))
 
 	listLVG := &snc.LvmVolumeGroupList{}

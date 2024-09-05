@@ -71,6 +71,16 @@ func TestCreateLVG(t *testing.T) {
 
 	t.Log(fmt.Sprintf("LVGs created"))
 
+	listLVG := snc.LvmVolumeGroupList{}
+	err = cl.List(ctx, &listLVG)
+	if err != nil {
+		t.Error("LVG retrieve failed", err)
+	}
+
+	for _, lvg := range listLVG.Items {
+		t.Log(fmt.Sprintf("LVG name: %s, status: %s, size: %s", lvg.Name, lvg.Status.Phase, lvg.Status.VGSize))
+	}
+
 	for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 		client := funcs.GetSSHClient(ip, "user")
 		out, _ := funcs.GetPVDisplay(client)
