@@ -6,6 +6,7 @@ import (
 	"github.com/deckhouse/sds-e2e/funcs"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	"github.com/deckhouse/virtualization/api/core/v1alpha2"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"path/filepath"
 	"strings"
@@ -132,6 +133,23 @@ func TestAddBDtoLVG(t *testing.T) {
 	}
 
 	t.Log(fmt.Sprintf("BD added to LVG"))
+
+	time.Sleep(5 * time.Second)
+
+	listLVG = &snc.LvmVolumeGroupList{}
+	err = cl.List(ctx, listLVG)
+	if err != nil {
+		t.Error("Lvm volume group list failed", err)
+	}
+	for _, LVMVG := range listLVG.Items {
+		if len(LVMVG.Status.Nodes) == 0 {
+			t.Error("LVMVG node is empty", LVMVG.Name)
+		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.VGSize != resource.MustParse("30Gi") {
+			t.Error(fmt.Sprintf("LVG name: %s, problem with size (must be 30Gi): %s", LVMVG.Name, LVMVG.Status.VGSize.String()))
+		} else {
+			fmt.Printf("LVG name: %s, size ok: %s\n", LVMVG.Name, LVMVG.Status.VGSize.String())
+		}
+	}
 
 	//for _, ip := range []string{"10.10.10.180", "10.10.10.181", "10.10.10.182"} {
 	//	client := funcs.GetSSHClient(ip, "user")
