@@ -115,7 +115,12 @@ func TestChangeLVGSize(t *testing.T) {
 
 	time.Sleep(5 * time.Second)
 
-	for _, LVMVG := range listDevice.Items {
+	listLVG := &snc.LvmVolumeGroupList{}
+	err = cl.List(ctx, listLVG)
+	if err != nil {
+		t.Error("Lvm volume group list failed", err)
+	}
+	for _, LVMVG := range listLVG.Items {
 		if len(LVMVG.Status.Nodes) == 0 {
 			t.Error("LVMVG node is empty", LVMVG.Name)
 		} else if len(LVMVG.Status.Nodes) == 0 || LVMVG.Status.VGSize != resource.MustParse("30Gi") {
