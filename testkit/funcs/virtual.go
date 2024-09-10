@@ -243,18 +243,6 @@ func CreateVM(ctx context.Context,
 		}
 	}
 
-	vmdName = fmt.Sprintf("%s-data", vmName)
-	vmdList, err = ListVMD(ctx, cl, namespaceName, vmdName)
-	if err != nil {
-		return err
-	}
-	if len(vmdList) == 0 {
-		_, err := CreateVMD(ctx, cl, namespaceName, vmdName, storageClass, dataDriveSize)
-		if err != nil {
-			return err
-		}
-	}
-
 	currentMemory, err := resource.ParseQuantity(memory)
 	if err != nil {
 		return err
@@ -302,23 +290,6 @@ ssh_authorized_keys:
 `, vmName, sshPubKey),
 			},
 		},
-	}
-
-	err = cl.Create(ctx, &v1alpha2.VirtualMachineBlockDeviceAttachment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      vmdName,
-			Namespace: namespaceName,
-		},
-		Spec: v1alpha2.VirtualMachineBlockDeviceAttachmentSpec{
-			VirtualMachineName: vmName,
-			BlockDeviceRef: v1alpha2.VMBDAObjectRef{
-				Kind: "VirtualDisk",
-				Name: vmdName,
-			},
-		},
-	})
-	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		return err
 	}
 
 	return cl.Create(ctx, vmObj)

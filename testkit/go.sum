@@ -19,10 +19,10 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/deckhouse/sds-node-configurator/api v0.0.0-20240805103635-969dc811217b h1:EYmHWTWcWMpyxJGZK05ZxlIFnh9s66DRrxLw/LNb/xw=
 github.com/deckhouse/sds-node-configurator/api v0.0.0-20240805103635-969dc811217b/go.mod h1:H71+9G0Jr46Qs0BA3z3/xt0h9lbnJnCEYcaCJCWFBf0=
-github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240808114114-2db79ea21bb3 h1:yEMDxp0507HrpNFoKHnBtEKqA4p2ATUhVCQZ+lFHbsw=
-github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240808114114-2db79ea21bb3/go.mod h1:6yz0RtbkLVJtK2DeuvgfaqBZRl5V5ax1WsfPF5pbnvo=
-github.com/deckhouse/virtualization/api v0.0.0-20240808095444-da65e56a660b h1:glOVKkQzQYrq9gIUxvETxRZJXGHg4c4TKvhInUC4P48=
-github.com/deckhouse/virtualization/api v0.0.0-20240808095444-da65e56a660b/go.mod h1:1tfoFeZmlKqq6jEuSfIpdrxsBpOcMajYaCbO94pVQLs=
+github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240810205515-2b92cb0defb4 h1:1OQ/qnugK1nYCGr/XcaMDvml/ROTIt2817gGQEocvhU=
+github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240810205515-2b92cb0defb4/go.mod h1:6yz0RtbkLVJtK2DeuvgfaqBZRl5V5ax1WsfPF5pbnvo=
+github.com/deckhouse/virtualization/api v0.0.0-20240809125238-363283de8585 h1:gUsToRXL+9mOcZtnLuK88uaJIVxq18RS/nBUVthqkIo=
+github.com/deckhouse/virtualization/api v0.0.0-20240809125238-363283de8585/go.mod h1:1tfoFeZmlKqq6jEuSfIpdrxsBpOcMajYaCbO94pVQLs=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
