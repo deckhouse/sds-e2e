@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/deckhouse/sds-e2e/funcs"
 	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"testing"
 	"time"
 )
@@ -21,12 +22,14 @@ func TestWaitStsPods(t *testing.T) {
 		//		fmt.Printf("Wait for all pods to be ready\n")
 
 		allPodsReady := true
-		podList, err := funcs.ListPods(ctx, cl, testNamespace)
+		podList := corev1.PodList{}
+		opts := client.ListOption(&client.ListOptions{Namespace: testNamespace})
+		err = cl.List(ctx, &podList, opts)
 		if err != nil {
-			t.Error("Pod list error", err)
+			t.Error("pvc list error", err)
 		}
-		for _, item := range podList {
-			if item.Phase != corev1.PodRunning {
+		for _, item := range podList.Items {
+			if item.Status.Phase != corev1.PodRunning {
 				allPodsReady = false
 			}
 		}
