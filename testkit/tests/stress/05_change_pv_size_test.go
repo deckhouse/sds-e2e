@@ -2,7 +2,6 @@ package stress
 
 import (
 	"context"
-	"fmt"
 	"github.com/deckhouse/sds-e2e/funcs"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -45,10 +44,7 @@ func TestChangeStsPvcSize(t *testing.T) {
 		allPvcChanged = true
 		for _, pvc := range pvcs.Items {
 			parse := resource.MustParse(pvResizedSize)
-			if parse.Cmp(pvc.Spec.Resources.Requests[corev1.ResourceStorage]) == 0 {
-				fmt.Printf("%v\n", pvc.Spec.Resources.Requests[corev1.ResourceStorage])
-				fmt.Printf("%v\n", resource.MustParse(pvResizedSize))
-				fmt.Printf("%v\n", parse.Cmp(pvc.Spec.Resources.Requests[corev1.ResourceStorage]))
+			if parse.Cmp(pvc.Spec.Resources.Requests[corev1.ResourceStorage]) != 0 {
 				allPvcChanged = false
 			}
 		}
