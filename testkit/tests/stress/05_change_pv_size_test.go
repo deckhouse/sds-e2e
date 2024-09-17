@@ -45,8 +45,8 @@ func TestChangeStsPvcSize(t *testing.T) {
 		allPvcChanged = true
 		for _, pvc := range pvcs.Items {
 			if *pvc.Status.AllocatedResources.Storage() != resource.MustParse(pvResizedSize) {
-				fmt.Print(*pvc.Status.AllocatedResources.Storage())
-				fmt.Print(resource.MustParse(pvResizedSize))
+				fmt.Printf("%v\n", *pvc.Status.AllocatedResources.Storage())
+				fmt.Printf("%v\n", resource.MustParse(pvResizedSize))
 				allPvcChanged = false
 			}
 		}
