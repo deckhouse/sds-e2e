@@ -34,16 +34,16 @@ func TestChangeStsPvcSize(t *testing.T) {
 
 	allPvcChanged := true
 	for count := 0; count < 600; count++ {
-		pvcList := corev1.PersistentVolumeClaimList{}
+		objs := corev1.PersistentVolumeClaimList{}
 		opts := client.ListOption(&client.ListOptions{Namespace: testNamespace})
-		err = cl.List(ctx, &pvcList, opts)
+		err := cl.List(ctx, &objs, opts)
 		if err != nil {
-			t.Error("pvc list error", err)
+			t.Error("PVC size change error", err)
 		}
 
 		allPvcChanged = true
-		for _, pvc := range pvcList.Items {
-			if pvc.Spec.Resources.Requests[corev1.ResourceStorage] != resource.MustParse(pvResizedSize) {
+		for _, pvc := range objs.Items {
+			if *pvc.Status.AllocatedResources.Storage() != resource.MustParse(pvResizedSize) {
 				allPvcChanged = false
 			}
 		}
