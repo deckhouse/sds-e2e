@@ -15,6 +15,7 @@ import (
 	"slices"
 
 //	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes"
 //	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
 	"k8s.io/client-go/rest"
@@ -52,19 +53,92 @@ import (
 //}
 
 
+/*  Filters  */
+
+type Filter struct {  //map[string]any
+	Name []string
+	NotName []string
+	Os []string
+	NotOs []string
+	Consumable string
+}
+
+func (f *Filter) checkName(name string) bool {
+	if f.Name != nil {
+		return slices.Contains(f.Name, name)
+	}
+	if f.NotName != nil {
+		return !slices.Contains(f.NotName, name)
+	}
+	return true
+}
+
+func (f *Filter) checkConsumable(bd snc.BlockDevice) bool {
+	if (f.Consumable == "true" && !bd.Status.Consumable) ||
+	   (f.Consumable == "false" && bd.Status.Consumable) {
+		return false
+	}
+	return true
+}
+
+func (f *Filter) checkOs(node coreapi.Node) bool {
+		img := node.Status.NodeInfo.OSImage
+		valid := true
+
+		if f.Os != nil {
+			valid = false
+			for _, i := range f.Os {
+				if strings.Contains(img, i) {
+					valid = true
+					break
+				}
+			}
+		} else if f.NotOs != nil {
+			for _, i := range f.NotOs {
+				if strings.Contains(img, i) {
+					valid = false
+					break
+				}
+			}
+		}
+
+		return valid
+}
+
+/*  Logs  */
+
 func initLog() {
 	ctrlrt.SetLogger(logr.New(ctrlrtlog.NullLogSink{}))
 }
 
+func Infof(format string, v ...any) {
+	log.SetFlags(log.Lmicroseconds)
+	log.SetPrefix("    \033[2m✎ ")
+	log.Printf("\033[2m"+format+"\033[0m", v...)
+}
+
+func Warnf(format string, v ...any) {
+	log.SetFlags(log.Lmicroseconds)
+	log.SetPrefix("    \033[93m🏱 ")
+	log.Printf("\033[0;2m"+format+"\033[0m", v...)
+}
+
+func Errf(format string, v ...any) {
+	log.SetFlags(log.Lmicroseconds)
+	log.SetPrefix("    \033[91m🕩 ")
+	log.Printf("\033[0m"+format+"\033[0m", v...)
+}
+
+func Critf(format string, v ...any) {
+	log.SetFlags(log.Lmicroseconds)
+	log.SetPrefix("    \033[91;1;5m🕪 ")
+	log.Printf("\033[0;91m"+format+"\033[0m", v...)
+}
+
+/*  Config  */
+
 func NewRestConfig(configPath, clusterName string) (*rest.Config, error) {
 	var cfg *rest.Config
-
-	// use the current context in kubeconfig
-	//	config, err = clientcmd.BuildConfigFromFlags("", configPath)
-	//	if err != nil {
-	//		return nil, err
-	//	}
-
 	var loader clientcmd.ClientConfigLoader
 	if configPath != "" {
 		loader = &clientcmd.ClientConfigLoadingRules{ExplicitPath: configPath}
@@ -87,6 +161,8 @@ func NewRestConfig(configPath, clusterName string) (*rest.Config, error) {
 
 	return cfg, nil
 }
+
+/*  Kuber Client  */
 
 func NewKubeRTClient(configPath, clusterName string) (*ctrlrtclient.Client, error) {
 	cfg, err := NewRestConfig(configPath, clusterName)
@@ -141,6 +217,8 @@ func NewKubeGoClient(configPath, clusterName string) (*kubernetes.Clientset, err
 	return cl, nil
 }
 
+/*  Kuber Cluster object  */
+
 type KCluster struct {
 	name string
 	ctx context.Context
@@ -152,16 +230,16 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	configPath = envConfigPath(configPath)
 	clusterName	= envClusterName(clusterName)
 
-	log.Println(fmt.Sprintf("Init Client %s/%s", configPath, clusterName))
+	Infof("Init Client %s/%s", configPath, clusterName)
 	rcl, err := NewKubeRTClient(configPath, clusterName)
     if err != nil {
-		log.Println(fmt.Sprintf("Can`t connect cluster %s", clusterName))
+		Critf("Can`t connect cluster %s", clusterName)
     	return nil, err
     }
 
 	gcl, err := NewKubeGoClient(configPath, clusterName)
     if err != nil {
-		log.Println(fmt.Sprintf("Can`t connect cluster %s", clusterName))
+		Critf("Can`t connect cluster %s", clusterName)
     	return nil, err
     }
 
@@ -171,90 +249,82 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 		rtClient: rcl,
 		goClient: gcl,
 	}
+
+// TODO create test NameSpace
+
 	return &ctr, nil
 }
 
-func (clr *KCluster) GetNodes(filter map[string][]string) (resp []coreapi.Node, err error) {
+/*  Node  */
+
+func (clr *KCluster) GetNodes(filter *Filter) (map[string]coreapi.Node, error) {
+	resp := make(map[string]coreapi.Node)
+
 	nodes, err := (*clr.goClient).CoreV1().Nodes().List(clr.ctx, metav1.ListOptions{})
     if err != nil {
-		log.Println(fmt.Sprintf("Can`t get Nodes (%s)", clr.name))
+		Errf("Can`t get Nodes (%s)", clr.name)
         return nil, err
     }
 
-	if filter == nil {
-		return nodes.Items, nil
-	}
-
-	// Data filtering
 	for _, node := range nodes.Items {
-		img := node.Status.NodeInfo.OSImage
-		valid := true
-
-		if imgs, ok := filter["OS"]; ok {
-			valid = false
-			for _, i := range imgs {
-				if strings.Contains(img, i) {
-					valid = true
-					break
-				}
-			}
-		} else if imgs, ok := filter["notOS"]; ok {
-			for _, i := range imgs {
-				if strings.Contains(img, i) {
-					valid = false
-					break
-				}
-			}
+		if filter != nil && !filter.checkOs(node) {
+			continue
 		}
-		if valid {
-			resp = append(resp, node)
-		}
+		resp[node.ObjectMeta.Name] = node
 	}
 
-	return
+	return resp, nil
 }
 
-func (clr *KCluster) GetBDs(filter map[string][]string) (resp []snc.BlockDevice, err error)  {
+/*  Block Device  */
+
+func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error)  {
+	resp := make(map[string]snc.BlockDevice)
+
     bdList := &snc.BlockDeviceList{}
-    err = (*clr.rtClient).List(clr.ctx, bdList)
+    err := (*clr.rtClient).List(clr.ctx, bdList)
     if err != nil {
-		log.Println(fmt.Sprintf("Can`t get BDs (%s)", clr.name))
+		Errf("Can`t get BDs (%s)", clr.name)
         return nil, err
     }
 
-	if filter == nil {
-		return bdList.Items, nil
+	var validNodes map[string]coreapi.Node
+	if filter != nil && (filter.Os != nil || filter.NotOs != nil) {
+		validNodes, _ = clr.GetNodes(&Filter{Os: filter.Os, NotOs: filter.NotOs})
 	}
 	for _, bd := range bdList.Items {
-		if names, ok := filter["Name"]; ok {
-			if slices.Contains(names, bd.Name) {
-				resp = append(resp, bd)
-				continue
-			}
-		} else if names, ok := filter["notName"]; ok {
-			if slices.Contains(names, bd.Name) {
-				continue
-			}
-			resp = append(resp, bd)
+		if filter != nil && !filter.checkConsumable(bd) {
+			continue
 		}
+		if filter != nil && !filter.checkName(bd.Name) {
+			continue
+		}
+		if validNodes != nil {
+			if _, ok := validNodes[bd.Status.NodeName]; !ok {
+				continue
+			}
+		}
+		resp[bd.Name] = bd
 	}
 
-	return
+	return resp, nil
 }
 
-func (clr *KCluster) GetLVG() ([]snc.LVMVolumeGroup, error) {
+/*  LVM Volume Group  */
+
+func (clr *KCluster) GetLVGs() ([]snc.LVMVolumeGroup, error) {
 	lvgList := &snc.LVMVolumeGroupList{}
 	err := (*clr.rtClient).List(clr.ctx, lvgList)
 	if err != nil {
-		log.Println(fmt.Sprintf("Can`t get LVGs (%s)", clr.name))
+		Errf("Can`t get LVGs (%s)", clr.name)
         return nil, err
 	}
 
 	return lvgList.Items, nil
 }
 
-func (clr *KCluster) GetTestLVG() (resp []snc.LVMVolumeGroup, err error) {
-	lvgList, err := clr.GetLVG()
+func (clr *KCluster) GetTestLVGs() (resp []snc.LVMVolumeGroup, err error) {
+	lvgList, err := clr.GetLVGs()
 	if err != nil {
 		return nil, err
 	}
@@ -267,16 +337,18 @@ func (clr *KCluster) GetTestLVG() (resp []snc.LVMVolumeGroup, err error) {
 	return
 }
 
-func (clr *KCluster) AddLVG(nodeName, bdName string) error {
-	lvgName := "e2e-lvg-" + nodeName[len(nodeName)-1:] + "-" + bdName[len(bdName)-3:]
+func (clr *KCluster) CreateLVG(name, nodeName, bdName string) (*snc.LVMVolumeGroup, error) {
 	lvmVolumeGroup := &snc.LVMVolumeGroup{
 	    ObjectMeta: metav1.ObjectMeta{
-	        Name: lvgName,
+	        Name: name,
 	    },
 	    Spec: snc.LVMVolumeGroupSpec{
-	        ActualVGNameOnTheNode: lvgName,
+	        ActualVGNameOnTheNode: name,
 	        BlockDeviceSelector: &metav1.LabelSelector{
-	            MatchLabels: map[string]string{"kubernetes.io/metadata.name": bdName},
+	            //MatchLabels: map[string]string{"kubernetes.io/metadata.name": bdName},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn, Values: []string{bdName}},
+				},
 	        },
 	        Type: "Local",
 	        Local: snc.LVMVolumeGroupLocalSpec{NodeName: nodeName},
@@ -284,33 +356,93 @@ func (clr *KCluster) AddLVG(nodeName, bdName string) error {
 	}
 	err := (*clr.rtClient).Create(clr.ctx, lvmVolumeGroup)
 	if err != nil {
-		log.Println(fmt.Sprintf("Can`t create LVG %s (node %s, bd %s)", lvgName, nodeName, bdName))
-		return err
+		Errf("Can`t create LVG %s (node %s, bd %s)", name, nodeName, bdName)
+		return nil, err
 	}
+	return lvmVolumeGroup, nil
+}
+
+func (clr *KCluster) CreateTestLVG(nodeName, bdName string) (*snc.LVMVolumeGroup, error) {
+	name := "e2e-lvg-" + nodeName[len(nodeName)-1:] + "-" + bdName[len(bdName)-3:]
+	return clr.CreateLVG(name, nodeName, bdName)
+}
+
+func (clr *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
+	err := (*clr.rtClient).Update(clr.ctx, lvg)
+	if err != nil {
+		Errf("Can`t update LVG %s", lvg.Name)
+		return err
+    }
+
 	return nil
 }
 
 func (clr *KCluster) DelTestLVG() error {
-	lvgList, _ := clr.GetTestLVG()
+	lvgList, _ := clr.GetTestLVGs()
 
 	for _, lvg := range lvgList {
 		if err := (*clr.rtClient).Delete(clr.ctx, &lvg); err != nil {
 			return err
 		}
+		Infof("LVG deleted: %s", lvg.Name)
 	}
 
 	return nil
 }
 
+/*  Storage Class  */
+
+func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
+	lvmType := "Thick"
+	lvmVolGroups := "- name: vg-w1\n- name: vg-w2"
+
+	volBindingMode := storapi.VolumeBindingImmediate
+	//volBindingMode := storapi.VolumeBindingWaitForFirstConsumer
+
+    reclaimPolicy := coreapi.PersistentVolumeReclaimDelete
+	//reclaimPolicy := coreapi.PersistentVolumeReclaimRetain
+
+	volExpansion := true
+
+    sc := &storapi.StorageClass{
+        TypeMeta: metav1.TypeMeta{
+            Kind: "StorageClass",
+            APIVersion: "storage.k8s.io/v1",
+        },
+        ObjectMeta: metav1.ObjectMeta{
+            Name:      name,
+            Namespace: "default",
+        },
+        Provisioner: "lvm.csi.storage.deckhouse.io",
+        Parameters: map[string]string{
+            "lvm.csi.storage.deckhouse.io/lvm-type":            lvmType,
+            "lvm.csi.storage.deckhouse.io/volume-binding-mode": string(volBindingMode),
+            "lvm.csi.storage.deckhouse.io/lvm-volume-groups":   lvmVolGroups,
+        },
+        ReclaimPolicy:        &reclaimPolicy,
+        MountOptions:         nil,
+        AllowVolumeExpansion: &volExpansion,
+        VolumeBindingMode:    &volBindingMode,
+    }
+
+    if err := (*clr.rtClient).Create(clr.ctx, sc); err != nil {
+		Errf("Can`t create SC %s", sc.Name)
+        return nil, err
+    }
+    return sc, nil
+}
+
+/*  Persistent Volume Claims  */
+
 func (clr *KCluster) GetPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
     pvcList, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).List(clr.ctx, metav1.ListOptions{})
-    //pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Get(context.TODO(), pvcName, metav1.GetOptions{})
+    //pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Get(clr.ctx, pvcName, metav1.GetOptions{})
 
 //    pvcList := coreapi.PersistentVolumeClaimList{}
 //    opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
 //    err := (*clr.rtClient).List(clr.ctx, &pvcList, opts)
     if err != nil {
-		log.Println(fmt.Sprintf("Can`t get PVCs %s", nsName))
+		Errf("Can`t get PVCs %s", nsName)
 		return nil, err
     }
 
@@ -322,17 +454,162 @@ func (clr *KCluster) GetTestPVC() ([]coreapi.PersistentVolumeClaim, error) {
     return clr.GetPVC("sds-replicated-volume-e2e-test")
 }
 
-func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) (*coreapi.PersistentVolumeClaim, error) {
-	nsName := pvc.Namespace
-//	return pvc, nil
-	pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Update(clr.ctx, pvc, metav1.UpdateOptions{})
-	if err != nil {
-		log.Println(fmt.Sprintf("Can`t update PVC %s", pvc.Name))
-		return pvc, err
-    }
 
+//======================================
+const (
+    PersistentVolumeClaimKind       = "PersistentVolumeClaim"
+    PersistentVolumeClaimAPIVersion = "v1"
+    WaitIntervalPVC                 = 1
+    WaitIterationCountPVC           = 10
+    DeletedStatusPVC                = "Deleted"
+	//NameSpace       = "sds-local-volume"
+)
+
+func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
+	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
+	sizeStorage, err := resource.ParseQuantity(size)
+	if err != nil {
+		return nil, err
+	}
+	resourceList[coreapi.ResourceStorage] = sizeStorage
+	volMode := coreapi.PersistentVolumeFilesystem
+	//volMode := coreapi.PersistentVolumeBlock
+
+	pvc := &coreapi.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       PersistentVolumeClaimKind,
+			APIVersion: PersistentVolumeClaimAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: testNS,
+			//Namespace: NameSpace,
+		},
+		Spec: coreapi.PersistentVolumeClaimSpec{
+			StorageClassName: &scName,
+			AccessModes: []coreapi.PersistentVolumeAccessMode{
+				coreapi.ReadWriteOnce,
+			},
+			Resources: coreapi.VolumeResourceRequirements{
+				Requests: resourceList,
+			},
+			VolumeMode: &volMode,
+		},
+	}
+
+	err = (*clr.rtClient).Create(clr.ctx, pvc)
+	if err != nil {
+		return nil, err
+		//return coreapi.PersistentVolumeClaim{}, err
+	}
 	return pvc, nil
 }
+
+/* TODO
+func DeletePVC(ctx context.Context, cl client.Client, name string) error {
+	pvc := coreapi.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       PersistentVolumeClaimKind,
+			APIVersion: PersistentVolumeClaimAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: NameSpace,
+		},
+	}
+
+	err := cl.Delete(ctx, &pvc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func WaitPVCStatus(ctx context.Context, cl client.Client, name string) (string, error) {
+	pvc := coreapi.PersistentVolumeClaim{}
+	for i := 0; i < WaitIterationCountPVC; i++ {
+		err := cl.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: NameSpace,
+		}, &pvc)
+		if err != nil {
+			//if kerrors.IsNotFound(err) {
+			//	return "", err
+			//}
+		}
+		fmt.Printf("pvc %s...\n", pvc.Status.Phase)
+		if pvc.Status.Phase == coreapi.ClaimBound {
+			return string(pvc.Status.Phase), nil
+		}
+
+		if len(pvc.Status.Phase) == 0 {
+			return DeletedStatusPVC, nil
+		}
+
+		time.Sleep(WaitIntervalPVC * time.Second)
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d or the pvc to be ready has expired",
+		WaitIntervalPVC*WaitIterationCountPVC))
+}
+
+func WaitDeletePVC(ctx context.Context, cl client.Client, name string) (string, error) {
+	pod := coreapi.Pod{}
+	for i := 0; i < WaitIterationCountPVC; i++ {
+		time.Sleep(WaitIntervalPVC * time.Second)
+		err := cl.Get(ctx, client.ObjectKey{
+			Name:      name,
+			Namespace: NameSpace,
+		}, &pod)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return DeletedStatusPVC, nil
+			}
+		}
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
+		WaitIterationCountPVC*WaitIntervalPVC))
+}
+
+func EditSizePVC(ctx context.Context, cl client.Client, name, newSize string) error {
+	pvc := coreapi.PersistentVolumeClaim{}
+	err := cl.Get(ctx, client.ObjectKey{
+		Name:      name,
+		Namespace: NameSpace,
+	}, &pvc)
+	if err != nil {
+		return err
+	}
+
+	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
+	newPVCSize, err := resource.ParseQuantity(newSize)
+	if err != nil {
+		return err
+	}
+
+	resourceList[coreapi.ResourceStorage] = newPVCSize
+	pvc.Spec.Resources.Requests = resourceList
+
+	err = cl.Update(ctx, &pvc)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+*/
+
+func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
+//	nsName := pvc.Namespace
+//	pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Update(clr.ctx, pvc, metav1.UpdateOptions{})
+	err := (*clr.rtClient).Update(clr.ctx, pvc)
+	if err != nil {
+		Errf("Can`t update PVC %s", pvc.Name)
+		return err
+    }
+
+	return nil
+}
+
+/*  Virtual Disk  */
 
 func (clr *KCluster) GetVMD(nsName, vmdName string) ([]virt.VirtualDisk, error) {
 	vmds := virt.VirtualDiskList{}
@@ -340,7 +617,7 @@ func (clr *KCluster) GetVMD(nsName, vmdName string) ([]virt.VirtualDisk, error) 
 
 	err := (*clr.rtClient).List(clr.ctx, &vmds, opts)
 	if err != nil {
-		log.Println(fmt.Sprintf("Can`t get VMDs (%s, %s)", nsName, vmdName))
+		Errf("Can`t get VMDs (%s, %s)", nsName, vmdName)
         return nil, err
 	}
 
@@ -362,11 +639,11 @@ func (clr *KCluster) GetTestVMD() ([]virt.VirtualDisk, error) {
 	return clr.GetVMD(testNS, "")
 }
 
-func (clr *KCluster) UpdVMD(vmd *virt.VirtualDisk) error {
+func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
 	return (*clr.rtClient).Update(clr.ctx, vmd)
 }
 
-// test NODE
+/*  Exec Cmd  */
 /*
 	fmt.Printf("node: %#v\n", nodes.Items[0].Name)
 	node := nodes.Items[0]

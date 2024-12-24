@@ -50,8 +50,8 @@ const (
 
 var (
 	//fakepubsubNodePort = flag.Int("fakepubsub-node-port", 30303, "The port to use for connecting sub tests with the fakepubsub service (for configuring PUBSUB_EMULATOR_HOST)")
-	clusterPathFlag = flag.String("kubecfg", "", "The k8s config path for test")
-	clusterNameFlag = flag.String("cluster", "", "The context of cluster to use for test")
+	clusterPathFlag = flag.String("kubeconf", "", "The k8s config path for test")
+	clusterNameFlag = flag.String("kubecontext", "", "The context of cluster to use for test")
 	vmOS = flag.String("virtos", "", "Deploy virtual machine with specified OS")
 )
 

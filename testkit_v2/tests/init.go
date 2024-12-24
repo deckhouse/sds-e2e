@@ -26,4 +26,3 @@ var clr *util.KCluster
 //    }
 //	clr = defaultClr
 //}
-

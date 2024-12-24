@@ -30,9 +30,9 @@ func TestLVG(t *testing.T) {
 
 func testCreateLVG(t *testing.T) {
 // test BlockDevice
-	bdList, _ := clr.GetBDs()
-    for _, bd := range bdList {
-		if err := clr.AddLVG(bd.Status.NodeName, bd.Name); err != nil {
+	bds, _ := clr.GetBDs()
+    for _, bd := range bds {
+		if _, err := clr.CreateLVG("", bd.Status.NodeName, bd.Name); err != nil {
             t.Error("LVG creating", err)
         }
     }
@@ -63,7 +63,7 @@ func testCreateLVG(t *testing.T) {
 }
 
 func testChangeLVGSize(t *testing.T) {
-	lvgList, _ := clr.GetTestLVG()
+	lvgList, _ := clr.GetTestLVGs()
 	for _, lvg := range lvgList {
 		if len(lvg.Status.Nodes) == 0 {
 			t.Error(fmt.Sprintf("LVG %s: node is empty", lvg.Name))
@@ -82,7 +82,7 @@ func testChangeLVGSize(t *testing.T) {
 	for _, vmd := range vmdList {
 		if strings.Contains(vmd.Name, "-data") {
 			vmd.Spec.PersistentVolumeClaim.Size.Set(32212254720)
-			err := clr.UpdVMD(&vmd)
+			err := clr.UpdateVMD(&vmd)
 			if err != nil {
 				t.Error("Disk update problem", err)
 			}
