@@ -2,8 +2,8 @@ package integration
 // TODO
 
 import (
-	"flag"
-	util "github.com/deckhouse/sds-e2e/util"
+//	"flag"
+//	util "github.com/deckhouse/sds-e2e/util"
 )
 
 
@@ -16,13 +16,3 @@ var (
 	//createRSP        = *flag.Bool("createRSP", true, "create RSP")
 	//createVM         = *flag.Bool("createVM", true, "create VM")
 )
-
-var clr *util.KCluster
-
-//func TestNode(t *testing.T) {
-//	defaultClr, err := util.InitKCluster("", "")
-//    if err != nil {
-//		t.Fatal("Kubeclient problem", err)
-//    }
-//	clr = defaultClr
-//}

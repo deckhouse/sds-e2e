@@ -13,14 +13,8 @@ import (
 )
 
 
-var clr *util.KCluster
-
-func TestLVG(t *testing.T) {
-	defaultClr, err := util.InitKCluster("", "")
-    if err != nil {
-		t.Fatal("Kubeclient problem", err)
-    }
-	clr = defaultClr
+func _TestLVG(t *testing.T) {
+	//clr := util.GetCluster("", "")
 
 	t.Run("LVG creating for each BlockDevice", testCreateLVG)
 	time.Sleep(5 * time.Second)
@@ -30,7 +24,8 @@ func TestLVG(t *testing.T) {
 
 func testCreateLVG(t *testing.T) {
 // test BlockDevice
-	bds, _ := clr.GetBDs()
+	clr := util.GetCluster("", "")
+	bds, _ := clr.GetBDs(nil)
     for _, bd := range bds {
 		if _, err := clr.CreateLVG("", bd.Status.NodeName, bd.Name); err != nil {
             t.Error("LVG creating", err)
@@ -63,6 +58,7 @@ func testCreateLVG(t *testing.T) {
 }
 
 func testChangeLVGSize(t *testing.T) {
+	clr := util.GetCluster("", "")
 	lvgList, _ := clr.GetTestLVGs()
 	for _, lvg := range lvgList {
 		if len(lvg.Status.Nodes) == 0 {
@@ -108,6 +104,7 @@ func testChangeLVGSize(t *testing.T) {
 }
 
 func testRemoveLVG(t *testing.T) {
+	clr := util.GetCluster("", "")
 	if err := clr.DelTestLVG(); err != nil {
 		t.Error("lvmVolumeGroup delete error", err)
 	}

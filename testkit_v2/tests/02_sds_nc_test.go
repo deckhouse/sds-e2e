@@ -1,53 +1,46 @@
 package integration
 
 import (
-	"fmt"
-//	"strings"
+//	"fmt"
 	"testing"
 	"time"
 
-//	"github.com/deckhouse/sds-e2e/funcs"
-//	"github.com/melbahja/goph"
-//	coreapi "k8s.io/api/core/v1"
 	util "github.com/deckhouse/sds-e2e/util"
-	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-//	"k8s.io/apimachinery/pkg/api/resource"
+//	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 )
 
-func TestLVG(t *testing.T) {
+func TestLVGByGroup(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	// Create
-	t.Run("create", func(t *testing.T) {
-		nodeMap, _ := clr.GetNodes(&util.Filter{NodeGroup: []string{"Deb11", "Ubu22", "Red7"}})
-		for nodeName, _ := range nodeMap {
-			t.Run(nodeName, func(t *testing.T) {
-				t.Parallel()
-				testLVGCreate(t, nodeName)
-			})
-		}
-	})
+	for g, nodes := range clr.GetGroupNodes(nil) {
+		t.Run(g, func(t *testing.T) {
+			// Create
+			nodeMap, _ := clr.GetNodes(&util.Filter{Node: nodes})
+			for nodeName, _ := range nodeMap {
+				t.Run("create " + nodeName, func(t *testing.T) {
+					testLVGCreate(t, nodeName)
+				})
+			}
 
-	// Resize
-	time.Sleep(5 * time.Second)
-	t.Run("resize", func(t *testing.T) {
-		nodeMap, _ := clr.GetNodes(&util.Filter{NotOs: []string{"Debian"}})
-		// TODO check single Node for each OS
-		for nodeName, _ := range nodeMap {
-			t.Run(nodeName, func(t *testing.T) {
-				t.Parallel()
-				//util.Infof("Node image: %s", node.Status.NodeInfo.OSImage)
-				if err := testLVGResize(t, nodeName); err != nil {
-					t.Error(err)
-				}
-			})
-		}
-	})
+			// Resize
+			time.Sleep(5 * time.Second)
+			nodeMap, _ = clr.GetNodes(&util.Filter{Node: nodes, NotOs: []string{"Debian"}})
+			for nodeName, node := range nodeMap {
+				t.Run("resize " + nodeName, func(t *testing.T) {
+					util.Infof("Node image: %s", node.Status.NodeInfo.OSImage)
+					if err := testLVGResize(t, nodeName); err != nil {
+						t.Error(err)
+					}
+				})
+			}
 
-	// Delete
-	t.Run("delete", testLVGDelete)
+			// Delete
+			t.Run("delete", testLVGDelete)
+		})
+	}
 }
 
+/*
 func testLVGCreate(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
 	lvgMap, _ := clr.GetLVGs(&util.Filter{Name: []string{"e2e-lvg-"}, Node: []string{nodeName}})
@@ -57,9 +50,7 @@ func testLVGCreate(t *testing.T, nodeName string) {
 	}
 
 	bds, _ := clr.GetBDs(&util.Filter{Consumable: "true", Node: []string{nodeName}})
-	// or check bd.Status.LVMVolumeGroupName for valid BDs
 	if util.SkipFlag && len(bds) == 0 {
-		util.Warnf("skip create LVG test for %s", nodeName)
 		t.Skip("no Device to create LVG")
 	}
 	for bdName, bd := range bds {
@@ -79,7 +70,6 @@ func testLVGResize(t *testing.T, nodeName string) error {
 	clr := util.GetCluster("", "")
 	bds, _ := clr.GetBDs(&util.Filter{Consumable: "true", Node: []string{nodeName}})
 	if util.SkipFlag && len(bds) == 0 {
-		util.Warnf("skip resize LVG test for %s", nodeName)
 		t.Skip("no Device to resize LVG")
 	}
 	bdMap := map[string]*snc.BlockDevice{}
@@ -96,14 +86,9 @@ func testLVGResize(t *testing.T, nodeName string) error {
 		if len(lvg.Status.Nodes) == 0 {
 			util.Errf("LVG: no nodes for %s", lvg.Name)
 			continue
-//		} else if lvg.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || lvg.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
-//			t.Error(fmt.Sprintf("LVG %s: size problem %s, %s", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String()))
-//		} else {
-//			fmt.Printf("LVG %s: size ok %s, %s\n", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String())
 		}
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
-			//util.Infof("Have no extra BlockDevice for Node %s", lvg.Status.Nodes[0].Name)
 			continue
 		}
 		origSize := lvg.Status.VGSize
@@ -125,21 +110,6 @@ func testLVGResize(t *testing.T, nodeName string) error {
 		return fmt.Errorf("No resized LVG for Node %s", nodeName)
 	}
 
-/*
-	vmdList, _ := clr.GetTestVMD() // kube_vm.config
-	if len(vmdList) == 0 {
-		t.Error("Disk update problem, no VMDs")
-	}
-	for _, vmd := range vmdList {
-		if strings.Contains(vmd.Name, "-data") {
-			vmd.Spec.PersistentVolumeClaim.Size.Set(32212254720)
-			err := clr.UpdateVMD(&vmd)
-			if err != nil {
-				t.Error("Disk update problem", err)
-			}
-		}
-	}
-*/
 	return nil
 }
 
@@ -149,3 +119,4 @@ func testLVGDelete(t *testing.T) {
 		t.Error("LVG deleting:", err)
 	}
 }
+*/

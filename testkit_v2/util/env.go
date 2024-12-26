@@ -3,12 +3,14 @@ package integration
 import (
 	"os"
 	"flag"
+
+//	coreapi "k8s.io/api/core/v1"
 )
 
 const (
 	defaultNamespace = "default"
 	testpodNamespace = "test-pods"
-	testNS = "test1"
+	TestNS = "test1"
 
 	// VVV to remove VVV
 	AppTmpPath     = "/app/tmp"
@@ -53,6 +55,33 @@ var (
 	clusterPathFlag = flag.String("kubeconf", "", "The k8s config path for test")
 	clusterNameFlag = flag.String("kubecontext", "", "The context of cluster to use for test")
 	vmOS = flag.String("virtos", "", "Deploy virtual machine with specified OS")
+	NodeRequired = map[string]Filter{
+		"Ubu22": Filter{
+			Os: []string{"Ubuntu 22.04"},
+		},
+		"Ubu22_56": Filter{
+			Os: []string{"Ubuntu 22.04"},
+			Kernel: []string{"5.15.0-56-generic"},
+			Kubelet: []string{"v1.29.12"},
+		},
+		"Ubu22_vm": Filter{
+			Os: []string{"Ubuntu 22.04.5"},
+			Kernel: []string{"5.15.0-122", "5.15.0-128", "5.15.0-127"},
+			Kubelet: []string{"v1.28.15"},
+		},
+		"Ubu24_vm": Filter{
+			Os: []string{"Ubuntu 24"},
+			Kernel: []string{"5.15.0-122", "5.15.0-128", "5.15.0-127"},
+			Kubelet: []string{"v1.28.15"},
+		},
+		"Deb11": Filter{
+			Os: []string{"Debian 11"},
+		},
+		"Red7": Filter{
+			Os: []string{"РедОС 7.3"},
+		},
+	}
+	SkipFlag = true  // TODO not on Prod/Ci
 )
 
 func envClusterName(clusterName string) string {

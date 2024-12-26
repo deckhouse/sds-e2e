@@ -182,8 +182,7 @@ function run_dev() {
   rm_sshfwd
   ssh -fN ${ssh_key} -L 6445:127.0.0.1:6445 ${ssh_host}
 
-  # tests
-  #go test -v "${DIR}/tests/00_sds_nc_test.go" ${kube_context} ${kube_conf}
+  # run tests
   echo "RUN: go test -v ${tests_path} ${kube_context} ${kube_conf} ${tests_to_run}"
   go test -v ${tests_path} ${kube_context} ${kube_conf} ${tests_to_run}
 }
@@ -201,13 +200,14 @@ function run_ci() {
 function run_bare_metal() {
   # kubernetes api forwarding
   rm_sshfwd
-  ssh -fN ${ssh_key} -L 6444:127.0.0.1:6445 ${ssh_host}
-  ssh -fN ${ssh_key} -L 6445:10.10.10.180:6443 ${ssh_host}
+  ssh -fN ${ssh_key} -L 6444:127.0.0.1:6445 ${ssh_host}  # Bare Metal server
+  ssh -fN ${ssh_key} -L 6445:10.10.10.180:6443 ${ssh_host}  # Master node
 
   # configure virtualmachines, virtualdisks, ...
   # TODO clusterManagement/cluster.go:InitClusterCreate()
 
-  # tests
+  # run tests
+  echo "RUN: go test -v ${tests_path} ${kube_context} ${kube_conf} ${tests_to_run}"
   go test -v ${tests_path} ${kube_context} ${kube_conf} ${tests_to_run}
 }
 
@@ -334,6 +334,10 @@ function main() {
         ;;
       [a-zA-Z0-9_]+([/a-zA-Z0-9_\-\.\+\(\)]))
         tests_path="${DIR}/${arg}"
+        ;;
+      *)
+        echo >&2 "invalid argument '${arg}'"
+        return 1
         ;;
     esac
   done
