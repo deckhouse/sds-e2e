@@ -1,51 +1,63 @@
 package integration
 
 import (
-	"fmt"
-//	"strings"
 	"testing"
 	"time"
 
-//	"github.com/deckhouse/sds-e2e/funcs"
-//	"github.com/melbahja/goph"
-//	coreapi "k8s.io/api/core/v1"
 	util "github.com/deckhouse/sds-e2e/util"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-//	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 func TestLVG(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	// Create
-	t.Run("create", func(t *testing.T) {
-		nodeMap, _ := clr.GetNodes(&util.Filter{NodeGroup: []string{"Deb11", "Ubu22", "Red7"}})
-		for nodeName, _ := range nodeMap {
-			t.Run(nodeName, func(t *testing.T) {
-				t.Parallel()
-				testLVGCreate(t, nodeName)
-			})
-		}
-	})
+	// Create all (split by group/node)
+	for group, nodes := range clr.GetGroupNodes() {
+		t.Run("create_" + group, func(t *testing.T) {
+			if len(nodes) == 0 {
+				t.Skip("no Nodes for case")
+			}
+			for _, nodeName := range nodes {
+				t.Run(nodeName, func(t *testing.T) {
+					t.Parallel()
+					testLVGCreate(t, nodeName)
+				})
+			}
+		})
+	}
 
-	// Resize
+	/* [SAMPLE] Create all (split by node)
+	t.Run("create", func(t *testing.T) {
+		nodeMap, _ := clr.GetNodes()
+		....
+	})*/
+
+	/* [SAMPLE] Create exact nodes (split by node)
+	t.Run("create", func(t *testing.T) {
+		nodeMap, _ := clr.GetNodes(util.Filter{NodeGroup: []string{"Deb11", "Ubu22", "Red7"}})
+		....
+	})*/
+
 	time.Sleep(5 * time.Second)
-	t.Run("resize", func(t *testing.T) {
-		nodeMap, _ := clr.GetNodes(&util.Filter{NotOs: []string{"Debian"}})
-		// TODO check single Node for each OS
-		for nodeName, _ := range nodeMap {
-			t.Run(nodeName, func(t *testing.T) {
-				t.Parallel()
-				//util.Infof("Node image: %s", node.Status.NodeInfo.OSImage)
-				if err := testLVGResize(t, nodeName); err != nil {
-					t.Error(err)
-				}
-			})
-		}
-	})
+
+	// Resize with exclusion (split by group/node)
+	for group, nodes := range clr.GetGroupNodes(util.Filter{NotNodeGroup: []string{"Deb11"}}) {
+		t.Run("resize_" + group, func(t *testing.T) {
+			if len(nodes) == 0 {
+				t.Skip("no Nodes for case")
+			}
+			for _, nodeName := range nodes {
+				t.Run(nodeName, func(t *testing.T) {
+					t.Parallel()
+					testLVGResize(t, nodeName)
+				})
+			}
+		})
+	}
 
 	// Delete
 	t.Run("delete", testLVGDelete)
+
 }
 
 func testLVGCreate(t *testing.T, nodeName string) {
@@ -75,7 +87,7 @@ func testLVGCreate(t *testing.T, nodeName string) {
 	t.Fatal("no LVG created")
 }
 
-func testLVGResize(t *testing.T, nodeName string) error {
+func testLVGResize(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
 	bds, _ := clr.GetBDs(&util.Filter{Consumable: "true", Node: []string{nodeName}})
 	if util.SkipFlag && len(bds) == 0 {
@@ -86,10 +98,7 @@ func testLVGResize(t *testing.T, nodeName string) error {
 	for _, bd := range bds {
 		bdMap[bd.Status.NodeName] = &bd
 	}
-	lvgMap, err := clr.GetLVGs(&util.Filter{Name: []string{"e2e-lvg-"}})
-	if err != nil {
-		return err
-	}
+	lvgMap, _ := clr.GetLVGs(&util.Filter{Name: []string{"e2e-lvg-"}})
 	lvgUpdated := false
 
 	for _, lvg := range lvgMap {
@@ -103,13 +112,13 @@ func testLVGResize(t *testing.T, nodeName string) error {
 		}
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
-			//util.Infof("Have no extra BlockDevice for Node %s", lvg.Status.Nodes[0].Name)
+			util.Debugf("Have no extra BlockDevice for Node %s", lvg.Status.Nodes[0].Name)
 			continue
 		}
 		origSize := lvg.Status.VGSize
 		bdSelector := lvg.Spec.BlockDeviceSelector.MatchExpressions[0]
 		bdSelector.Values = append(bdSelector.Values, bd.Name)
-		if err = clr.UpdateLVG(&lvg); err != nil {
+		if err := clr.UpdateLVG(&lvg); err != nil {
 			util.Errf("LVG updating: %s", err)
 			continue
 		}
@@ -122,7 +131,7 @@ func testLVGResize(t *testing.T, nodeName string) error {
 	}
 
 	if !lvgUpdated {
-		return fmt.Errorf("No resized LVG for Node %s", nodeName)
+		t.Fatalf("No resized LVG for Node %s", nodeName)
 	}
 
 /*
@@ -140,7 +149,6 @@ func testLVGResize(t *testing.T, nodeName string) error {
 		}
 	}
 */
-	return nil
 }
 
 func testLVGDelete(t *testing.T) {

@@ -45,9 +45,9 @@ func initLog() {
 	ctrlrt.SetLogger(logr.New(ctrlrtlog.NullLogSink{}))
 }
 
-func Devf(format string, v ...any) {
+func Debugf(format string, v ...any) {
 	log.SetFlags(log.Lmicroseconds)
-	log.SetPrefix("    \033[32m✎ ")
+	log.SetPrefix("    \033[32m🦗")
 	log.Printf("\033[m"+format+"\033[0m", v...)
 }
 
@@ -60,19 +60,19 @@ func Infof(format string, v ...any) {
 
 func Warnf(format string, v ...any) {
 	log.SetFlags(0)
-	log.SetPrefix("    \033[93m🏱 ")
+	log.SetPrefix("    \033[93m🗈 ")
 	log.Printf("\033[0;2m"+format+"\033[0m", v...)
 }
 
 func Errf(format string, v ...any) {
 	log.SetFlags(0)
-	log.SetPrefix("    \033[91m🕩 ")
+	log.SetPrefix("    \033[91m❕")
 	log.Printf("\033[0m"+format+"\033[0m", v...)
 }
 
 func Critf(format string, v ...any) {
 	log.SetFlags(0)
-	log.SetPrefix("    \033[91;1;5m🕪 ")
+	log.SetPrefix("    \033[91;5m🔥")
 	log.Printf("\033[0;91m"+format+"\033[0m", v...)
 }
 

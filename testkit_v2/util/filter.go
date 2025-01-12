@@ -2,7 +2,7 @@ package integration
 
 import (
 	"strings"
-	"slices"
+	"regexp"
 
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
@@ -23,19 +23,37 @@ type Filter struct {
 	NotKernel []string
 	Kubelet []string
 	NotKubelet []string
+	NS []string
+	NotNS []string
 }
 
 func (f *Filter) match(val string, in []string, notIn []string) bool {
-	if in != nil {
-		if !slices.Contains(in, val) {
+	for _, v := range notIn {
+		if val == v {
 			return false
 		}
+		if strings.HasPrefix(v, "~") {
+			match, err := regexp.MatchString(v[1:], val)
+			if err == nil && match {
+				return false
+			}
+		}
 	}
-	if notIn != nil {
-		return !slices.Contains(notIn, val)
+	if in == nil {
+		return true
 	}
-
-	return true
+	for _, v := range in {
+		if val == v {
+			return true
+		}
+		if strings.HasPrefix(v, "~") {
+			match, err := regexp.MatchString(v[1:], val)
+			if err == nil && match {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (f *Filter) like(val string, in []string, notIn []string) bool {
@@ -108,31 +126,6 @@ func (f *Filter) checkOs(node coreapi.Node) bool {
 
 	return valid
 }
-
-//func (f *Filter) checkNode(nodeName string) bool {
-//	return f.match(nodeName, f.Node, f.NotNode)
-//	//valid := true
-//
-//	//if f.Node != nil {
-//	//	valid = false
-//	//	for _, n := range f.Node {
-//	//		if nodeName == n {
-//	//			valid = true
-//	//			break
-//	//		}
-//	//	}
-//	//}
-//	//if f.NotNode != nil {
-//	//	for _, n := range f.NotNode {
-//	//		if nodeName == n {
-//	//			valid = false
-//	//			break
-//	//		}
-//	//	}
-//	//}
-//
-//	//return valid
-//}
 
 func (f *Filter) checkNode(node coreapi.Node) bool {
 	if !f.match(node.ObjectMeta.Name, f.Node, f.NotNode) {

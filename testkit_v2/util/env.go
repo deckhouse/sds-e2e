@@ -3,14 +3,19 @@ package integration
 import (
 	"os"
 	"flag"
-
-//	coreapi "k8s.io/api/core/v1"
 )
 
 const (
 	defaultNamespace = "default"
 	testpodNamespace = "test-pods"
 	TestNS = "test1"
+	//NameSpace = "sds-local-volume"
+
+	PVCKind					= "PersistentVolumeClaim"
+	PVCAPIVersion			= "v1"
+	PVCWaitInterval			= 1
+	PVCWaitIterationCount	= 20
+	PVCDeletedStatus		= "Deleted"
 
 	// VVV to remove VVV
 	AppTmpPath     = "/app/tmp"
@@ -52,36 +57,34 @@ const (
 
 var (
 	//fakepubsubNodePort = flag.Int("fakepubsub-node-port", 30303, "The port to use for connecting sub tests with the fakepubsub service (for configuring PUBSUB_EMULATOR_HOST)")
-	clusterPathFlag = flag.String("kubeconf", "", "The k8s config path for test")
-	clusterNameFlag = flag.String("kubecontext", "", "The context of cluster to use for test")
+	clusterPathFlag = flag.String("kconfig", "", "The k8s config path for test")
+	clusterNameFlag = flag.String("kcontext", "", "The context of cluster to use for test")
 	vmOS = flag.String("virtos", "", "Deploy virtual machine with specified OS")
 	NodeRequired = map[string]Filter{
 		"Ubu22": Filter{
 			Os: []string{"Ubuntu 22.04"},
 		},
-		"Ubu22_56": Filter{
-			Os: []string{"Ubuntu 22.04"},
-			Kernel: []string{"5.15.0-56-generic"},
-			Kubelet: []string{"v1.29.12"},
-		},
-		"Ubu22_vm": Filter{
-			Os: []string{"Ubuntu 22.04.5"},
-			Kernel: []string{"5.15.0-122", "5.15.0-128", "5.15.0-127"},
-			Kubelet: []string{"v1.28.15"},
-		},
-		"Ubu24_vm": Filter{
+		"Ubu24_ultra": Filter{
 			Os: []string{"Ubuntu 24"},
 			Kernel: []string{"5.15.0-122", "5.15.0-128", "5.15.0-127"},
 			Kubelet: []string{"v1.28.15"},
 		},
 		"Deb11": Filter{
-			Os: []string{"Debian 11"},
+			Os: []string{"Debian 11", "Debian GNU/Linux 11"},
+			Kernel: []string{"5.10.0-33-cloud-amd64"},
 		},
 		"Red7": Filter{
-			Os: []string{"РедОС 7.3"},
+			Os: []string{"RedOS 7.3", "RED OS MUROM (7.3)"},
+			Kernel: []string{"6.1.52-1.el7.3.x86_64"},
+		},
+		"Alt10": Filter{
+			Os: []string{"Alt 10"},
+		},
+		"Astra": Filter{
+			Os: []string{"Astra Linux"},
 		},
 	}
-	SkipFlag = true  // TODO not on Prod/Ci
+	SkipFlag = false  // TODO not on Prod/Ci
 )
 
 func envClusterName(clusterName string) string {

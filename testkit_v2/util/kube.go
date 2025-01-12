@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/kubernetes"
@@ -83,7 +84,6 @@ func NewKubeRTClient(configPath, clusterName string) (*ctrlrtclient.Client, erro
 	}
 
 	// Init client
-	//clientOpts := ctrlrtclient.Options{}
 	cl, err := ctrlrtclient.New(cfg, clientOpts)
 	if err != nil {
 		return nil, err
@@ -122,7 +122,6 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	configPath = envConfigPath(configPath)
 	clusterName	= envClusterName(clusterName)
 
-//	Infof("Init Client %s/%s", configPath, clusterName)
 	rcl, err := NewKubeRTClient(configPath, clusterName)
 	if err != nil {
 		Critf("Can`t connect cluster %s", clusterName)
@@ -135,7 +134,7 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 		return nil, err
 	}
 
-	ctr := KCluster{
+	clr := KCluster{
 		name: clusterName,
 		ctx: context.Background(),
 		rtClient: rcl,
@@ -145,29 +144,51 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	}
 
 	for k, f := range NodeRequired {
-		nodeMap, err := ctr.GetNodes(&f)
+		nodeMap, err := clr.GetNodes(f)
 		if err != nil {
 			return nil, err
 		}
 
+		if len(nodeMap) == 0 {
+			Critf("0 Nodes for %s", k)
+			// TODO panic for CI/Stage/not debug mode
+			clr.groupNodes[k] = nil
+			continue
+		}
 		for nodeName, _ := range nodeMap {
-			ctr.groupNodes[k] = append(ctr.groupNodes[k], nodeName)
-			ctr.nodeGroups[nodeName] = append(ctr.nodeGroups[nodeName], k)
+			clr.groupNodes[k] = append(clr.groupNodes[k], nodeName)
+			clr.nodeGroups[nodeName] = append(clr.nodeGroups[nodeName], k)
 		}
-		if len(ctr.groupNodes[k]) == 0 {
-			Critf("No Node for %s", k)
-		} else {
-			Infof("%d Nodes for %s", len(ctr.groupNodes[k]), k)
-		}
+		Infof("%d Nodes for %s", len(clr.groupNodes[k]), k)
 	}
 
-// TODO create test NameSpace
+	// TODO create test NameSpace
 
-	return &ctr, nil
+	return &clr, nil
 }
 
-func (clr *KCluster) GetGroupNodes(filter *Filter) map[string][]string {
-	return clr.groupNodes
+func (clr *KCluster) GetGroupNodes(filters ...Filter) map[string][]string {
+	if len(filters) == 0 {
+		return clr.groupNodes
+	}
+
+	resp, f := map[string][]string{}, filters[0]
+	fGroup, fNotGroup := f.NodeGroup, f.NotNodeGroup
+	for g, _ := range clr.groupNodes {
+		if !f.match(g, fGroup, fNotGroup) {
+			continue
+		}
+		f.NodeGroup = []string{g}
+		nodeMap, err := clr.GetNodes(f)
+		if err != nil {
+			return nil
+		}
+		resp[g] = make([]string, 0, len(nodeMap))
+		for k, _ := range nodeMap {
+			resp[g] = append(resp[g], k)
+		}
+	}
+	return resp
 }
 
 func (clr *KCluster) GetNodeGroups(filter *Filter) map[string][]string {
@@ -176,66 +197,75 @@ func (clr *KCluster) GetNodeGroups(filter *Filter) map[string][]string {
 
 /*  Name Space  */
 
-//func (clr *KCluster) GetNSs(ctx context.Context, cl client.Client, namespaceSearch string) ([]Namespace, error) {
-//	objs := corev1.NamespaceList{}
-//	opts := client.ListOption(&client.ListOptions{})
-//	err := cl.List(ctx, &objs, opts)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	namespaceList := []Namespace{}
-//	for _, item := range objs.Items {
-//		if namespaceSearch == "" || namespaceSearch == item.Name {
-//			namespaceList = append(namespaceList, Namespace{Name: item.Name})
-//		}
-//	}
-//
-//	return namespaceList, nil
-//}
-//
-//func (clr *KCluster) CreateNs(ctx context.Context, cl client.Client, namespaceName string) error {
-//	namespace := &corev1.Namespace{
-//		ObjectMeta: metav1.ObjectMeta{
-//			Name: namespaceName,
-//		},
-//	}
-//
-//	return cl.Create(ctx, namespace)
-//}
-//
-//func DeleteNamespace(ctx context.Context, cl client.Client, namespaceName string) error {
-//	namespace := &corev1.Namespace{
-//		ObjectMeta: metav1.ObjectMeta{
-//			Name: namespaceName,
-//		},
-//	}
-//
-//	return cl.Delete(ctx, namespace)
-//}
+func (clr *KCluster) GetNs(filters ...Filter) ([]coreapi.Namespace, error) {
+	objs := coreapi.NamespaceList{}
+	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
+	err := (*clr.rtClient).List(clr.ctx, &objs, opts)
+	if err != nil {
+		Errf("Can`t get NS list")
+		return nil, err
+	}
+
+	if len(filters) == 0 {
+		return objs.Items, nil
+	}
+
+	resp, f := make([]coreapi.Namespace, 0, len(objs.Items)), filters[0]
+	for _, item := range objs.Items {
+		if !f.match(item.Name, f.NS, f.NotNS) {
+			continue
+		}
+		resp = append(resp, item)
+	}
+
+	return resp, nil
+}
+
+func (clr *KCluster) CreateNs(nsName string) error {
+	namespace := &coreapi.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsName,
+		},
+	}
+
+	if err := (*clr.rtClient).Create(clr.ctx, namespace); err != nil {
+		Errf("Can`t create NS %s", nsName)
+		return err
+	}
+	return nil
+}
+
+func (clr *KCluster) DeleteNs(nsName string) error {
+	namespace := coreapi.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: nsName,
+		},
+	}
+	return (*clr.rtClient).Delete(clr.ctx, &namespace)
+}
 
 /*  Node  */
 
-func (clr *KCluster) GetNodes(filter *Filter) (map[string]coreapi.Node, error) {
+func (clr *KCluster) GetNodes(filters ...Filter) (map[string]coreapi.Node, error) {
 	resp := make(map[string]coreapi.Node)
 
 	nodes, err := (*clr.goClient).CoreV1().Nodes().List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Errf("Can`t get Nodes (%s)", clr.name)
+		Errf("Can`t get Nodes (%s): %v", clr.name, err)
 		return nil, err
 	}
 
 	for _, node := range nodes.Items {
-		if filter == nil {
-			resp[node.ObjectMeta.Name] = node
-			continue
-		}
-		if !filter.checkNode(node) {
-			continue
-		}
-		ng := clr.nodeGroups[node.ObjectMeta.Name]
-		if !filter.intersec(ng, filter.NodeGroup, filter.NotNodeGroup) {
-			continue
+		if len(filters) != 0 {
+			f := filters[0]
+			if !f.checkNode(node) {
+				continue
+			}
+
+			ng := clr.nodeGroups[node.ObjectMeta.Name]
+			if !f.intersec(ng, f.NodeGroup, f.NotNodeGroup) {
+				continue
+			}
 		}
 
 		resp[node.ObjectMeta.Name] = node
@@ -258,7 +288,7 @@ func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error) 
 
 //	var validNodes map[string]coreapi.Node
 //	if filter != nil && (filter.Os != nil || filter.NotOs != nil) {
-//		validNodes, _ = clr.GetNodes(&Filter{Os: filter.Os, NotOs: filter.NotOs})
+//		validNodes, _ = clr.GetNodes(Filter{Os: filter.Os, NotOs: filter.NotOs})
 //	}
 	for _, bd := range bdList.Items {
 		if filter == nil {
@@ -271,7 +301,6 @@ func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error) 
 		if !filter.checkName(bd.Name) {
 			continue
 		}
-		//if !filter.checkNode(bd.Status.NodeName) {
 		if !filter.match(bd.Status.NodeName, filter.Node, filter.NotNode) {
 			continue
 		}
@@ -298,36 +327,20 @@ func (clr *KCluster) GetLVGs(filter *Filter) (map[string]snc.LVMVolumeGroup, err
 	}
 
 	for _, lvg := range lvgList.Items {
-		if filter == nil {
-			resp[lvg.Name] = lvg
-			continue
-		}
-		if !filter.like(lvg.Name, filter.Name, filter.NotName) {
+		if filter != nil && !filter.like(lvg.Name, filter.Name, filter.NotName) {
 			continue
 		}
 		if len(lvg.Status.Nodes) == 0 {
 			continue
 		}
-		if !filter.match(lvg.Status.Nodes[0].Name, filter.Node, filter.NotNode) {
+		if filter != nil && !filter.match(lvg.Status.Nodes[0].Name, filter.Node, filter.NotNode) {
 			continue
 		}
+
+		resp[lvg.Name] = lvg
 	}
 
 	return resp, nil
-}
-
-func (clr *KCluster) GetTestLVGs() (resp []snc.LVMVolumeGroup, err error) {
-	lvgList, err := clr.GetLVGs(nil)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, lvg := range lvgList {
-		if lvg.Name[:8] == "e2e-lvg-" {
-			resp = append(resp, lvg)
-		}
-	}
-	return
 }
 
 func (clr *KCluster) CreateLVG(name, nodeName, bdName string) (*snc.LVMVolumeGroup, error) {
@@ -441,22 +454,6 @@ func (clr *KCluster) GetPVC(nsName string) ([]coreapi.PersistentVolumeClaim, err
 	return pvcList.Items, nil
 }
 
-func (clr *KCluster) GetTestPVC() ([]coreapi.PersistentVolumeClaim, error) {
-	return clr.GetPVC("d8-upmeter")
-	return clr.GetPVC("sds-replicated-volume-e2e-test")
-}
-
-
-//======================================
-const (
-	PersistentVolumeClaimKind       = "PersistentVolumeClaim"
-	PersistentVolumeClaimAPIVersion = "v1"
-	WaitIntervalPVC                 = 1
-	WaitIterationCountPVC           = 10
-	DeletedStatusPVC                = "Deleted"
-	//NameSpace       = "sds-local-volume"
-)
-
 func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
 	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
 	sizeStorage, err := resource.ParseQuantity(size)
@@ -467,15 +464,14 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 	volMode := coreapi.PersistentVolumeFilesystem
 	//volMode := coreapi.PersistentVolumeBlock
 
-	pvc := &coreapi.PersistentVolumeClaim{
+	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       PersistentVolumeClaimKind,
-			APIVersion: PersistentVolumeClaimAPIVersion,
+			Kind:       PVCKind,
+			APIVersion: PVCAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: TestNS,
-			//Namespace: NameSpace,
 		},
 		Spec: coreapi.PersistentVolumeClaimSpec{
 			StorageClassName: &scName,
@@ -489,109 +485,93 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 		},
 	}
 
-	err = (*clr.rtClient).Create(clr.ctx, pvc)
+	err = (*clr.rtClient).Create(clr.ctx, &pvc)
 	if err != nil {
 		return nil, err
 		//return coreapi.PersistentVolumeClaim{}, err
 	}
-	return pvc, nil
+	return &pvc, nil
 }
 
-/* TODO
-func DeletePVC(ctx context.Context, cl client.Client, name string) error {
-	pvc := coreapi.PersistentVolumeClaim{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       PersistentVolumeClaimKind,
-			APIVersion: PersistentVolumeClaimAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: NameSpace,
-		},
-	}
-
-	err := cl.Delete(ctx, &pvc)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func WaitPVCStatus(ctx context.Context, cl client.Client, name string) (string, error) {
+func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 	pvc := coreapi.PersistentVolumeClaim{}
-	for i := 0; i < WaitIterationCountPVC; i++ {
-		err := cl.Get(ctx, client.ObjectKey{
+	for i := 0; i < PVCWaitIterationCount; i++ {
+		err := (*clr.rtClient).Get(clr.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
-			Namespace: NameSpace,
+			Namespace: TestNS,
 		}, &pvc)
 		if err != nil {
+			Debugf("Get PVC error: %v", err)
 			//if kerrors.IsNotFound(err) {
 			//	return "", err
 			//}
 		}
-		fmt.Printf("pvc %s...\n", pvc.Status.Phase)
 		if pvc.Status.Phase == coreapi.ClaimBound {
 			return string(pvc.Status.Phase), nil
 		}
 
 		if len(pvc.Status.Phase) == 0 {
-			return DeletedStatusPVC, nil
+			return PVCDeletedStatus, nil
 		}
 
-		time.Sleep(WaitIntervalPVC * time.Second)
+		time.Sleep(PVCWaitInterval * time.Second)
 	}
-	return "", errors.New(fmt.Sprintf("the waiting time %d or the pvc to be ready has expired",
-		WaitIntervalPVC*WaitIterationCountPVC))
+	return string(pvc.Status.Phase), fmt.Errorf("the waiting time %d or the pvc to be ready has expired",
+		PVCWaitInterval * PVCWaitIterationCount)
 }
 
-func WaitDeletePVC(ctx context.Context, cl client.Client, name string) (string, error) {
-	pod := coreapi.Pod{}
-	for i := 0; i < WaitIterationCountPVC; i++ {
-		time.Sleep(WaitIntervalPVC * time.Second)
-		err := cl.Get(ctx, client.ObjectKey{
+func (clr *KCluster) DeletePVC(name string) error {
+// TODO func (clr *KCluster) DeletePVC(filters ...Filter) error {
+	pvc := coreapi.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       PVCKind,
+			APIVersion: PVCAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: NameSpace,
-		}, &pod)
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return DeletedStatusPVC, nil
-			}
-		}
-	}
-	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
-		WaitIterationCountPVC*WaitIntervalPVC))
-}
-
-func EditSizePVC(ctx context.Context, cl client.Client, name, newSize string) error {
-	pvc := coreapi.PersistentVolumeClaim{}
-	err := cl.Get(ctx, client.ObjectKey{
-		Name:      name,
-		Namespace: NameSpace,
-	}, &pvc)
-	if err != nil {
-		return err
+			Namespace: TestNS,
+		},
+		//Spec: coreapi.PersistentVolumeClaimSpec{
+		//	StorageClassName: &scName,
+		//	AccessModes: []coreapi.PersistentVolumeAccessMode{
+		//		coreapi.ReadWriteOnce,
+		//	},
+		//	Resources: coreapi.VolumeResourceRequirements{
+		//		Requests: resourceList,
+		//	},
+		//	VolumeMode: &volMode,
+		//},
 	}
 
-	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
-	newPVCSize, err := resource.ParseQuantity(newSize)
-	if err != nil {
-		return err
-	}
-
-	resourceList[coreapi.ResourceStorage] = newPVCSize
-	pvc.Spec.Resources.Requests = resourceList
-
-	err = cl.Update(ctx, &pvc)
+	err := (*clr.rtClient).Delete(clr.ctx, &pvc)
 	if err != nil {
 		return err
 	}
 	return nil
 }
-*/
+
+func (clr *KCluster) DeletePVCWait(name string) (string, error) {
+	return "", nil
+	/* TODO
+	pod := coreapi.Pod{}
+	for i := 0; i < PVCWaitIterationCount; i++ {
+		time.Sleep(PVCWaitInterval * time.Second)
+		err := (*clr.rtClient).Get(clr.ctx, ctrlrtclient.ObjectKey{
+			Name:      name,
+			Namespace: TestNS,
+		}, &pod)
+		if err != nil {
+			if kerrors.IsNotFound(err) {
+				return PVCDeletedStatus, nil
+			}
+		}
+	}
+	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
+		PVCWaitIterationCount * PVCWaitInterval))
+	*/
+}
 
 func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
-//	nsName := pvc.Namespace
-//	pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Update(clr.ctx, pvc, metav1.UpdateOptions{})
 	err := (*clr.rtClient).Update(clr.ctx, pvc)
 	if err != nil {
 		Errf("Can`t update PVC %s", pvc.Name)
@@ -636,23 +616,21 @@ func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
 }
 
 /*  Exec Cmd  */
-/*
-	fmt.Printf("node: %#v\n", nodes.Items[0].Name)
-	node := nodes.Items[0]
-	stdout, stderr, err := execNodeCmd(cfg2, cl2, &node, []string{"/bin/sh", "-c", "pwd"})
-*/
-// ----
 
 func execNodeCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, node *coreapi.Node, command []string) (string, string, error) {
-//# Get standard bash shell
-//kubectl node-shell <node>
+	/*
+		kubectl node-shell <node>
+
+		fmt.Printf("node: %#v\n", nodes.Items[0].Name)
+		node := nodes.Items[0]
+		stdout, stderr, err := execNodeCmd(cfg2, cl2, &node, []string{"/bin/sh", "-c", "pwd"})
+	*/
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
 	request := clientset.CoreV1().RESTClient().
 		Post().
 		Resource("nodes").
-		//Name(node.Name).
-		Name("d-shipkov-worker-0").
+		Name(node.Name).  // "d-shipkov-worker-0"
 		SubResource("exec").
 		VersionedParams(&coreapi.PodExecOptions{
 			Command: command,
@@ -681,6 +659,13 @@ func execNodeCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, node *co
 }
 
 func execPodCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, pod *coreapi.Pod, command []string) (string, string, error) {
+	/*
+		execPodCmd(execRemoteCommand) is the Golang-equivalent of "kubectl exec". The command
+		string should be something like {"/bin/sh", "-c", "..."} if you want to run a
+		shell script.
+
+		Adapted from https://discuss.kubernetes.io/t/go-client-exec-ing-a-shel-command-in-pod/5354/5.
+	*/
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
 	request := clientset.CoreV1().RESTClient().
@@ -715,12 +700,7 @@ func execPodCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, pod *core
 }
 
 
-//var (
-////	jobConfigMux      sync.Mutex
-////	prowComponentsMux sync.Mutex
-//)
-
-/*
+/* TODO
 func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts *coreapi.PodLogOptions) (string, error) {
 	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, opts)
 	podLogs, err := req.Stream(context.Background())
@@ -739,29 +719,37 @@ func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts
 	return str, nil
 }
 
+var (
+	prowComponentsMux sync.Mutex
+)
+
 func refreshProwPods(client ctrlrtclient.Client, ctx context.Context, name string) error {
 	prowComponentsMux.Lock()
 	defer prowComponentsMux.Unlock()
 
 	var pods coreapi.PodList
 	labels, _ := labels.Parse("app = " + name)
-	if err := client.List(ctx, &pods, &ctrlrtclient.ListOptions{LabelSelector: labels}); err != nil {
+	if err := client.List(clr.ctx, &pods, &ctrlrtclient.ListOptions{LabelSelector: labels}); err != nil {
 		return err
 	}
 	for _, pod := range pods.Items {
-		if err := client.Delete(ctx, &pod); err != nil {
+		if err := client.Delete(clr.ctx, &pod); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
+var (
+	jobConfigMux      sync.Mutex
+)
+
 func updateJobConfig(ctx context.Context, kubeClient ctrlrtclient.Client, filename string, rawConfig []byte) error {
 	jobConfigMux.Lock()
 	defer jobConfigMux.Unlock()
 
 	var existingMap coreapi.ConfigMap
-	if err := kubeClient.Get(ctx, ctrlrtclient.ObjectKey{
+	if err := kubeClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
 		Namespace: defaultNamespace,
 		Name:      "job-config",
 	}, &existingMap); err != nil {
@@ -772,44 +760,6 @@ func updateJobConfig(ctx context.Context, kubeClient ctrlrtclient.Client, filena
 		existingMap.BinaryData = make(map[string][]byte)
 	}
 	existingMap.BinaryData[filename] = rawConfig
-	return kubeClient.Update(ctx, &existingMap)
-}
-
-// execRemoteCommand is the Golang-equivalent of "kubectl exec". The command
-// string should be something like {"/bin/sh", "-c", "..."} if you want to run a
-// shell script.
-//
-// Adapted from https://discuss.kubernetes.io/t/go-client-exec-ing-a-shel-command-in-pod/5354/5.
-func execRemoteCommand(restCfg *rest.Config, clientset *kubernetes.Clientset, pod *coreapi.Pod, command []string) (string, string, error) {
-	buf := &bytes.Buffer{}
-	errBuf := &bytes.Buffer{}
-	request := clientset.CoreV1().RESTClient().
-		Post().
-		Namespace(pod.Namespace).
-		Resource("pods").
-		Name(pod.Name).
-		SubResource("exec").
-		VersionedParams(&coreapi.PodExecOptions{
-			Command: command,
-			Stdin:   false,
-			Stdout:  true,
-			Stderr:  true,
-			TTY:     true,
-		}, kubescheme.ParameterCodec)
-	exec, err := remotecommand.NewSPDYExecutor(restCfg, "POST", request.URL())
-	if err != nil {
-		return "", "", err
-	}
-
-	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
-		Stdout: buf,
-		Stderr: errBuf,
-	})
-	if err != nil {
-		return "", "", fmt.Errorf("%w Failed executing command %s on %v/%v", err, command, pod.Namespace, pod.Name)
-	}
-
-	// Return stdout, stderr.
-	return buf.String(), errBuf.String(), nil
+	return kubeClient.Update(clr.ctx, &existingMap)
 }
 */
