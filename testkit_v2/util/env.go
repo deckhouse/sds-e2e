@@ -58,7 +58,7 @@ var (
 	//fakepubsubNodePort = flag.Int("fakepubsub-node-port", 30303, "The port to use for connecting sub tests with the fakepubsub service (for configuring PUBSUB_EMULATOR_HOST)")
 	clusterPathFlag = flag.String("kconfig", "", "The k8s config path for test")
 	clusterNameFlag = flag.String("kcontext", "", "The context of cluster to use for test")
-	vmOS            = flag.String("virtos", "", "Deploy virtual machine with specified OS")
+	//vmOS            = flag.String("virtos", "", "Deploy virtual machine with specified OS")
 	NodeRequired    = map[string]Filter{
 		"Ubu22": Filter{
 			Os: []string{"Ubuntu 22.04"},

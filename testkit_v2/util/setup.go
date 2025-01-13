@@ -2,17 +2,9 @@ package integration
 
 import (
 	"log"
-
-	"github.com/go-logr/logr"
-	ctrlrt "sigs.k8s.io/controller-runtime"
-	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 /*  Logs  */
-
-func initLog() {
-	ctrlrt.SetLogger(logr.New(ctrlrtlog.NullLogSink{}))
-}
 
 func Debugf(format string, v ...any) {
 	log.SetFlags(log.Lmicroseconds)

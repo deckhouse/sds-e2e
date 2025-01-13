@@ -105,10 +105,6 @@ func testLVGResize(t *testing.T, nodeName string) {
 		if len(lvg.Status.Nodes) == 0 {
 			util.Errf("LVG: no nodes for %s", lvg.Name)
 			continue
-		//} else if lvg.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || lvg.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
-		//	t.Error(fmt.Sprintf("LVG %s: size problem %s, %s", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String()))
-		//} else {
-		//	fmt.Printf("LVG %s: size ok %s, %s\n", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String())
 		}
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
@@ -133,24 +129,6 @@ func testLVGResize(t *testing.T, nodeName string) {
 	if !lvgUpdated {
 		t.Fatalf("No resized LVG for Node %s", nodeName)
 	}
-
-/*
-	vmdList, _ := clr.GetTestVMD() // kube_vm.config
-
-	if len(vmdList) == 0 {
-		t.Error("Disk update problem, no VMDs")
-	}
-
-	for _, vmd := range vmdList {
-		if strings.Contains(vmd.Name, "-data") {
-			vmd.Spec.PersistentVolumeClaim.Size.Set(32212254720)
-			err := clr.UpdateVMD(&vmd)
-			if err != nil {
-				t.Error("Disk update problem", err)
-			}
-		}
-	}
-*/
 }
 
 func testLVGDelete(t *testing.T) {

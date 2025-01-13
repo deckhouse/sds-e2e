@@ -1,7 +1,6 @@
 package integration
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -10,7 +9,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/remotecommand"
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	// Options
@@ -154,7 +152,7 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 			clr.groupNodes[k] = nil
 			continue
 		}
-		for nodeName, _ := range nodeMap {
+		for nodeName := range nodeMap {
 			clr.groupNodes[k] = append(clr.groupNodes[k], nodeName)
 			clr.nodeGroups[nodeName] = append(clr.nodeGroups[nodeName], k)
 		}
@@ -173,7 +171,7 @@ func (clr *KCluster) GetGroupNodes(filters ...Filter) map[string][]string {
 
 	resp, f := map[string][]string{}, filters[0]
 	fGroup, fNotGroup := f.NodeGroup, f.NotNodeGroup
-	for g, _ := range clr.groupNodes {
+	for g := range clr.groupNodes {
 		if !f.match(g, fGroup, fNotGroup) {
 			continue
 		}
@@ -183,7 +181,7 @@ func (clr *KCluster) GetGroupNodes(filters ...Filter) map[string][]string {
 			return nil
 		}
 		resp[g] = make([]string, 0, len(nodeMap))
-		for k, _ := range nodeMap {
+		for k := range nodeMap {
 			resp[g] = append(resp[g], k)
 		}
 	}
@@ -521,7 +519,8 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 }
 
 func (clr *KCluster) DeletePVC(name string) error {
-	// TODO func (clr *KCluster) DeletePVC(filters ...Filter) error {
+	// TODO replace name param with Filter
+	// func (clr *KCluster) DeletePVC(filters ...Filter) error {
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       PVCKind,
@@ -614,151 +613,3 @@ func (clr *KCluster) GetTestVMD() ([]virt.VirtualDisk, error) {
 func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
 	return (*clr.rtClient).Update(clr.ctx, vmd)
 }
-
-/*  Exec Cmd  */
-
-func execNodeCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, node *coreapi.Node, command []string) (string, string, error) {
-	/*
-		kubectl node-shell <node>
-
-		fmt.Printf("node: %#v\n", nodes.Items[0].Name)
-		node := nodes.Items[0]
-		stdout, stderr, err := execNodeCmd(cfg2, cl2, &node, []string{"/bin/sh", "-c", "pwd"})
-	*/
-	buf := &bytes.Buffer{}
-	errBuf := &bytes.Buffer{}
-	request := clientset.CoreV1().RESTClient().
-		Post().
-		Resource("nodes").
-		Name(node.Name). // "d-shipkov-worker-0"
-		SubResource("exec").
-		VersionedParams(&coreapi.PodExecOptions{
-			Command: command,
-			Stdin:   false,
-			Stdout:  true,
-			Stderr:  true,
-			TTY:     true,
-		}, kubescheme.ParameterCodec)
-	fmt.Printf("request.URL: %s\n", request.URL())
-	exec, err := remotecommand.NewSPDYExecutor(restCfg, "POST", request.URL())
-	if err != nil {
-		return "", "", err
-	}
-
-	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
-		Stdout: buf,
-		Stderr: errBuf,
-	})
-	if err != nil {
-		return "", "", err
-		return "", "", fmt.Errorf("%w Failed executing command %s on %v", err, command, node.Name)
-	}
-
-	// Return stdout, stderr.
-	return buf.String(), errBuf.String(), nil
-}
-
-func execPodCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, pod *coreapi.Pod, command []string) (string, string, error) {
-	/*
-		execPodCmd(execRemoteCommand) is the Golang-equivalent of "kubectl exec". The command
-		string should be something like {"/bin/sh", "-c", "..."} if you want to run a
-		shell script.
-
-		Adapted from https://discuss.kubernetes.io/t/go-client-exec-ing-a-shel-command-in-pod/5354/5.
-	*/
-	buf := &bytes.Buffer{}
-	errBuf := &bytes.Buffer{}
-	request := clientset.CoreV1().RESTClient().
-		Post().
-		Namespace(pod.Namespace).
-		Resource("pods").
-		Name(pod.Name).
-		SubResource("exec").
-		VersionedParams(&coreapi.PodExecOptions{
-			//Container: "container",
-			Command: command,
-			Stdin:   false,
-			Stdout:  true,
-			Stderr:  true,
-			TTY:     true,
-		}, kubescheme.ParameterCodec)
-	exec, err := remotecommand.NewSPDYExecutor(restCfg, "POST", request.URL())
-	if err != nil {
-		return "", "", err
-	}
-
-	err = exec.StreamWithContext(context.TODO(), remotecommand.StreamOptions{
-		Stdout: buf,
-		Stderr: errBuf,
-	})
-	if err != nil {
-		return "", "", fmt.Errorf("%w Failed executing command %s on %v/%v", err, command, pod.Namespace, pod.Name)
-	}
-
-	// Return stdout, stderr.
-	return buf.String(), errBuf.String(), nil
-}
-
-/* TODO
-func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts *coreapi.PodLogOptions) (string, error) {
-	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, opts)
-	podLogs, err := req.Stream(context.Background())
-	if err != nil {
-		return "", fmt.Errorf("error in opening stream")
-	}
-	defer podLogs.Close()
-
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, podLogs)
-	if err != nil {
-		return "", fmt.Errorf("error in copy information from podLogs to buf")
-	}
-	str := buf.String()
-
-	return str, nil
-}
-
-var (
-	prowComponentsMux sync.Mutex
-)
-
-func refreshProwPods(client ctrlrtclient.Client, ctx context.Context, name string) error {
-	prowComponentsMux.Lock()
-	defer prowComponentsMux.Unlock()
-
-	var pods coreapi.PodList
-	labels, _ := labels.Parse("app = " + name)
-	if err := client.List(clr.ctx, &pods, &ctrlrtclient.ListOptions{LabelSelector: labels}); err != nil {
-		return err
-	}
-	for _, pod := range pods.Items {
-		if err := client.Delete(clr.ctx, &pod); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-var (
-	jobConfigMux      sync.Mutex
-)
-
-func updateJobConfig(ctx context.Context, kubeClient ctrlrtclient.Client, filename string, rawConfig []byte) error {
-	jobConfigMux.Lock()
-	defer jobConfigMux.Unlock()
-
-	var existingMap coreapi.ConfigMap
-	if err := kubeClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
-		Namespace: defaultNamespace,
-		Name:      "job-config",
-	}, &existingMap); err != nil {
-		return err
-	}
-
-	if existingMap.BinaryData == nil {
-		existingMap.BinaryData = make(map[string][]byte)
-	}
-	existingMap.BinaryData[filename] = rawConfig
-	return kubeClient.Update(clr.ctx, &existingMap)
-}
-*/
