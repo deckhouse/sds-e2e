@@ -59,7 +59,7 @@ var (
 	clusterPathFlag = flag.String("kconfig", "", "The k8s config path for test")
 	clusterNameFlag = flag.String("kcontext", "", "The context of cluster to use for test")
 	//vmOS            = flag.String("virtos", "", "Deploy virtual machine with specified OS")
-	NodeRequired    = map[string]Filter{
+	NodeRequired = map[string]Filter{
 		"Ubu22": Filter{
 			Os: []string{"Ubuntu 22.04"},
 		},

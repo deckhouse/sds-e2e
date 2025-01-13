@@ -283,10 +283,6 @@ func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error) 
 		return nil, err
 	}
 
-//	var validNodes map[string]coreapi.Node
-//	if filter != nil && (filter.Os != nil || filter.NotOs != nil) {
-//		validNodes, _ = clr.GetNodes(Filter{Os: filter.Os, NotOs: filter.NotOs})
-//	}
 	for _, bd := range bdList.Items {
 		if filter == nil {
 			resp[bd.Name] = bd
@@ -301,11 +297,6 @@ func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error) 
 		if !filter.match(bd.Status.NodeName, filter.Node, filter.NotNode) {
 			continue
 		}
-//		if validNodes != nil {
-//			if _, ok := validNodes[bd.Status.NodeName]; !ok {
-//				continue
-//			}
-//		}
 		resp[bd.Name] = bd
 	}
 
@@ -348,7 +339,6 @@ func (clr *KCluster) CreateLVG(name, nodeName, bdName string) (*snc.LVMVolumeGro
 		Spec: snc.LVMVolumeGroupSpec{
 			ActualVGNameOnTheNode: name,
 			BlockDeviceSelector: &metav1.LabelSelector{
-				//MatchLabels: map[string]string{"kubernetes.io/metadata.name": bdName},
 				MatchExpressions: []metav1.LabelSelectorRequirement{
 					{Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn, Values: []string{bdName}},
 				},
@@ -399,10 +389,8 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 	lvmVolGroups := "- name: vg-w1\n- name: vg-w2"
 
 	volBindingMode := storapi.VolumeBindingImmediate
-	//volBindingMode := storapi.VolumeBindingWaitForFirstConsumer
 
 	reclaimPolicy := coreapi.PersistentVolumeReclaimDelete
-	//reclaimPolicy := coreapi.PersistentVolumeReclaimRetain
 
 	volExpansion := true
 
@@ -438,12 +426,6 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 
 func (clr *KCluster) GetPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
 	pvcList, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).List(clr.ctx, metav1.ListOptions{})
-	// optionaly can get by name
-	//pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Get(clr.ctx, pvcName, metav1.GetOptions{})
-
-//	pvcList := coreapi.PersistentVolumeClaimList{}
-//	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
-//	err := (*clr.rtClient).List(clr.ctx, &pvcList, opts)
 	if err != nil {
 		Errf("Can`t get PVCs %s", nsName)
 		return nil, err
@@ -460,7 +442,6 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 	}
 	resourceList[coreapi.ResourceStorage] = sizeStorage
 	volMode := coreapi.PersistentVolumeFilesystem
-	//volMode := coreapi.PersistentVolumeBlock
 
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
@@ -500,9 +481,6 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 		}, &pvc)
 		if err != nil {
 			Debugf("Get PVC error: %v", err)
-			//if kerrors.IsNotFound(err) {
-			//	return "", err
-			//}
 		}
 		if pvc.Status.Phase == coreapi.ClaimBound {
 			return string(pvc.Status.Phase), nil
@@ -530,16 +508,6 @@ func (clr *KCluster) DeletePVC(name string) error {
 			Name:      name,
 			Namespace: TestNS,
 		},
-		//Spec: coreapi.PersistentVolumeClaimSpec{
-		//	StorageClassName: &scName,
-		//	AccessModes: []coreapi.PersistentVolumeAccessMode{
-		//		coreapi.ReadWriteOnce,
-		//	},
-		//	Resources: coreapi.VolumeResourceRequirements{
-		//		Requests: resourceList,
-		//	},
-		//	VolumeMode: &volMode,
-		//},
 	}
 
 	err := (*clr.rtClient).Delete(clr.ctx, &pvc)
@@ -550,24 +518,8 @@ func (clr *KCluster) DeletePVC(name string) error {
 }
 
 func (clr *KCluster) DeletePVCWait(name string) (string, error) {
+	// TODO make implementation
 	return "", nil
-	/* TODO
-	pod := coreapi.Pod{}
-	for i := 0; i < PVCWaitIterationCount; i++ {
-		time.Sleep(PVCWaitInterval * time.Second)
-		err := (*clr.rtClient).Get(clr.ctx, ctrlrtclient.ObjectKey{
-			Name:      name,
-			Namespace: TestNS,
-		}, &pod)
-		if err != nil {
-			if kerrors.IsNotFound(err) {
-				return PVCDeletedStatus, nil
-			}
-		}
-	}
-	return "", errors.New(fmt.Sprintf("the waiting time %d for the pod to be ready has expired",
-		PVCWaitIterationCount * PVCWaitInterval))
-	*/
 }
 
 func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
