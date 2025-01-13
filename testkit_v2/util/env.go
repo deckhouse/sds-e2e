@@ -60,26 +60,26 @@ var (
 	clusterNameFlag = flag.String("kcontext", "", "The context of cluster to use for test")
 	//vmOS            = flag.String("virtos", "", "Deploy virtual machine with specified OS")
 	NodeRequired = map[string]Filter{
-		"Ubu22": Filter{
+		"Ubu22": {
 			Os: []string{"Ubuntu 22.04"},
 		},
-		"Ubu24_ultra": Filter{
+		"Ubu24_ultra": {
 			Os:      []string{"Ubuntu 24"},
 			Kernel:  []string{"5.15.0-122", "5.15.0-128", "5.15.0-127"},
 			Kubelet: []string{"v1.28.15"},
 		},
-		"Deb11": Filter{
+		"Deb11": {
 			Os:     []string{"Debian 11", "Debian GNU/Linux 11"},
 			Kernel: []string{"5.10.0-33-cloud-amd64"},
 		},
-		"Red7": Filter{
+		"Red7": {
 			Os:     []string{"RedOS 7.3", "RED OS MUROM (7.3)"},
 			Kernel: []string{"6.1.52-1.el7.3.x86_64"},
 		},
-		"Alt10": Filter{
+		"Alt10": {
 			Os: []string{"Alt 10"},
 		},
-		"Astra": Filter{
+		"Astra": {
 			Os: []string{"Astra Linux"},
 		},
 	}
