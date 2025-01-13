@@ -145,7 +145,7 @@ func (f *Filter) checkNode(node coreapi.Node) bool {
 	// TODO check Kubelet
 	//kubelet := node.Status.NodeInfo.KubeletVersion
 
-	return true
+	return true || false //lint:ignore S1008
 }
 
 func (f *Filter) checkConsumable(bd snc.BlockDevice) bool {
