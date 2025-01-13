@@ -20,11 +20,10 @@ import (
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
 
 /*  Config  */
 
@@ -62,7 +61,7 @@ func NewKubeRTClient(configPath, clusterName string) (*ctrlrtclient.Client, erro
 	}
 
 	// Add options
-	var resourcesSchemeFuncs = []func(*apiruntime.Scheme) error {
+	var resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
 		virt.AddToScheme,
 		srv.AddToScheme,
 		snc.AddToScheme,
@@ -110,17 +109,17 @@ func NewKubeGoClient(configPath, clusterName string) (*kubernetes.Clientset, err
 /*  Kuber Cluster object  */
 
 type KCluster struct {
-	name string
-	ctx context.Context
-	rtClient *ctrlrtclient.Client
-	goClient *kubernetes.Clientset
+	name       string
+	ctx        context.Context
+	rtClient   *ctrlrtclient.Client
+	goClient   *kubernetes.Clientset
 	groupNodes map[string][]string
 	nodeGroups map[string][]string
 }
 
 func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	configPath = envConfigPath(configPath)
-	clusterName	= envClusterName(clusterName)
+	clusterName = envClusterName(clusterName)
 
 	rcl, err := NewKubeRTClient(configPath, clusterName)
 	if err != nil {
@@ -135,10 +134,10 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	}
 
 	clr := KCluster{
-		name: clusterName,
-		ctx: context.Background(),
-		rtClient: rcl,
-		goClient: gcl,
+		name:       clusterName,
+		ctx:        context.Background(),
+		rtClient:   rcl,
+		goClient:   gcl,
 		groupNodes: make(map[string][]string, len(NodeRequired)),
 		nodeGroups: make(map[string][]string),
 	}
@@ -276,7 +275,7 @@ func (clr *KCluster) GetNodes(filters ...Filter) (map[string]coreapi.Node, error
 
 /*  Block Device  */
 
-func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error)  {
+func (clr *KCluster) GetBDs(filter *Filter) (map[string]snc.BlockDevice, error) {
 	resp := make(map[string]snc.BlockDevice)
 
 	bdList := &snc.BlockDeviceList{}
@@ -356,7 +355,7 @@ func (clr *KCluster) CreateLVG(name, nodeName, bdName string) (*snc.LVMVolumeGro
 					{Key: "kubernetes.io/metadata.name", Operator: metav1.LabelSelectorOpIn, Values: []string{bdName}},
 				},
 			},
-			Type: "Local",
+			Type:  "Local",
 			Local: snc.LVMVolumeGroupLocalSpec{NodeName: nodeName},
 		},
 	}
@@ -411,7 +410,7 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 
 	sc := &storapi.StorageClass{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "StorageClass",
+			Kind:       "StorageClass",
 			APIVersion: "storage.k8s.io/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -441,6 +440,7 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 
 func (clr *KCluster) GetPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
 	pvcList, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).List(clr.ctx, metav1.ListOptions{})
+	// optionaly can get by name
 	//pvc, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).Get(clr.ctx, pvcName, metav1.GetOptions{})
 
 //	pvcList := coreapi.PersistentVolumeClaimList{}
@@ -517,11 +517,11 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 		time.Sleep(PVCWaitInterval * time.Second)
 	}
 	return string(pvc.Status.Phase), fmt.Errorf("the waiting time %d or the pvc to be ready has expired",
-		PVCWaitInterval * PVCWaitIterationCount)
+		PVCWaitInterval*PVCWaitIterationCount)
 }
 
 func (clr *KCluster) DeletePVC(name string) error {
-// TODO func (clr *KCluster) DeletePVC(filters ...Filter) error {
+	// TODO func (clr *KCluster) DeletePVC(filters ...Filter) error {
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       PVCKind,
@@ -599,7 +599,7 @@ func (clr *KCluster) GetVMD(nsName, vmdName string) ([]virt.VirtualDisk, error) 
 
 	vmdList := []virt.VirtualDisk{}
 	for _, vmd := range vmds.Items {
-		if vmdName == vmd.Name {  // <VM>-data|<VM>-system
+		if vmdName == vmd.Name { // <VM>-data|<VM>-system
 			vmdList = append(vmdList, vmd)
 		}
 	}
@@ -630,7 +630,7 @@ func execNodeCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, node *co
 	request := clientset.CoreV1().RESTClient().
 		Post().
 		Resource("nodes").
-		Name(node.Name).  // "d-shipkov-worker-0"
+		Name(node.Name). // "d-shipkov-worker-0"
 		SubResource("exec").
 		VersionedParams(&coreapi.PodExecOptions{
 			Command: command,
@@ -698,7 +698,6 @@ func execPodCmd(restCfg *rest.Config, clientset *kubernetes.Clientset, pod *core
 	// Return stdout, stderr.
 	return buf.String(), errBuf.String(), nil
 }
-
 
 /* TODO
 func getPodLogs(clientset *kubernetes.Clientset, namespace, podName string, opts *coreapi.PodLogOptions) (string, error) {

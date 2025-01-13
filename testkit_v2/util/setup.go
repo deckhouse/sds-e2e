@@ -1,43 +1,12 @@
 package integration
 
 import (
-//	"bytes"
-//	"context"
-//	"crypto/rand"
-//	"crypto/sha256"
-//	"fmt"
 	"log"
-//	"os"
-//	"io"
-//	"sync"
-//	"testing"
-//	"strings"
-//	"slices"
 
-//	"k8s.io/apimachinery/pkg/labels"
-//	"k8s.io/apimachinery/pkg/api/resource"
-//	"k8s.io/client-go/kubernetes"
-//	_ "k8s.io/client-go/plugin/pkg/client/auth/oidc"
-//	"k8s.io/client-go/rest"
-//	"k8s.io/client-go/tools/clientcmd"
-//	"k8s.io/client-go/tools/remotecommand"
-	ctrlrt "sigs.k8s.io/controller-runtime"
-//	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
-	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
 	"github.com/go-logr/logr"
-
-	// Options
-//	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
-//	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
-//	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
-//	coreapi "k8s.io/api/core/v1"
-//	storapi "k8s.io/api/storage/v1"
-//	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-//	apiruntime "k8s.io/apimachinery/pkg/runtime"
-//	kubescheme "k8s.io/client-go/kubernetes/scheme"
-//	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlrt "sigs.k8s.io/controller-runtime"
+	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
 )
-
 
 /*  Logs  */
 
@@ -76,7 +45,6 @@ func Critf(format string, v ...any) {
 	log.Printf("\033[0;91m"+format+"\033[0m", v...)
 }
 
-
 /*  Kuber Client  */
 
 var clrCache = map[string]*KCluster{}
@@ -86,8 +54,8 @@ func GetCluster(configPath, clusterName string) *KCluster {
 	if _, ok := clrCache[k]; !ok {
 		clr, err := InitKCluster(configPath, clusterName)
 		if err != nil {
-    		Critf("Kubeclient '%s' problem", k)
-    		panic(err)
+			Critf("Kubeclient '%s' problem", k)
+			panic(err)
 			// or return nil
 		}
 		clrCache[k] = clr

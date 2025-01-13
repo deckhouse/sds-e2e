@@ -1,30 +1,29 @@
 package integration
 
 import (
-	"strings"
 	"regexp"
+	"strings"
 
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
 )
 
-
 type Filter struct {
-	Name []string
-	NotName []string
-	Os []string
-	NotOs []string
-	Node []string
-	NotNode []string
-	NodeGroup []string
+	Name         []string
+	NotName      []string
+	Os           []string
+	NotOs        []string
+	Node         []string
+	NotNode      []string
+	NodeGroup    []string
 	NotNodeGroup []string
-	Consumable string
-	Kernel []string
-	NotKernel []string
-	Kubelet []string
-	NotKubelet []string
-	NS []string
-	NotNS []string
+	Consumable   string
+	Kernel       []string
+	NotKernel    []string
+	Kubelet      []string
+	NotKubelet   []string
+	NS           []string
+	NotNS        []string
 }
 
 func (f *Filter) match(val string, in []string, notIn []string) bool {
@@ -96,7 +95,7 @@ func (f *Filter) intersec(val []string, in []string, notIn []string) bool {
 		return false
 	}
 
-	return len(set) > 0 
+	return len(set) > 0
 }
 
 func (f *Filter) checkName(name string) bool {
@@ -132,7 +131,7 @@ func (f *Filter) checkNode(node coreapi.Node) bool {
 		return false
 	}
 
-    // check os
+	// check os
 	if !f.checkOs(node) {
 		return false
 	}
@@ -151,7 +150,7 @@ func (f *Filter) checkNode(node coreapi.Node) bool {
 
 func (f *Filter) checkConsumable(bd snc.BlockDevice) bool {
 	if (f.Consumable == "true" && !bd.Status.Consumable) ||
-	   (f.Consumable == "false" && bd.Status.Consumable) {
+		(f.Consumable == "false" && bd.Status.Consumable) {
 		return false
 	}
 	return true

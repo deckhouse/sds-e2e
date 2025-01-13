@@ -13,7 +13,7 @@ func TestLVG(t *testing.T) {
 
 	// Create all (split by group/node)
 	for group, nodes := range clr.GetGroupNodes() {
-		t.Run("create_" + group, func(t *testing.T) {
+		t.Run("create_"+group, func(t *testing.T) {
 			if len(nodes) == 0 {
 				t.Skip("no Nodes for case")
 			}
@@ -42,7 +42,7 @@ func TestLVG(t *testing.T) {
 
 	// Resize with exclusion (split by group/node)
 	for group, nodes := range clr.GetGroupNodes(util.Filter{NotNodeGroup: []string{"Deb11"}}) {
-		t.Run("resize_" + group, func(t *testing.T) {
+		t.Run("resize_"+group, func(t *testing.T) {
 			if len(nodes) == 0 {
 				t.Skip("no Nodes for case")
 			}
@@ -105,10 +105,10 @@ func testLVGResize(t *testing.T, nodeName string) {
 		if len(lvg.Status.Nodes) == 0 {
 			util.Errf("LVG: no nodes for %s", lvg.Name)
 			continue
-//		} else if lvg.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || lvg.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
-//			t.Error(fmt.Sprintf("LVG %s: size problem %s, %s", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String()))
-//		} else {
-//			fmt.Printf("LVG %s: size ok %s, %s\n", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String())
+		//} else if lvg.Status.Nodes[0].Devices[0].PVSize.String() != "20Gi" || lvg.Status.Nodes[0].Devices[0].DevSize.String() != "20975192Ki" {
+		//	t.Error(fmt.Sprintf("LVG %s: size problem %s, %s", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String()))
+		//} else {
+		//	fmt.Printf("LVG %s: size ok %s, %s\n", lvg.Name, lvg.Status.Nodes[0].Devices[0].PVSize.String(), lvg.Status.Nodes[0].Devices[0].DevSize.String())
 		}
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
@@ -136,9 +136,11 @@ func testLVGResize(t *testing.T, nodeName string) {
 
 /*
 	vmdList, _ := clr.GetTestVMD() // kube_vm.config
+
 	if len(vmdList) == 0 {
 		t.Error("Disk update problem, no VMDs")
 	}
+
 	for _, vmd := range vmdList {
 		if strings.Contains(vmd.Name, "-data") {
 			vmd.Spec.PersistentVolumeClaim.Size.Set(32212254720)
@@ -153,7 +155,7 @@ func testLVGResize(t *testing.T, nodeName string) {
 
 func testLVGDelete(t *testing.T) {
 	clr := util.GetCluster("", "")
-	if err := clr.DeleteLVG(&util.Filter{Name: []string{"e2e-lvg-"}});  err != nil {
+	if err := clr.DeleteLVG(&util.Filter{Name: []string{"e2e-lvg-"}}); err != nil {
 		t.Error("LVG deleting:", err)
 	}
 }

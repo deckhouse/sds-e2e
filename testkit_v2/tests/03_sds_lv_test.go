@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	coreapi "k8s.io/api/core/v1"
 	util "github.com/deckhouse/sds-e2e/util"
+	coreapi "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 )
-
 
 func TestPVC(t *testing.T) {
 	t.Run("PVC creating", testPVCCreate)
@@ -30,7 +29,7 @@ func testPVCCreate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-    pvcStatus, err := clr.WaitPVCStatus(pvc.Name)
+	pvcStatus, err := clr.WaitPVCStatus(pvc.Name)
 	if err != nil {
 		util.Debugf("PVC %s status: %s", pvc.Name, pvcStatus)
 		// TODO Error is ok, need POD-consumer
@@ -72,20 +71,20 @@ func testPVCResize(t *testing.T) {
 
 	clr := util.GetCluster("", "")
 
-    pvcList, err := clr.GetPVC(util.TestNS)
+	pvcList, err := clr.GetPVC(util.TestNS)
 	if err != nil {
 		t.Error("PVC getting:", err)
 	}
 	for _, pvc := range pvcList {
 		origSize := pvc.Spec.Resources.Requests[coreapi.ResourceStorage]
-		newSize := resource.MustParse("2Gi")  //.Value() | 1073741824 = 1Gi
+		newSize := resource.MustParse("2Gi") //.Value() | 1073741824 = 1Gi
 
-    	// Update the PVC size
+		// Update the PVC size
 		util.Debugf("PVC %s size: %#v", pvc.Name, pvc.Size())
 		util.Infof("PVC resize %s -> %s", origSize.String(), newSize.String())
-    	pvc.Spec.Resources.Requests[coreapi.ResourceStorage] = newSize
+		pvc.Spec.Resources.Requests[coreapi.ResourceStorage] = newSize
 		if err := clr.UpdatePVC(&pvc); err != nil {
-            t.Error(fmt.Sprintf("PVC %s resizing (%s to %s) problem:", pvc.Name, origSize.String(), newSize.String()), err)
+			t.Error(fmt.Sprintf("PVC %s resizing (%s to %s) problem:", pvc.Name, origSize.String(), newSize.String()), err)
 		}
 	}
 }
@@ -98,7 +97,7 @@ func testPVCDelete(t *testing.T) {
 		t.Error(err)
 	}
 
-    pvcStatus, err := clr.DeletePVCWait("test-pvc")
+	pvcStatus, err := clr.DeletePVCWait("test-pvc")
 	util.Debugf("PVC %s status: %s", "test-pvc", pvcStatus)
 	if err != nil {
 		t.Error(err)
