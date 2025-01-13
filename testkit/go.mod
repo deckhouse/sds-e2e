@@ -4,8 +4,8 @@ go 1.22.3
 
 require (
 	github.com/deckhouse/sds-node-configurator/api v0.0.0-20240805103635-969dc811217b
-	github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240808114114-2db79ea21bb3
-	github.com/deckhouse/virtualization/api v0.0.0-20240808095444-da65e56a660b
+	github.com/deckhouse/sds-replicated-volume/api v0.0.0-20240810205515-2b92cb0defb4
+	github.com/deckhouse/virtualization/api v0.0.0-20240809125238-363283de8585
 	github.com/go-logr/logr v1.4.1
 	github.com/melbahja/goph v1.4.0
 	golang.org/x/crypto v0.24.0
