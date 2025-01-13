@@ -137,15 +137,13 @@ func (f *Filter) checkNode(node coreapi.Node) bool {
 	}
 
 	// check core
-	kernel := node.Status.NodeInfo.KernelVersion
-	if !f.like(kernel, f.Kernel, f.NotKernel) {
+	if !f.like(node.Status.NodeInfo.KernelVersion, f.Kernel, f.NotKernel) {
 		return false
 	}
 
-	// TODO check Kubelet
-	if false {
+	// check kubelet
+	if !f.like(node.Status.NodeInfo.KubeletVersion, f.Kubelet, f.NotKubelet) {
 		return false
-		//kubelet := node.Status.NodeInfo.KubeletVersion
 	}
 
 	return true
