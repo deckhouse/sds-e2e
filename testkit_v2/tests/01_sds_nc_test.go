@@ -38,7 +38,7 @@ func TestLVG(t *testing.T) {
 		....
 	})*/
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(5 * time.Second) // TODO replace on LVG ready status check
 
 	// Resize with exclusion (split by group/node)
 	for group, nodes := range clr.GetGroupNodes(util.Filter{NotNodeGroup: []string{"Deb11"}}) {

@@ -111,7 +111,7 @@ func testPVCCleanup(t *testing.T) {
 
 	// TODO delete SC (auto deleting with NS)
 
-	// TODO delete NS. don`t work on Metal cluster
+	// TODO delete NS. don't work on Metal cluster
 	if err := clr.DeleteNs(util.TestNS); err != nil {
 		t.Error(err)
 	}
