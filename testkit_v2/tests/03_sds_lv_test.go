@@ -9,6 +9,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+const (
+	scName = "test-lvm-thick-immediate-retain"
+)
+
 func TestPVC(t *testing.T) {
 	t.Run("PVC creating", testPVCCreate)
 	t.Run("PVC resizing", testPVCResize)
@@ -18,7 +22,6 @@ func TestPVC(t *testing.T) {
 
 func testPVCCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
-	scName := "test-lvm-thick-immediate-retain"
 	_, _ = clr.CreateSC(scName)
 
 	// TODO move NS creating to tests init script
@@ -38,37 +41,7 @@ func testPVCCreate(t *testing.T) {
 }
 
 func testPVCResize(t *testing.T) {
-	t.Skip("Not implemented")
-
-	//err = funcs.EditSizePVC(ctx, cl, pvc.Name, "2Gi")
-	/*
-	func EditSizePVC(ctx context.Context, cl client.Client, name, newSize string) error {
-		pvc := coreapi.PersistentVolumeClaim{}
-		err := (*clr.rtClient).Get(clr.ctx, ctrlrtclient.ObjectKey{
-			Name:      name,
-			Namespace: TestNS,
-		}, &pvc)
-		if err != nil {
-			return err
-		}
-
-		resourceList := make(map[coreapi.ResourceName]resource.Quantity)
-		newPVCSize, err := resource.ParseQuantity(newSize)
-		if err != nil {
-			return err
-		}
-
-		resourceList[coreapi.ResourceStorage] = newPVCSize
-		pvc.Spec.Resources.Requests = resourceList
-
-		err = (*clr.rtClient).Update(clr.ctx, &pvc)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	*/
-
+	//t.Skip("Not implemented")
 	clr := util.GetCluster("", "")
 
 	pvcList, err := clr.GetPVC(util.TestNS)
@@ -77,7 +50,7 @@ func testPVCResize(t *testing.T) {
 	}
 	for _, pvc := range pvcList {
 		origSize := pvc.Spec.Resources.Requests[coreapi.ResourceStorage]
-		newSize := resource.MustParse("2Gi") //.Value() | 1073741824 = 1Gi
+		newSize := resource.MustParse("2Gi")
 
 		// Update the PVC size
 		util.Debugf("PVC %s size: %#v", pvc.Name, pvc.Size())
@@ -105,14 +78,6 @@ func testPVCDelete(t *testing.T) {
 }
 
 func testPVCCleanup(t *testing.T) {
-	t.Skip("Not implemented: need to create NS in tests init script")
-
 	clr := util.GetCluster("", "")
-
-	// TODO delete SC (auto deleting with NS)
-
-	// TODO delete NS. don't work on Metal cluster
-	if err := clr.DeleteNs(util.TestNS); err != nil {
-		t.Error(err)
-	}
+	_ = clr.DeleteSC(scName)
 }

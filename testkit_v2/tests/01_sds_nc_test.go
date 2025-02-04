@@ -38,10 +38,10 @@ func TestLVG(t *testing.T) {
 		....
 	})*/
 
-	time.Sleep(5 * time.Second) // TODO replace on LVG ready status check
+	time.Sleep(10 * time.Second) // TODO replace on LVG ready status check
 
-	// Resize with exclusion (split by group/node)
-	for group, nodes := range clr.GetGroupNodes(util.Filter{NotNodeGroup: []string{"Deb11"}}) {
+	// Resize (exclusion "Deb11" for example)
+	for group, nodes := range clr.GetGroupNodes(util.NodeFilter{NodeGroup: util.Cond{NotIn: []string{"Deb11"}}}) {
 		t.Run("resize_"+group, func(t *testing.T) {
 			if len(nodes) == 0 {
 				t.Skip("no Nodes for case")
@@ -57,22 +57,25 @@ func TestLVG(t *testing.T) {
 
 	// Delete
 	t.Run("delete", testLVGDelete)
-
 }
 
 func testLVGCreate(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
-	lvgMap, _ := clr.GetLVGs(&util.Filter{Name: []string{"e2e-lvg-"}, Node: []string{nodeName}})
+	lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}, Node: util.Cond{In: []string{nodeName}}})
 	if len(lvgMap) > 0 {
 		util.Infof("test LVG already exists")
 		return
 	}
 
-	bds, _ := clr.GetBDs(&util.Filter{Consumable: "true", Node: []string{nodeName}})
+	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
 	// or check bd.Status.LVMVolumeGroupName for valid BDs
-	if util.SkipFlag && len(bds) == 0 {
-		util.Warnf("skip create LVG test for %s", nodeName)
-		t.Skip("no Device to create LVG")
+	
+	if len(bds) == 0 {
+		if util.SkipFlag {
+			util.Warnf("skip create LVG test for %s", nodeName)
+			t.Skip("no Device to create LVG")
+		}
+		t.Fatal("no Device to create LVG")
 	}
 	for bdName, bd := range bds {
 		name := "e2e-lvg-" + nodeName[len(nodeName)-1:] + "-" + bdName[len(bdName)-3:]
@@ -89,16 +92,19 @@ func testLVGCreate(t *testing.T, nodeName string) {
 
 func testLVGResize(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
-	bds, _ := clr.GetBDs(&util.Filter{Consumable: "true", Node: []string{nodeName}})
-	if util.SkipFlag && len(bds) == 0 {
-		util.Warnf("skip resize LVG test for %s", nodeName)
-		t.Skip("no Device to resize LVG")
+	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
+	if len(bds) == 0 {
+		if util.SkipFlag {
+			util.Warnf("skip resize LVG test for %s", nodeName)
+			t.Skip("no Device to resize LVG")
+		}
+		t.Fatal("no Device to resize LVG")
 	}
 	bdMap := map[string]*snc.BlockDevice{}
 	for _, bd := range bds {
 		bdMap[bd.Status.NodeName] = &bd
 	}
-	lvgMap, _ := clr.GetLVGs(&util.Filter{Name: []string{"e2e-lvg-"}})
+	lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}})
 	lvgUpdated := false
 
 	for _, lvg := range lvgMap {
@@ -109,6 +115,7 @@ func testLVGResize(t *testing.T, nodeName string) {
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
 			util.Debugf("Have no extra BlockDevice for Node %s", lvg.Status.Nodes[0].Name)
+			util.Debugf("%v", bdMap)
 			continue
 		}
 		origSize := lvg.Status.VGSize
@@ -133,7 +140,7 @@ func testLVGResize(t *testing.T, nodeName string) {
 
 func testLVGDelete(t *testing.T) {
 	clr := util.GetCluster("", "")
-	if err := clr.DeleteLVG(&util.Filter{Name: []string{"e2e-lvg-"}}); err != nil {
+	if err := clr.DeleteLVG(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}}); err != nil {
 		t.Error("LVG deleting:", err)
 	}
 }

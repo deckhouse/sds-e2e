@@ -8,7 +8,7 @@ nc="\033[0m"
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 OPTIONS="hi:v"
-LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,kcontext:,cluster:,verbose,debug,run:,skip:"
+LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,run:,skip:,ns:,namespace:"
 
 function usage() {
   >&2 cat <<EOF
@@ -55,14 +55,15 @@ function usage() {
     --kconfig '~/.kube/config':
         Customized path to kubernetes config file
 
-    --kcontext 'ctx-name':
-        Select not default context in config
-
-    --cluster '<cluster_name>':
-        <add description here>
+    --ns, --namespace 'te2est-1234':
+        Set test name space
 
     --fakepubsub-node-port <fakepubsub_node_port>:
         (not implemented)
+
+  ${bold}Env:${normal}
+    export licensekey=s6Cr6T
+    export registryDockerCfg=Ba6S4e==
 
   ${bold}Examples:${normal}
     # Run all tests on default (Dev) stand
@@ -84,20 +85,22 @@ EOF
 function ssh_fwd() {
   if [[ -z "$ssh_host" ]]; then return 1; fi
 
-  for id in $(ps aux | grep "ssh -fN .*-L 644.:.*:644.\s" | awk '{print $2}'); do kill -3 $id; done
-  nc -z 127.0.0.1 6445
-  if [ "$?" -eq 0 ]; then return 0; fi
+  # kill old port forwarding
+  for id in $(ps aux | grep "ssh -fN -x .*-L [^\s]*\s" | awk '{print $2}'); do kill -3 $id; done
+  #for id in $(ps aux | grep "ssh -fN -x .*-L [^\s]*\s${ssh_host}" | awk '{print $2}'); do kill -3 $id; done
 
-  local ssh_flags=(-fN)
+  local ssh_flags=(-fN -x)
   if [[ -n "$ssh_key" ]]; then
     ssh_flags+=("-i $ssh_key")
   fi
 
   for address in "$@"; do
-    shcmd="ssh ${ssh_flags} -L ${address} ${ssh_host}"
-    if $verbose; then echo "RUN: ${shcmd}"; fi
-    ${shcmd}
+    ssh_flags+=("-L $address")
   done
+
+  shcmd="ssh ${ssh_flags[*]} ${ssh_host}"
+  if $verbose; then echo "RUN: ${shcmd}"; fi
+  ${shcmd}
 }
 
 function run_local() {
@@ -126,16 +129,9 @@ function run_ci() {
 }
 
 function run_bare_metal() {
-  # kubernetes api forwarding
-  ssh_fwd 6444:127.0.0.1:6445 6445:10.10.10.180:6443 # Bare Metal server + Master node
-
-  # [OLD SCHOOL] init NS test1 (VMs, ...)
-  # TODO run on master `sudo /sds-e2e/testkit/run.sh` if no NS
-
-  # configure virtualmachines, virtualdisks, ...
-  # TODO clusterManagement/cluster.go:InitClusterCreate()
-
-  # TODO copy ./data/kube-metal.config from 10.10.10.180
+  # kubernetes api forwarding (Bare Metal server, Master node) + VirtualMachines ssh forwarding
+  ssh_fwd 6445:127.0.0.1:6445 6443:10.10.10.180:6443 \
+          2220:10.10.10.180:22 2221:10.10.10.181:22 2222:10.10.10.182:22 2223:10.10.10.183:22 2224:10.10.10.184:22
 
   # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
@@ -169,14 +165,14 @@ function main() {
   while true; do
     case "$1" in
       -h|--help) usage; exit; ;;
-      -v|--verbose) verbose=true; test_flags+=(-v); shift ;;  #summary_format=standard-verbose
+      -v|--verbose) verbose=true; test_flags+=(-v); test_args+=(-verbose); shift ;;  #summary_format=standard-verbose
       -d|--debug) debug=true; test_args+=(-debug); shift ;;
       -i|--ssh-key) ssh_key="$2"; shift 2 ;;
       --ssh-host) ssh_host="$2"; shift 2 ;;
       --kconfig) echo >&2 "Not implemented"; shift 2 ;;
-      --kcontext) echo >&2 "Not implemented"; shift 2 ;;
       --run) test_flags+=(-run="$2"); shift 2 ;;
       --skip) test_flags+=(-skip="$2"); shift 2 ;;
+      --ns|--namespace) test_args+=(-namespace "$2"); shift 2 ;;
 
       # TODO add options
 
@@ -195,6 +191,8 @@ function main() {
     esac
   done
 
+  test_args+=(-stand "${run_stand}")
+
   case "${run_stand}" in
     local)
       run_local
@@ -205,7 +203,6 @@ function main() {
       #ssh_key="~/.ssh/id_rsa_T14"
 
       test_args+=(-kconfig "${DIR}/data/kube-dev.config")
-      test_args+=(-kcontext "dev")
       run_dev
       ;;
     stage)
@@ -219,8 +216,12 @@ function main() {
       #ssh_host="d.shipkov@94.26.231.181"
       #ssh_key="~/.ssh/id_rsa_T14"
 
-      test_flags+=(-skip="TestFatal/ignore")
+      # [OLD SCHOOL] init NS test1 (VMs, ...)
+      # TODO run on master `sudo /sds-e2e/testkit/run.sh` if no NS
+
+      test_flags+=(-skip="TestFatal/ignore") # Fake example
       test_args+=(-kconfig "${DIR}/data/kube-metal.config")
+      test_flags+=(-timeout "30m")
       run_bare_metal
       ;;
   esac
