@@ -130,8 +130,8 @@ function run_ci() {
 
 function run_bare_metal() {
   # kubernetes api forwarding (Bare Metal server, Master node) + VirtualMachines ssh forwarding
-  ssh_fwd 6445:127.0.0.1:6445 6443:10.10.10.180:6443 \
-          2220:10.10.10.180:22 2221:10.10.10.181:22 2222:10.10.10.182:22 2223:10.10.10.183:22 2224:10.10.10.184:22
+  ssh_fwd 6445:127.0.0.1:6445 6443:10.10.10.80:6443 \
+          2220:10.10.10.80:22 2221:10.10.10.81:22 2222:10.10.10.82:22 2223:10.10.10.183:22 2224:10.10.10.184:22
 
   # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"

@@ -7,25 +7,24 @@ import (
 	"strings"
 	"time"
 
+	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 	"github.com/melbahja/goph"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 )
 
-
 const (
-	DhDevImg = "dev-registry.deckhouse.io/sys/deckhouse-oss/install:main"
-	DhCeImg = "registry.deckhouse.io/deckhouse/ce/install:stable"
+	DhDevImg                  = "dev-registry.deckhouse.io/sys/deckhouse-oss/install:main"
+	DhCeImg                   = "registry.deckhouse.io/deckhouse/ce/install:stable"
 	DhInstallCommand          = "sudo -i docker run --network=host -t -v '/home/user/config.yml:/config.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --config=/config.yml"
 	DhResourcesInstallCommand = "sudo -i docker run --network=host -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --resources=/resources.yml"
-	RegistryLoginCmd = "sudo docker login -u license-token -p %s dev-registry.deckhouse.io"
+	RegistryLoginCmd          = "sudo docker login -u license-token -p %s dev-registry.deckhouse.io"
 )
 
 type vm struct {
 	name      string
 	ip        string
 	cpu       int
-    memory    string
+	memory    string
 	scName    string
 	imageName string
 	sshPort   uint
@@ -34,13 +33,12 @@ type vm struct {
 
 var (
 	vmCfgs = []vm{
-		{"vm1", "10.10.10.180", 4, "8Gi", "linstor-r1", UbuntuCloudImage, 2220, nil},
-		{"vm2", "10.10.10.181", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2221, nil},
-		{"vm3", "10.10.10.182", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2222, nil},
-//		{"vm77", "", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2223, nil},
+		{"vm1", "10.10.10.80", 4, "8Gi", "linstor-r1", UbuntuCloudImage, 2220, nil},
+		{"vm2", "10.10.10.81", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2221, nil},
+		{"vm3", "10.10.10.82", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2222, nil},
+		//		{"vm77", "", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2223, nil},
 	}
 )
-
 
 func vmCreate(clr *KCluster, vms []vm, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(DataPath, PrivKeyName, PubKeyName)
@@ -151,7 +149,7 @@ func initVmDh(masterClient *goph.Client, client *goph.Client) {
 	Infof("Get vm kube config")
 	out = ExecSshFatal(masterClient, "sudo cat /root/.kube/config")
 	out = strings.Replace(out, "127.0.0.1:6445", "127.0.0.1:6443", -1)
-	err := os.WriteFile(filepath.Join(DataPath, VmKubeConfigName), []byte(out), 0600)
+	err := os.WriteFile(filepath.Join(KubePath, NestedClusterKubeConfigName), []byte(out), 0600)
 	if err != nil {
 		Fatalf(err.Error())
 	}
@@ -164,7 +162,7 @@ func cleanUpNs(clr *KCluster) {
 		if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "te2est-") {
 			continue
 		}
-		if unixNow - ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
+		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
 			Debugf("Dedeting NS %s", ns.Name)
 			if err := clr.DeleteNs(ns.Name); err != nil {
 				Errf("Can't delete NS %s", ns.Name)
@@ -175,7 +173,7 @@ func cleanUpNs(clr *KCluster) {
 
 func ClusterCreate() {
 	nsName := TestNS
-	configPath := filepath.Join(DataPath, VmStorageKubeConfig)
+	configPath := filepath.Join(KubePath, HypervisorKubeConfig)
 
 	clr, err := InitKCluster(configPath, "")
 	if err != nil {
@@ -184,7 +182,7 @@ func ClusterCreate() {
 	}
 
 	Infof("Clean old NS")
-	cleanUpNs(clr)
+	// cleanUpNs(clr)
 
 	Infof("Make RSA key")
 	vmKeyPath := filepath.Join(DataPath, PrivKeyName)

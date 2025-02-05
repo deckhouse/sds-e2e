@@ -1,27 +1,28 @@
 package integration
 
 import (
-	"fmt"
 	"flag"
-	"time"
+	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 const (
 	AppTmpPath    = "/app/tmp"
-    DataPath      = "../data"
+	DataPath      = "../data"
+	KubePath      = "../../../config"
 	RemoteAppPath = "/home/user"
 
-	PrivKeyName          = "id_rsa_test"
-	PubKeyName           = "id_rsa_test.pub"
-	VmKubeConfigName     = "kube-metal.config"
-	VmStorageKubeConfig  = "kube-metal-virt-storage.config"
-	ConfigTplName        = "config.yml.tpl"
-	ConfigName           = "config.yml"
-	ResourcesTplName     = "resources.yml.tpl"
-	ResourcesName        = "resources.yml"
-	UserCreateScriptName = "createuser.sh"
+	PrivKeyName                 = "id_rsa_test"
+	PubKeyName                  = "id_rsa_test.pub"
+	HypervisorKubeConfig        = "kube-hypervisor.config"
+	NestedClusterKubeConfigName = "kube-nested.config"
+	ConfigTplName               = "config.yml.tpl"
+	ConfigName                  = "config.yml"
+	ResourcesTplName            = "resources.yml.tpl"
+	ResourcesName               = "resources.yml"
+	UserCreateScriptName        = "createuser.sh"
 
 	PVCKind               = "PersistentVolumeClaim"
 	PVCAPIVersion         = "v1"
@@ -31,7 +32,7 @@ const (
 	nsCleanUpSeconds      = 30 * 60
 	retries               = 100
 
-	UbuntuCloudImage     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+	UbuntuCloudImage = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
 )
 
 var (
@@ -73,10 +74,10 @@ var (
 		},
 	}
 
-	SkipOptional = true
-	startTime    = time.Now()
-	TestNS       = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
-	licenseKey   = os.Getenv("licensekey")
+	SkipOptional      = true
+	startTime         = time.Now()
+	TestNS            = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
+	licenseKey        = os.Getenv("licensekey")
 	registryDockerCfg = "e30="
 )
 
@@ -108,7 +109,7 @@ func envClusterName(clusterName string) string {
 func envConfigPath(configPath string) string {
 	if configPath != "" {
 		if configPath[0] != '/' {
-        	wd, _ := os.Getwd()
+			wd, _ := os.Getwd()
 			return filepath.Join(wd, configPath)
 		}
 		return configPath
@@ -118,5 +119,5 @@ func envConfigPath(configPath string) string {
 		return *clusterPathFlag
 	}
 
-	return os.Getenv("kubeconfig")
+	return os.Getenv("KUBECONFIG")
 }
