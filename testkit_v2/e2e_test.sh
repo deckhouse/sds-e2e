@@ -216,9 +216,6 @@ function main() {
       #ssh_host="d.shipkov@94.26.231.181"
       #ssh_key="~/.ssh/id_rsa_T14"
 
-      # [OLD SCHOOL] init NS test1 (VMs, ...)
-      # TODO run on master `sudo /sds-e2e/testkit/run.sh` if no NS
-
       test_flags+=(-skip="TestFatal/ignore") # Fake example
       test_args+=(-kconfig "${DIR}/data/kube-metal.config")
       test_flags+=(-timeout "30m")

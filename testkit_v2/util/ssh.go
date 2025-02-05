@@ -137,16 +137,16 @@ func NewSSHClient(user string, addr string, port uint, key string) (client *goph
 		Callback: ssh.InsecureIgnoreHostKey(), //callback,
 	}
 
-	for count := 0; count < retries; count++ {
+	for count := 0; ; count++ {
 		if client, err = goph.NewConn(&cfg); err == nil {
 			break
 		}
 
-		time.Sleep(10 * time.Second)
-
-		if count == retries-1 {
+		if count >= retries {
 			log.Fatal("Timeout waiting for installer VM to be ready")
 		}
+
+		time.Sleep(10 * time.Second)
 	}
 
 	return

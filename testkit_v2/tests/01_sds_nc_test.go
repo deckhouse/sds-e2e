@@ -38,7 +38,24 @@ func TestLVG(t *testing.T) {
 		....
 	})*/
 
-	time.Sleep(10 * time.Second) // TODO replace on LVG ready status check
+	for i := 0; ; i++ {
+		lvgs, _ := clr.GetLVGs()
+		lvgsUp := true
+		for _, lvg := range lvgs {
+			if lvg.Status.Phase != "Ready" {// len(lvg.Status.Conditions) == 0 || lvg.Status.Conditions[0].Status == "False" {
+				lvgsUp = false
+				break
+			}
+		}
+		if lvgsUp {
+			break
+		}
+		if i > 20 {
+			t.Error("not all LVGs ready")
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
 
 	// Resize (exclusion "Deb11" for example)
 	for group, nodes := range clr.GetGroupNodes(util.NodeFilter{NodeGroup: util.Cond{NotIn: []string{"Deb11"}}}) {
@@ -71,7 +88,7 @@ func testLVGCreate(t *testing.T, nodeName string) {
 	// or check bd.Status.LVMVolumeGroupName for valid BDs
 	
 	if len(bds) == 0 {
-		if util.SkipFlag {
+		if util.SkipOptional {
 			util.Warnf("skip create LVG test for %s", nodeName)
 			t.Skip("no Device to create LVG")
 		}
@@ -83,7 +100,7 @@ func testLVGCreate(t *testing.T, nodeName string) {
 			t.Error("LVG creating:", err)
 			continue
 		}
-		util.Infof("LVG created for BD %s", bd.Name)
+		util.Infof("LVG %s created for BD %s", name, bd.Name)
 		return
 	}
 
@@ -94,7 +111,7 @@ func testLVGResize(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
 	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
 	if len(bds) == 0 {
-		if util.SkipFlag {
+		if util.SkipOptional {
 			util.Warnf("skip resize LVG test for %s", nodeName)
 			t.Skip("no Device to resize LVG")
 		}

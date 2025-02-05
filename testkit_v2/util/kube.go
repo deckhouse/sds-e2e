@@ -15,6 +15,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/dynamic"
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
+	logr "github.com/go-logr/logr"
 
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
@@ -28,7 +30,6 @@ import (
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	apirtschema "k8s.io/apimachinery/pkg/runtime/schema"
 
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/util/retry"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
@@ -46,7 +47,6 @@ func NewRestConfig(configPath, clusterName string) (*rest.Config, error) {
 	}
 
 	overrides := clientcmd.ConfigOverrides{}
-	// Override the cluster name if provided.
 	if clusterName != "" {
 		overrides.Context.Cluster = clusterName
 		overrides.CurrentContext = clusterName
@@ -93,6 +93,7 @@ func NewKubeRTClient(configPath, clusterName string) (ctrlrtclient.Client, error
 	}
 
 	// Init client
+	ctrlrtlog.SetLogger(logr.FromContextOrDiscard(context.Background()))
 	cl, err := ctrlrtclient.New(cfg, clientOpts)
 	if err != nil {
 		return nil, err
@@ -102,7 +103,6 @@ func NewKubeRTClient(configPath, clusterName string) (ctrlrtclient.Client, error
 }
 
 func NewKubeGoClient(configPath, clusterName string) (*kubernetes.Clientset, error) {
-	// to create the clientset
 	cfg, err := NewRestConfig(configPath, clusterName)
 	if err != nil {
 		return nil, err
@@ -122,7 +122,7 @@ func NewKubeDyClient(configPath, clusterName string) (*dynamic.DynamicClient, er
 		return nil, err
 	}
 
-	cl, err := dynamic.NewForConfig(cfg) // (*DynamicClient, error)
+	cl, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +175,6 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 		nodeGroups: make(map[string][]string),
 	}
 
-	// TODO create test NameSpace
-
 	return &clr, nil
 }
 
@@ -189,8 +187,9 @@ func (clr *KCluster) initGroupNodes(filters map[string]NodeFilter) error {
 
 		if len(nodeMap) == 0 {
 			Critf("0 Nodes for %s", k)
-			// TODO panic for CI/Stage/not debug mode
-			clr.groupNodes[k] = nil
+			if !SkipOptional {
+				clr.groupNodes[k] = nil
+			}
 			continue
 		}
 		for nodeName := range nodeMap {
@@ -212,7 +211,6 @@ func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 	}
 
 	resp := map[string][]string{}
-//	fGroup, fNotGroup := f.NodeGroup, f.NotNodeGroup
 	for g, nList := range clr.groupNodes {
 		for _, f := range filters {
 			if f.NodeGroup.isValid(g) {
@@ -225,68 +223,11 @@ func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 	return resp
 }
 
-/*  Main  */
-
-//func (clr *KCluster) Get(k ctrlrtclient.ObjectKey, arg ctrlrtclient.Object) error {
-//	return clr.rtClient.Get(clr.ctx, k, arg)
-//}
-
 /*  Node Group  */
 
-//import (
-//	"context"
-//	"encoding/base64"
-//	"fmt"
-//	"maps"
-//	"net"
-//	"slices"
-//	"strings"
-//	"time"
-//
-//	"gopkg.in/yaml.v3"
-//	apiv1 "k8s.io/api/core/v1"
-//	"k8s.io/apimachinery/pkg/api/errors"
-//	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-//	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-//	"k8s.io/apimachinery/pkg/runtime/schema"
-//	"k8s.io/apimachinery/pkg/types"
-//
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/kubernetes/actions/deckhouse"
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/kubernetes/client"
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/log"
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/operations/converge/infra/hook"
-//	"github.com/deckhouse/deckhouse/dhctl/pkg/util/retry"
-//)
-
 var (
-	nodeGroupResource   = apirtschema.GroupVersionResource{Group: "deckhouse.io", Version: "v1", Resource: "nodegroups"}
-//	ErrNodeGroupChanged = fmt.Errorf("Node group was changed during accept diff.")
+	nodeGroupResource = apirtschema.GroupVersionResource{Group: "deckhouse.io", Version: "v1", Resource: "nodegroups"}
 )
-
-//func GetNodeGroupDirect(kubeCl *client.KubernetesClient, nodeGroupName string) (*unstructured.Unstructured, error) {
-//	var err error
-//	ng, err := kubeCl.Dynamic().
-//		Resource(nodeGroupResource).
-//		Get(context.TODO(), nodeGroupName, metav1.GetOptions{})
-//
-//	return ng, err
-//}
-//
-//func GetNodeGroup(kubeCl *client.KubernetesClient, nodeGroupName string) (*unstructured.Unstructured, error) {
-//	var ng *unstructured.Unstructured
-//	err := retry.NewSilentLoop(fmt.Sprintf("Get NodeGroup %q", nodeGroupName), 45, 15*time.Second).Run(func() error {
-//		var err error
-//		ng, err = GetNodeGroupDirect(kubeCl, nodeGroupName)
-//
-//		return err
-//	})
-//
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return ng, nil
-//}
 
 func (clr *KCluster) GetNodeGroups() ([]unstructured.Unstructured, error) {
 	ngs, err := clr.dyClient.Resource(nodeGroupResource).
@@ -298,31 +239,30 @@ func (clr *KCluster) GetNodeGroups() ([]unstructured.Unstructured, error) {
 	return ngs.Items, err
 }
 
-func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {//(kubeCl *client.KubernetesClient, nodeGroupName string, logger log.Logger, data map[string]interface{}) error {
+func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {
+	name := data["metadata"].(map[string]interface{})["name"]
 	obj := unstructured.Unstructured{}
 	obj.SetUnstructuredContent(data)
 
-//	return retry.NewLoop(fmt.Sprintf("Create NodeGroup %q", name), 45, 15*time.Second).Run(func() error {
-	//return retry.NewLoop(fmt.Sprintf("Create NodeGroup %q", name), 45, 15*time.Second).WithLogger(logger).Run(func() error {
-	res, err := clr.dyClient.Resource(nodeGroupResource).
+	_, err := clr.dyClient.Resource(nodeGroupResource).
 		Create(clr.ctx, &obj, metav1.CreateOptions{})
 	if err == nil {
-		Infof("NodeGroup %q created", res.GetName())
+		Infof("NodeGroup %q created", name)
 		return nil
 	}
 
 	if apierrors.IsAlreadyExists(err) {
-//			logger.LogInfoF("Object %v, updating ... ", err)
-			content, err := obj.MarshalJSON()
-			if err != nil {
-				return err
-			}
-			_, err = clr.dyClient.Resource(nodeGroupResource).
-				Patch(clr.ctx, obj.GetName(), apitypes.MergePatchType, content, metav1.PatchOptions{})
-			if err != nil {
-				return err
-			}
-			return nil
+		Infof("NodeGroup %q updating ...", name)
+		content, err := obj.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		_, err = clr.dyClient.Resource(nodeGroupResource).
+			Patch(clr.ctx, obj.GetName(), apitypes.MergePatchType, content, metav1.PatchOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 
 	return err
@@ -350,34 +290,13 @@ func (clr *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
 	return clr.CreateNodeGroup(ngObj)
 }
 
-//func UpdateNodeGroup(kubeCl *client.KubernetesClient, nodeGroupName string, ng *unstructured.Unstructured) error {
-//	err := retry.NewLoop(fmt.Sprintf("Update node template in NodeGroup %q", nodeGroupName), 45, 15*time.Second).
-//		BreakIf(errors.IsConflict).
-//		Run(func() error {
-//			_, err := kubeCl.Dynamic().
-//				Resource(nodeGroupResource).
-//				Update(context.TODO(), ng, metav1.UpdateOptions{})
-//
-//			return err
-//		})
-//
-//	if errors.IsConflict(err) {
-//		return ErrNodeGroupChanged
-//	}
-//
-//	return err
-//}
-//
-//func DeleteNodeGroup(kubeCl *client.KubernetesClient, nodeGroupName string) error {
-//	return retry.NewLoop(fmt.Sprintf("Delete NodeGroup %s", nodeGroupName), 45, 10*time.Second).Run(func() error {
-//		err := kubeCl.Dynamic().Resource(nodeGroupResource).Delete(context.TODO(), nodeGroupName, metav1.DeleteOptions{})
-//		if errors.IsNotFound(err) {
-//			// NodeGroup has already been deleted
-//			return nil
-//		}
-//		return err
-//	})
-//}
+func (clr *KCluster) DeleteNodeGroup(name string) error {
+	err := clr.dyClient.Resource(nodeGroupResource).Delete(clr.ctx, name, metav1.DeleteOptions{})
+	if err == nil || apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
 
 /*  Name Space  */
 
@@ -535,11 +454,6 @@ func (clr *KCluster) CreateVM(
 	systemDriveSize int64,
 	dataDriveSize int64,
 ) error {
-	///err = funcs.CreateVM(ctx, cl, ns, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, vmItem.scName, vmItem.imageName, sshPubKeyString, 20, 20)
-
-	Debugf("Creating VM: %s (%s)", vmName, ip)
-
-	// OLD implementation
 	splittedUrl := strings.Split(imgUrl, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
 	vmCVMI := &virt.ClusterVirtualImage{}
@@ -663,7 +577,6 @@ ssh_authorized_keys:
 		},
 	})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-	//if err != nil && !strings.Contains(err.Error(), "already exists") {
 		return err
 	}
 
@@ -677,12 +590,6 @@ ssh_authorized_keys:
 /*  SSH Credentials  */
 
 func (clr *KCluster) GetSSHCredentials() ([]SSHCredentials, error) {
-	//credentials.SetGroupVersionKind(schema.GroupVersionKind{
-	//  Group:   "deckhouse.io",
-	//  Kind:    "SSHCredentials",
-	//  Version: "v1alpha1",
-	//})
-
 	credentials := SSHCredentialsList{}
 	err := clr.rtClient.List(clr.ctx, &credentials)
 	if err != nil {
@@ -705,11 +612,6 @@ func (clr *KCluster) CreateSSHCredentials(name, user, privSshKey string) error {
 	}
 
 	if err := clr.rtClient.Create(clr.ctx, sshcredentials); err != nil {
-//		if apierrors.IsAlreadyExists(err) {
-//		//if err.Error() == fmt.Sprintf("sshcredentials.deckhouse.io \"%s\" already exists", name) {
-//			return nil
-//		}
-
 		Errf("Can't create SSHCredentials %s: %s", name, err.Error())
 		return err
 	}
@@ -733,7 +635,6 @@ func (clr *KCluster) CreateOrUpdSSHCredentials(name, user, privSshKey string) er
 		return nil
 	}
 	if !apierrors.IsAlreadyExists(err) {
-	//if err.Error() != fmt.Sprintf("sshcredentials.deckhouse.io \"%s\" already exists", name) {
 		Errf("Can't create SSHCredentials %s: %s", name, err.Error())
 		return err
 	}
@@ -787,7 +688,6 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 
 	if err := clr.rtClient.Create(clr.ctx, si); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-		//if err.Error() == fmt.Sprintf("staticinstances.deckhouse.io \"%s\" already exists", name) {
 			return nil
 		}
 
@@ -798,6 +698,7 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 }
 
 func (clr *KCluster) CreateOrUpdStaticInstance(name, role, ip, credentials string) error {
+	Errf("Not implemented function")
 	return fmt.Errorf("Not implemented")
 }
 
@@ -1070,10 +971,6 @@ func (clr *KCluster) DeleteLVG(filters ...LvgFilter) error {
 	return nil
 }
 
-//func (clr *KCluster) DelTestLVG() error {
-//	return clr.DeleteLVG(&Filter{Name: []string{"e2e-lvg-"}})
-//}
-
 /*  Storage Class  */
 
 func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
@@ -1115,7 +1012,7 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 }
 
 func (clr *KCluster) DeleteSC(name string) error {
-	// TODO implement function
+	Errf("Not implemented function")
 	return nil
 }
 
@@ -1186,7 +1083,6 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 	err = clr.rtClient.Create(clr.ctx, &pvc)
 	if err != nil {
 		return nil, err
-		//return coreapi.PersistentVolumeClaim{}, err
 	}
 	return &pvc, nil
 }
@@ -1216,8 +1112,6 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 }
 
 func (clr *KCluster) DeletePVC(name string) error {
-	// TODO replace name param with Filter
-	// func (clr *KCluster) DeletePVC(filters ...Filter) error {
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       PVCKind,
@@ -1229,15 +1123,14 @@ func (clr *KCluster) DeletePVC(name string) error {
 		},
 	}
 
-	err := clr.rtClient.Delete(clr.ctx, &pvc)
-	if err != nil {
+	if err := clr.rtClient.Delete(clr.ctx, &pvc); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (clr *KCluster) DeletePVCWait(name string) (string, error) {
-	// TODO make implementation
+	Errf("Not implemented function")
 	return "", nil
 }
 
@@ -1269,7 +1162,7 @@ func (clr *KCluster) GetVMD(nsName, vmdName string) ([]virt.VirtualDisk, error) 
 
 	vmdList := []virt.VirtualDisk{}
 	for _, vmd := range vmds.Items {
-		if vmdName == vmd.Name { // <VM>-data|<VM>-system
+		if vmdName == vmd.Name {
 			vmdList = append(vmdList, vmd)
 		}
 	}

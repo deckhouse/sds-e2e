@@ -5,10 +5,6 @@ import (
 	"time"
 )
 
-//var (
-//	startTime = time.Now()
-//)
-
 /*  Logs  */
 
 func getPrefix() string {
@@ -82,7 +78,6 @@ func GetCluster(configPath, clusterName string) *KCluster {
 		if err != nil {
 			Critf("Kubeclient '%s' problem", k)
 			panic(err)
-			// or return nil
 		}
 		clrCache[k] = clr
 	}

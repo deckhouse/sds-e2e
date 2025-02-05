@@ -16,6 +16,7 @@ const (
 	PrivKeyName          = "id_rsa_test"
 	PubKeyName           = "id_rsa_test.pub"
 	VmKubeConfigName     = "kube-metal.config"
+	VmStorageKubeConfig  = "kube-metal-virt-storage.config"
 	ConfigTplName        = "config.yml.tpl"
 	ConfigName           = "config.yml"
 	ResourcesTplName     = "resources.yml.tpl"
@@ -28,32 +29,19 @@ const (
 	PVCWaitIterationCount = 20
 	PVCDeletedStatus      = "Deleted"
 	nsCleanUpSeconds      = 30 * 60
-	retries               = 50
+	retries               = 100
 
 	UbuntuCloudImage     = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-
-	// VVV to remove VVV
-	ImageCloudUbuntu2204 = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
-	ImageCloudDebian11   = "https://cloud.debian.org/images/cloud/bullseye/latest/debian-11-genericcloud-amd64.raw"
-	//ImageCloudRedOS73 = "https://files.red-soft.ru/redos/7.3/x86_64/iso/redos-MUROM-7.3.4-20231220.0-Everything-x86_64-DVD1.iso"
-	ImageCloudRedOS73 = "https://static.storage-e2e.virtlab.flant.com/media/redos733.qcow2"
-
-	ImageYaCloudUbuntu2204 = "b1gbp6lurl0smp6ci3js" // folderID: b1g1oe1s72nr8b95qkgn
-	ImageYaCloudDebian11   = "fd81j47dsud5nvq3498i" // family_id: debian-11-oslogin
-	ImageYaCloudRedOS73    = "fd8s4p1p4od29db5u8mi" // family_id: redsoft-red-os-standart-server-7-3
 )
 
 var (
 	verboseFlag     = flag.Bool("verbose", false, "Output with Info messages")
 	debugFlag       = flag.Bool("debug", false, "Output with Debug messages")
-	//fakepubsubNodePort = flag.Int("fakepubsub-node-port", 30303, "The port to use for connecting sub tests with the fakepubsub service (for configuring PUBSUB_EMULATOR_HOST)")
 	clusterPathFlag = flag.String("kconfig", "", "The k8s config path for test")
 	clusterNameFlag = flag.String("kcluster", "", "The context of cluster to use for test")
 	standFlag       = flag.String("stand", "", "Test stand name")
 	nsFlag          = flag.String("namespace", "", "Test name space")
-	SkipFlag        = false // TODO not on Prod/Ci
 
-	//vmOS            = flag.String("virtos", "", "Deploy virtual machine with specified OS")
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
 			Name: Cond{NotContains: []string{"-master-"}},
@@ -85,19 +73,29 @@ var (
 		},
 	}
 
-	startTime  = time.Now()
-	TestNS     = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
-	licenseKey = os.Getenv("licensekey")
+	SkipOptional = true
+	startTime    = time.Now()
+	TestNS       = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
+	licenseKey   = os.Getenv("licensekey")
+	registryDockerCfg = "e30="
 )
 
 func envInit() {
 	if *nsFlag != "" {
 		TestNS = *nsFlag
 	}
+
+	if licenseKey != "" {
+		registryAuthToken := base64Encode("license-token:" + licenseKey)
+		registryDockerCfg = base64Encode(fmt.Sprintf("{\"auths\":{\"dev-registry.deckhouse.io\":{\"auth\":\"%s\"}}}", registryAuthToken))
+	}
+
+	if *standFlag == "stage" || *standFlag == "ci" || *standFlag == "metal" {
+		SkipOptional = false
+	}
 }
 
 func envClusterName(clusterName string) string {
-	//flag.Parse()
 	if clusterName == "default" {
 		return ""
 	}

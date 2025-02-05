@@ -85,6 +85,11 @@ apiVersion: deckhouse.io/v1alpha1
 kind: ModuleSource
 metadata:
   name: deckhouse
+  annotations:
+    meta.helm.sh/release-name: deckhouse
+    meta.helm.sh/release-namespace: d8-system
+  labels:
+    app.kubernetes.io/managed-by: Helm
 spec:
   registry:
     ca: ""
