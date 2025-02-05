@@ -11,24 +11,19 @@ import (
 func TestLVG(t *testing.T) {
 	clr := util.GetCluster("", "")
 
+	clr.RunOnEveryNode(func(nodeId int, nodeName, group string) {
+		maxBdCount := nodeId % 3
+		for bdCnt := 0; bdCnt < maxBdCount; bdCnt++ {
+			// create bd
+			testLVGCreate(t, nodeName, bdCnt)
+		}
+	})
+
 	// Prepare nodes. Create BDs
 	// for _, nodes := range clr.GetGroupNodes() {
 	// 	t.Run("prepare_"+group, func(t *testing.T) {
 
 	// Create all (split by group/node)
-	for group, nodes := range clr.GetGroupNodes() {
-		t.Run("create_"+group, func(t *testing.T) {
-			if len(nodes) == 0 {
-				t.Skip("no Nodes for case")
-			}
-			for i, nodeName := range nodes {
-				t.Run(nodeName, func(t *testing.T) {
-					t.Parallel()
-					testLVGCreate(t, nodeName, i+1)
-				})
-			}
-		})
-	}
 
 	/* [SAMPLE] Create all (split by node)
 	t.Run("create", func(t *testing.T) {

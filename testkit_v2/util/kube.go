@@ -201,6 +201,14 @@ func (clr *KCluster) initGroupNodes(filters map[string]NodeFilter) error {
 	return nil
 }
 
+func (clr *KCluster) RunOnEveryNode(f func(nodeId int, nodeName string, group string)) {
+	for group, nodes := range clr.GetGroupNodes() {
+		for i, nodeName := range nodes {
+			f(i, nodeName, group)
+		}
+	}
+}
+
 func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 	if len(clr.groupNodes) == 0 {
 		_ = clr.initGroupNodes(NodeRequired)
