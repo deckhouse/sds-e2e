@@ -1,34 +1,34 @@
 package integration
 
 import (
-	"os"
 	"context"
-	"fmt"
-	"time"
-	"strings"
 	"encoding/base64"
+	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	logr "github.com/go-logr/logr"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/dynamic"
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
-	logr "github.com/go-logr/logr"
 
+	appsapi "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
-	appsapi "k8s.io/api/apps/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apitypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	apirtschema "k8s.io/apimachinery/pkg/runtime/schema"
+	apitypes "k8s.io/apimachinery/pkg/types"
 
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
@@ -130,7 +130,6 @@ func NewKubeDyClient(configPath, clusterName string) (*dynamic.DynamicClient, er
 	return cl, nil
 }
 
-
 /*  Kuber Cluster object  */
 
 type KCluster struct {
@@ -223,6 +222,8 @@ func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 	return resp
 }
 
+// func (clr *KCluster)
+
 /*  Node Group  */
 
 var (
@@ -271,7 +272,7 @@ func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {
 func (clr *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
 	ngObj := map[string]interface{}{
 		"apiVersion": "deckhouse.io/v1",
-		"kind": "NodeGroup",
+		"kind":       "NodeGroup",
 		"metadata": map[string]interface{}{
 			"name": name,
 		},
@@ -320,7 +321,7 @@ func (clr *KCluster) GetNs(filters ...NsFilter) ([]coreapi.Namespace, error) {
 				continue
 			}
 
-			resp  = append(resp, ns)
+			resp = append(resp, ns)
 			break
 		}
 	}
@@ -605,7 +606,7 @@ func (clr *KCluster) CreateSSHCredentials(name, user, privSshKey string) error {
 			Name: name,
 		},
 		Spec: SSHCredentialsSpec{
-			User: user,
+			User:          user,
 			PrivateSSHKey: privSshKey,
 			//SSHPort: 22,
 		},
@@ -624,7 +625,7 @@ func (clr *KCluster) CreateOrUpdSSHCredentials(name, user, privSshKey string) er
 			Name: name,
 		},
 		Spec: SSHCredentialsSpec{
-			User: user,
+			User:          user,
 			PrivateSSHKey: privSshKey,
 			//SSHPort: 22,
 		},
@@ -677,11 +678,11 @@ func (clr *KCluster) GetStaticInstances() ([]StaticInstance, error) {
 func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) error {
 	si := &StaticInstance{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:   name,
 			Labels: map[string]string{"node-role": role},
 		},
 		Spec: StaticInstanceSpec{
-			Address: ip,
+			Address:        ip,
 			CredentialsRef: GetSSHCredentialsRef(credentials),
 		},
 	}
@@ -820,7 +821,6 @@ func (clr *KCluster) CreateVMIPClaim(nsName string, name string, ip string) (*vi
 
 	return vmClaim, nil
 }
-
 
 /* VMD */
 

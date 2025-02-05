@@ -11,16 +11,20 @@ import (
 func TestLVG(t *testing.T) {
 	clr := util.GetCluster("", "")
 
+	// Prepare nodes. Create BDs
+	// for _, nodes := range clr.GetGroupNodes() {
+	// 	t.Run("prepare_"+group, func(t *testing.T) {
+
 	// Create all (split by group/node)
 	for group, nodes := range clr.GetGroupNodes() {
 		t.Run("create_"+group, func(t *testing.T) {
 			if len(nodes) == 0 {
 				t.Skip("no Nodes for case")
 			}
-			for _, nodeName := range nodes {
+			for i, nodeName := range nodes {
 				t.Run(nodeName, func(t *testing.T) {
 					t.Parallel()
-					testLVGCreate(t, nodeName)
+					testLVGCreate(t, nodeName, i+1)
 				})
 			}
 		})
@@ -42,7 +46,7 @@ func TestLVG(t *testing.T) {
 		lvgs, _ := clr.GetLVGs()
 		lvgsUp := true
 		for _, lvg := range lvgs {
-			if lvg.Status.Phase != "Ready" {// len(lvg.Status.Conditions) == 0 || lvg.Status.Conditions[0].Status == "False" {
+			if lvg.Status.Phase != "Ready" { // len(lvg.Status.Conditions) == 0 || lvg.Status.Conditions[0].Status == "False" {
 				lvgsUp = false
 				break
 			}
@@ -76,7 +80,7 @@ func TestLVG(t *testing.T) {
 	t.Run("delete", testLVGDelete)
 }
 
-func testLVGCreate(t *testing.T, nodeName string) {
+func testLVGCreate(t *testing.T, nodeName string, bdCount int) {
 	clr := util.GetCluster("", "")
 	lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}, Node: util.Cond{In: []string{nodeName}}})
 	if len(lvgMap) > 0 {
@@ -86,7 +90,7 @@ func testLVGCreate(t *testing.T, nodeName string) {
 
 	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
 	// or check bd.Status.LVMVolumeGroupName for valid BDs
-	
+
 	if len(bds) == 0 {
 		if util.SkipOptional {
 			util.Warnf("skip create LVG test for %s", nodeName)
