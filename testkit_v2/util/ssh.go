@@ -116,10 +116,9 @@ func CheckAndGetSSHKeys(dir string, privateKeyName string, pubKeyName string) (s
 }
 
 func NewSSHClient(user string, addr string, port uint, key string) (client *goph.Client) {
-
 	auth, err := goph.Key(key, "")
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	//callback, err := goph.DefaultKnownHosts()
@@ -138,13 +137,15 @@ func NewSSHClient(user string, addr string, port uint, key string) (client *goph
 	}
 
 	for count := 0; ; count++ {
-		if client, err = goph.NewConn(&cfg); err == nil {
+		client, err = goph.NewConn(&cfg)
+		if err == nil {
 			break
 		}
 
 		if count >= retries {
-			log.Fatal("Timeout waiting for installer VM to be ready")
+			Fatalf("Timeout waiting for installer VM to be ready")
 		}
+		Debugf("SSH client err: %s", err.Error())
 
 		time.Sleep(10 * time.Second)
 	}

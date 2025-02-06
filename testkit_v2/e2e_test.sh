@@ -8,7 +8,7 @@ nc="\033[0m"
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 OPTIONS="hi:v"
-LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,run:,skip:,ns:,namespace:"
+LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,run:,skip:,ns:,namespace:,hypervisor-kconfig:"
 
 function usage() {
   >&2 cat <<EOF
@@ -55,6 +55,9 @@ function usage() {
     --kconfig '~/.kube/config':
         Customized path to kubernetes config file
 
+    --hypervisor-kconfig '~/.kube/config':
+        Customized path to kubernetes config file for virtual hypervisor
+
     --ns, --namespace 'te2est-1234':
         Set test name space
 
@@ -63,12 +66,11 @@ function usage() {
 
   ${bold}Env:${normal}
     export licensekey=s6Cr6T
-    export registryDockerCfg=Ba6S4e==
 
   ${bold}Examples:${normal}
     # Run all tests on default (Dev) stand
     $0
-    $0 -v --ssh-key ~/.ssh/id_rsa_cloud --ssh-host ubuntu@158.160.36.69
+    $0 -v --kconfig \$KUBECONFIG --ssh-key ~/.ssh/id_rsa_cloud --ssh-host ubuntu@158.160.36.69
 
     # Run specific tests files on local stand
     $0 Local -v tests/01_sds_nc_test.go tests/02_sds_lv_test.go
@@ -99,7 +101,7 @@ function ssh_fwd() {
   done
 
   shcmd="ssh ${ssh_flags[*]} ${ssh_host}"
-  if $verbose; then echo "RUN: ${shcmd}"; fi
+  if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
 }
 
@@ -114,7 +116,7 @@ function run_dev() {
 
   # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
-  if $verbose; then echo "RUN: ${shcmd}"; fi
+  if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
 }
 
@@ -135,7 +137,7 @@ function run_bare_metal() {
 
   # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
-  if $verbose; then echo "RUN: ${shcmd}"; fi
+  if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
 }
 
@@ -169,7 +171,8 @@ function main() {
       -d|--debug) debug=true; test_args+=(-debug); shift ;;
       -i|--ssh-key) ssh_key="$2"; shift 2 ;;
       --ssh-host) ssh_host="$2"; shift 2 ;;
-      --kconfig) echo >&2 "Not implemented"; shift 2 ;;
+      --kconfig) test_args+=(-kconfig "$2"); shift 2 ;;
+      --hypervisor-kconfig) test_args+=(-hypervisorkconfig "$2"); shift 2 ;;
       --run) test_flags+=(-run="$2"); shift 2 ;;
       --skip) test_flags+=(-skip="$2"); shift 2 ;;
       --ns|--namespace) test_args+=(-namespace "$2"); shift 2 ;;
@@ -202,7 +205,7 @@ function main() {
       #ssh_host="ubuntu@158.160.36.69"
       #ssh_key="~/.ssh/id_rsa_T14"
 
-      test_args+=(-kconfig "${DIR}/data/kube-dev.config")
+      #test_args+=(-kconfig "${DIR}/data/kube-dev.config")
       run_dev
       ;;
     stage)
@@ -217,7 +220,7 @@ function main() {
       #ssh_key="~/.ssh/id_rsa_T14"
 
       test_flags+=(-skip="TestFatal/ignore") # Fake example
-      test_args+=(-kconfig "${DIR}/data/kube-metal.config")
+      #test_args+=(-kconfig "${DIR}/data/kube-metal.config")
       test_flags+=(-timeout "30m")
       run_bare_metal
       ;;

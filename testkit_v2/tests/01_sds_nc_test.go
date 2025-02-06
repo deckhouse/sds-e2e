@@ -8,22 +8,21 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 )
 
-func TestLVG(t *testing.T) {
+func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
-
-	clr.RunOnEveryNode(func(nodeId int, nodeName, group string) {
-		maxBdCount := nodeId % 3
-		for bdCnt := 0; bdCnt < maxBdCount; bdCnt++ {
-			// create bd
-			testLVGCreate(t, nodeName, bdCnt)
-		}
-	})
 
 	// Prepare nodes. Create BDs
 	// for _, nodes := range clr.GetGroupNodes() {
 	// 	t.Run("prepare_"+group, func(t *testing.T) {
 
 	// Create all (split by group/node)
+	clr.Test(t).PerGroupNode(func(t *testing.T, node util.TestNode) {
+		maxBdCount := node.Id % 3
+		for bdCnt := 0; bdCnt < maxBdCount; bdCnt++ {
+			// create bd
+			testLVGCreate(t, node.Name, bdCnt)
+		}
+	})
 
 	/* [SAMPLE] Create all (split by node)
 	t.Run("create", func(t *testing.T) {
@@ -55,7 +54,10 @@ func TestLVG(t *testing.T) {
 		}
 		time.Sleep(5 * time.Second)
 	}
+}
 
+func TestLvgResize(t *testing.T) {
+	clr := util.GetCluster("", "")
 	// Resize (exclusion "Deb11" for example)
 	for group, nodes := range clr.GetGroupNodes(util.NodeFilter{NodeGroup: util.Cond{NotIn: []string{"Deb11"}}}) {
 		t.Run("resize_"+group, func(t *testing.T) {
@@ -70,7 +72,10 @@ func TestLVG(t *testing.T) {
 			}
 		})
 	}
+}
 
+func TestLvgDelete(t *testing.T) {
+	//clr := util.GetCluster("", "")
 	// Delete
 	t.Run("delete", testLVGDelete)
 }

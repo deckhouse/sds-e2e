@@ -67,7 +67,7 @@ var clrCache = map[string]*KCluster{}
 func GetCluster(configPath, clusterName string) *KCluster {
 	if len(clrCache) == 0 {
 		envInit()
-		if *standFlag == "metal" {
+		if HypervisorKubeConfig != "" {
 			ClusterCreate()
 		}
 	}

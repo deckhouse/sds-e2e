@@ -33,15 +33,15 @@ type vm struct {
 
 var (
 	vmCfgs = []vm{
-		{"vm1", "10.10.10.80", 4, "8Gi", "linstor-r1", UbuntuCloudImage, 2220, nil},
-		{"vm2", "10.10.10.81", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2221, nil},
-		{"vm3", "10.10.10.82", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2222, nil},
-		//		{"vm77", "", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2223, nil},
+		{"vm11", "10.10.10.80", 4, "8Gi", "linstor-r1", UbuntuCloudImage, 2220, nil},
+		{"vm12", "10.10.10.81", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2221, nil},
+		{"vm13", "10.10.10.82", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2222, nil},
+		//{"vm77", "", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2223, nil},
 	}
 )
 
 func vmCreate(clr *KCluster, vms []vm, nsName string) {
-	sshPubKeyString := CheckAndGetSSHKeys(DataPath, PrivKeyName, PubKeyName)
+	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
 		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, vmItem.scName, vmItem.imageName, sshPubKeyString, 20, 20)
@@ -128,8 +128,15 @@ func initVmDh(masterClient *goph.Client, client *goph.Client) {
 		mkConfig()
 		mkResources()
 
-		for _, f := range []string{ConfigName, PrivKeyName, ResourcesName} {
+		for _, f := range []string{ConfigName, ResourcesName} {
 			err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
+			if err != nil {
+				Fatalf(err.Error())
+			}
+		}
+
+		for _, f := range []string{PrivKeyName,} {
+			err := client.Upload(filepath.Join(KubePath, f), filepath.Join(RemoteAppPath, f))
 			if err != nil {
 				Fatalf(err.Error())
 			}
@@ -149,7 +156,7 @@ func initVmDh(masterClient *goph.Client, client *goph.Client) {
 	Infof("Get vm kube config")
 	out = ExecSshFatal(masterClient, "sudo cat /root/.kube/config")
 	out = strings.Replace(out, "127.0.0.1:6445", "127.0.0.1:6443", -1)
-	err := os.WriteFile(filepath.Join(KubePath, NestedClusterKubeConfigName), []byte(out), 0600)
+	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
 	if err != nil {
 		Fatalf(err.Error())
 	}
@@ -173,11 +180,10 @@ func cleanUpNs(clr *KCluster) {
 
 func ClusterCreate() {
 	nsName := TestNS
-	configPath := filepath.Join(KubePath, HypervisorKubeConfig)
 
-	clr, err := InitKCluster(configPath, "")
+	clr, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
-		Critf("Kubeclient '%s' problem", configPath)
+		Critf("Kubeclient '%s' problem", HypervisorKubeConfig)
 		Fatalf(err.Error())
 	}
 
@@ -185,8 +191,8 @@ func ClusterCreate() {
 	// cleanUpNs(clr)
 
 	Infof("Make RSA key")
-	vmKeyPath := filepath.Join(DataPath, PrivKeyName)
-	GenerateRSAKeys(vmKeyPath, filepath.Join(DataPath, PubKeyName))
+	vmKeyPath := filepath.Join(KubePath, PrivKeyName)
+	GenerateRSAKeys(vmKeyPath, filepath.Join(KubePath, PubKeyName))
 
 	Infof("Create NS '%s'", nsName)
 	if err := clr.CreateNs(nsName); err != nil {
@@ -211,7 +217,7 @@ func ClusterCreate() {
 
 	clr, err = InitKCluster("", "")
 	if err != nil {
-		Critf("Kubeclient '%s' problem", configPath)
+		Critf("Kubeclient '%s' problem", NestedClusterKubeConfig)
 		Fatalf(err.Error())
 	}
 	if err := clr.AddStaticNodes("ubuntu", "user", []string{vmCfgs[1].ip, vmCfgs[2].ip}); err != nil {

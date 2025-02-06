@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"testing"
 
 	logr "github.com/go-logr/logr"
 	"k8s.io/client-go/dynamic"
@@ -143,8 +144,12 @@ type KCluster struct {
 }
 
 func InitKCluster(configPath, clusterName string) (*KCluster, error) {
-	configPath = envConfigPath(configPath)
-	clusterName = envClusterName(clusterName)
+	if clusterName == "" {
+		clusterName = *clusterNameFlag
+	}
+	if configPath == "" {
+		configPath = NestedClusterKubeConfig
+	}
 
 	rcl, err := NewKubeRTClient(configPath, clusterName)
 	if err != nil {
@@ -201,14 +206,6 @@ func (clr *KCluster) initGroupNodes(filters map[string]NodeFilter) error {
 	return nil
 }
 
-func (clr *KCluster) RunOnEveryNode(f func(nodeId int, nodeName string, group string)) {
-	for group, nodes := range clr.GetGroupNodes() {
-		for i, nodeName := range nodes {
-			f(i, nodeName, group)
-		}
-	}
-}
-
 func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 	if len(clr.groupNodes) == 0 {
 		_ = clr.initGroupNodes(NodeRequired)
@@ -229,8 +226,6 @@ func (clr *KCluster) GetGroupNodes(filters ...NodeFilter) map[string][]string {
 
 	return resp
 }
-
-// func (clr *KCluster)
 
 /*  Node Group  */
 
@@ -723,7 +718,7 @@ func (clr *KCluster) DeleteStaticInstance(name string) error {
 /*  Static Node  */
 
 func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
-	privSshKey, err := os.ReadFile(filepath.Join(DataPath, PrivKeyName))
+	privSshKey, err := os.ReadFile(filepath.Join(KubePath, PrivKeyName))
 	if err != nil {
 		Errf("Read %s: %s", PrivKeyName, err.Error())
 		return err
@@ -1184,4 +1179,10 @@ func (clr *KCluster) GetTestVMD() ([]virt.VirtualDisk, error) {
 
 func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
 	return clr.rtClient.Update(clr.ctx, vmd)
+}
+
+/*  Test  */
+
+func (clr *KCluster) Test(t *testing.T) tRunner {
+	return tRunner{clr, t}
 }

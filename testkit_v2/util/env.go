@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"strings"
 )
 
 const (
@@ -16,8 +17,6 @@ const (
 
 	PrivKeyName                 = "id_rsa_test"
 	PubKeyName                  = "id_rsa_test.pub"
-	HypervisorKubeConfig        = "kube-hypervisor.config"
-	NestedClusterKubeConfigName = "kube-nested.config"
 	ConfigTplName               = "config.yml.tpl"
 	ConfigName                  = "config.yml"
 	ResourcesTplName            = "resources.yml.tpl"
@@ -36,12 +35,16 @@ const (
 )
 
 var (
-	verboseFlag     = flag.Bool("verbose", false, "Output with Info messages")
-	debugFlag       = flag.Bool("debug", false, "Output with Debug messages")
-	clusterPathFlag = flag.String("kconfig", "", "The k8s config path for test")
-	clusterNameFlag = flag.String("kcluster", "", "The context of cluster to use for test")
-	standFlag       = flag.String("stand", "", "Test stand name")
-	nsFlag          = flag.String("namespace", "", "Test name space")
+	HypervisorKubeConfig    = ""
+	NestedClusterKubeConfig = "kube-nested.config"
+
+	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
+	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
+	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
+	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
+	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
+	standFlag             = flag.String("stand", "", "Test stand name")
+	nsFlag                = flag.String("namespace", "", "Test name space")
 
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
@@ -94,30 +97,17 @@ func envInit() {
 	if *standFlag == "stage" || *standFlag == "ci" || *standFlag == "metal" {
 		SkipOptional = false
 	}
-}
 
-func envClusterName(clusterName string) string {
-	if clusterName == "default" {
-		return ""
-	}
-	if clusterName == "" {
-		clusterName = *clusterNameFlag
-	}
-	return clusterName
-}
-
-func envConfigPath(configPath string) string {
-	if configPath != "" {
-		if configPath[0] != '/' {
-			wd, _ := os.Getwd()
-			return filepath.Join(wd, configPath)
+	if *hypervisorkconfigFlag != "" {
+		if strings.HasPrefix(*hypervisorkconfigFlag, "/") {
+			HypervisorKubeConfig = *hypervisorkconfigFlag
+		} else {
+			HypervisorKubeConfig = filepath.Join(KubePath, *hypervisorkconfigFlag)
 		}
-		return configPath
 	}
-
-	if *clusterPathFlag != "" {
-		return *clusterPathFlag
+	if strings.HasPrefix(*kconfigFlag, "/") {
+		NestedClusterKubeConfig = *kconfigFlag
+	} else {
+		NestedClusterKubeConfig = filepath.Join(KubePath, *kconfigFlag)
 	}
-
-	return os.Getenv("KUBECONFIG")
 }
