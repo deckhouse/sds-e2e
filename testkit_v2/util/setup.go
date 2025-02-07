@@ -13,8 +13,11 @@ func getPrefix() string {
 
 func getDuration() string {
 	i := int(time.Since(startTime).Seconds())
+	if i >= 1000 {
+		i = i / 60
+		return string('🯰' + i%100 / 10) + string('🯰' + i%10) + "m"
+	}
 	return string('🯰' + i%1000 / 100) + string('🯰' + i%100 / 10) + string('🯰' + i%10)
-	return "[" + time.Since(startTime).Round(time.Second).String() + "]"
 }
 
 func Debugf(format string, v ...any) {

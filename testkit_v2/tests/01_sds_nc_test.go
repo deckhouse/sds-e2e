@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,17 +12,9 @@ import (
 func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	// Prepare nodes. Create BDs
-	// for _, nodes := range clr.GetGroupNodes() {
-	// 	t.Run("prepare_"+group, func(t *testing.T) {
-
 	// Create all (split by group/node)
 	clr.Test(t).PerGroupNode(func(t *testing.T, node util.TestNode) {
-		maxBdCount := node.Id % 3
-		for bdCnt := 0; bdCnt < maxBdCount; bdCnt++ {
-			// create bd
-			testLVGCreate(t, node.Name, bdCnt)
-		}
+		testLVGCreate(t, node.Name, (node.Id % 3) + 1)
 	})
 
 	/* [SAMPLE] Create all (split by node)
@@ -37,10 +30,11 @@ func TestLvgCreate(t *testing.T) {
 	})*/
 
 	for i := 0; ; i++ {
-		lvgs, _ := clr.GetLVGs()
+		lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}})
 		lvgsUp := true
-		for _, lvg := range lvgs {
-			if lvg.Status.Phase != "Ready" { // len(lvg.Status.Conditions) == 0 || lvg.Status.Conditions[0].Status == "False" {
+		for _, lvg := range lvgMap {
+			if lvg.Status.Phase != "Ready" {
+				util.Debugf("LVG %s '%s'", lvg.Name, lvg.Status.Phase)
 				lvgsUp = false
 				break
 			}
@@ -75,9 +69,10 @@ func TestLvgResize(t *testing.T) {
 }
 
 func TestLvgDelete(t *testing.T) {
-	//clr := util.GetCluster("", "")
-	// Delete
-	t.Run("delete", testLVGDelete)
+	clr := util.GetCluster("", "")
+	if err := clr.DeleteLVG(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}}); err != nil {
+		t.Error("LVG deleting:", err)
+	}
 }
 
 func testLVGCreate(t *testing.T, nodeName string, bdCount int) {
@@ -88,27 +83,44 @@ func testLVGCreate(t *testing.T, nodeName string, bdCount int) {
 		return
 	}
 
-	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
-	// or check bd.Status.LVMVolumeGroupName for valid BDs
+	if util.HypervisorKubeConfig != "" {
+		// create bd
+		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
+		for i := 1; i <= bdCount; i++ {
+			vmdName := fmt.Sprintf("%s-data-%d", nodeName, i)
+			util.Debugf("AttachVMBD %s", vmdName)
+			hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 10)
+		}
 
-	if len(bds) == 0 {
+		_ = hypervisorClr.CheckVMBDs(util.TestNS, nodeName, "")
+	}
+
+	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
+	if len(bds) < bdCount {
 		if util.SkipOptional {
 			util.Warnf("skip create LVG test for %s", nodeName)
 			t.Skip("no Device to create LVG")
 		}
-		t.Fatal("no Device to create LVG")
+		t.Fatalf("no Device to create LVG (%d < %d)", len(bds), bdCount)
 	}
+
 	for bdName, bd := range bds {
+		if bdCount <= 0 {
+			break
+		}
+
 		name := "e2e-lvg-" + nodeName[len(nodeName)-1:] + "-" + bdName[len(bdName)-3:]
 		if _, err := clr.CreateLVG(name, nodeName, bdName); err != nil {
-			t.Error("LVG creating:", err)
+			util.Errf("LVG creating:", err.Error())
 			continue
 		}
 		util.Infof("LVG %s created for BD %s", name, bd.Name)
-		return
+		bdCount--
 	}
 
-	t.Fatal("no LVG created")
+	if bdCount > 0 {
+		t.Errorf("Not all LVGs created")
+	}
 }
 
 func testLVGResize(t *testing.T, nodeName string) {
@@ -136,7 +148,7 @@ func testLVGResize(t *testing.T, nodeName string) {
 		bd, ok := bdMap[lvg.Status.Nodes[0].Name]
 		if !ok {
 			util.Debugf("Have no extra BlockDevice for Node %s", lvg.Status.Nodes[0].Name)
-			util.Debugf("%v", bdMap)
+			util.Debugf("%#v", bdMap)
 			continue
 		}
 		origSize := lvg.Status.VGSize
@@ -156,12 +168,5 @@ func testLVGResize(t *testing.T, nodeName string) {
 
 	if !lvgUpdated {
 		t.Fatalf("No resized LVG for Node %s", nodeName)
-	}
-}
-
-func testLVGDelete(t *testing.T) {
-	clr := util.GetCluster("", "")
-	if err := clr.DeleteLVG(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}}); err != nil {
-		t.Error("LVG deleting:", err)
 	}
 }

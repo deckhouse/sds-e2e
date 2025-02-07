@@ -25,18 +25,15 @@ type vm struct {
 	ip        string
 	cpu       int
 	memory    string
-	scName    string
 	imageName string
 	sshPort   uint
-	sshCl     *goph.Client
 }
 
 var (
 	vmCfgs = []vm{
-		{"vm11", "10.10.10.80", 4, "8Gi", "linstor-r1", UbuntuCloudImage, 2220, nil},
-		{"vm12", "10.10.10.81", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2221, nil},
-		{"vm13", "10.10.10.82", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2222, nil},
-		//{"vm77", "", 2, "4Gi", "linstor-r1", UbuntuCloudImage, 2223, nil},
+		{"vm11", "10.10.10.80", 4, "8Gi", UbuntuCloudImage, 2220},
+		{"vm12", "10.10.10.81", 2, "6Gi", UbuntuCloudImage, 2221},
+		{"vm13", "10.10.10.82", 2, "6Gi", UbuntuCloudImage, 2222},
 	}
 )
 
@@ -44,14 +41,19 @@ func vmCreate(clr *KCluster, vms []vm, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, vmItem.scName, vmItem.imageName, sshPubKeyString, 20, 20)
+		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, "linstor-r1", vmItem.imageName, sshPubKeyString, 20)
 		if err != nil {
+			Fatalf(err.Error())
+		}
+
+		vmdName := fmt.Sprintf("%s-data-1", vmItem.name)
+		if err = clr.AttachVMBD(vmItem.name, vmdName, "linstor-r1", 20); err != nil {
 			Fatalf(err.Error())
 		}
 	}
 
 	// Check all machines running
-	for count := 0; ; count++ {
+	for i := 0; ; i++ {
 		allVMUp := true
 		vmList, err := clr.GetVMs(nsName)
 		if err != nil {
@@ -69,7 +71,7 @@ func vmCreate(clr *KCluster, vms []vm, nsName string) {
 			break
 		}
 
-		if count >= retries {
+		if i >= retries {
 			Fatalf("Timeout waiting for all VMs to be ready")
 		}
 
@@ -122,11 +124,17 @@ func installVmDh(client *goph.Client, masterIp string) error {
 	return nil
 }
 
-func initVmDh(masterClient *goph.Client, client *goph.Client) {
+func initVmDh(masterVm, clientVm vm, vmKeyPath string) {
+	masterClient := NewSSHClient("user", "127.0.0.1", masterVm.sshPort, vmKeyPath)
+	defer masterClient.Close()
+
 	out := ExecSshFatal(masterClient, "ls -1 /opt/deckhouse | wc -l")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
 		mkConfig()
 		mkResources()
+
+		client := NewSSHClient("user", "127.0.0.1", clientVm.sshPort, vmKeyPath)
+		defer client.Close()
 
 		for _, f := range []string{ConfigName, ResourcesName} {
 			err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
@@ -202,18 +210,8 @@ func ClusterCreate() {
 	Infof("Create VM (2-3m)")
 	vmCreate(clr, vmCfgs, nsName)
 
-	for i, v := range vmCfgs {
-		Infof("Get SSH client '%s'", v.name)
-		if v.sshPort == 0 {
-			vmCfgs[i].sshCl = NewSSHClient("user", v.ip, 22, vmKeyPath)
-		} else {
-			vmCfgs[i].sshCl = NewSSHClient("user", "127.0.0.1", v.sshPort, vmKeyPath)
-		}
-		defer vmCfgs[i].sshCl.Close()
-	}
-
 	Infof("Install VM DeckHouse (7-8m)")
-	initVmDh(vmCfgs[0].sshCl, vmCfgs[1].sshCl)
+	initVmDh(vmCfgs[0], vmCfgs[1], vmKeyPath)
 
 	clr, err = InitKCluster("", "")
 	if err != nil {
@@ -226,21 +224,24 @@ func ClusterCreate() {
 
 	Infof("Check Cluster ready")
 	for i := 0; ; i++ {
+		waitTime := time.Second
 		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				Fatalf(err.Error())
 			}
+			waitTime = 30 * time.Second
 		} else if int(dsNodeConfigurator.Status.NumberReady) >= len(vmCfgs) {
 			break
 		} else {
 			Debugf("sds-node-configurator ready: %d", dsNodeConfigurator.Status.NumberReady)
+			waitTime = 10 * time.Second
 		}
 
 		if i >= retries {
 			Fatalf("Timeout waiting all DS sds-node-configurator ready")
 		}
 
-		time.Sleep(10 * time.Second)
+		time.Sleep(waitTime)
 	}
 }

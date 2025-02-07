@@ -423,7 +423,7 @@ func (clr *KCluster) GetBDs(filters ...BdFilter) (map[string]snc.BlockDevice, er
 	return resp, nil
 }
 
-/* Virtual Device */
+/* Virtual Machines */
 
 type VM struct {
 	Name   string
@@ -456,7 +456,6 @@ func (clr *KCluster) CreateVM(
 	imgUrl string,
 	sshPubKey string,
 	systemDriveSize int64,
-	dataDriveSize int64,
 ) error {
 	splittedUrl := strings.Split(imgUrl, "/")
 	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
@@ -501,18 +500,6 @@ func (clr *KCluster) CreateVM(
 	}
 	if len(vmdList) == 0 {
 		vmSystemDisk, err = clr.CreateVMDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
-		if err != nil {
-			return err
-		}
-	}
-
-	vmdName = fmt.Sprintf("%s-data", vmName)
-	vmdList, err = clr.GetVMDs(nsName, vmdName)
-	if err != nil {
-		return err
-	}
-	if len(vmdList) == 0 {
-		_, err := clr.CreateVMD(nsName, vmdName, storageClass, dataDriveSize)
 		if err != nil {
 			return err
 		}
@@ -567,10 +554,88 @@ ssh_authorized_keys:
 		},
 	}
 
+	err = clr.rtClient.Create(clr.ctx, vmObj)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) GetVMBDs(nsName, vmName, vmdName string) ([]virt.VirtualMachineBlockDeviceAttachment, error) {
+	vmbdas := virt.VirtualMachineBlockDeviceAttachmentList{}
+	optsList := ctrlrtclient.ListOptions{}
+	if nsName != "" {
+		optsList.Namespace = nsName
+	}
+	opts := ctrlrtclient.ListOption(&optsList)
+	if err := clr.rtClient.List(clr.ctx, &vmbdas, opts); err != nil {
+		return nil, err
+	}
+
+	if vmName == "" && vmdName == "" {
+		return vmbdas.Items, nil
+	}
+
+	resp := []virt.VirtualMachineBlockDeviceAttachment{}
+	for _, vmbd := range vmbdas.Items {
+		if vmName != "" && vmbd.Spec.VirtualMachineName != vmName {
+			continue
+		}
+		if vmdName != "" && vmbd.Name != vmdName {
+			continue
+		}
+		resp = append(resp, vmbd)
+	}
+
+	return resp, nil
+}
+
+func (clr *KCluster) CheckVMBDs(nsName, vmName, vmdName string) error {
+	for i := 0; ; i++ {
+		vmbds, err := clr.GetVMBDs(nsName, vmName, vmdName)
+		if err != nil {
+			return err
+		}
+
+		allOk := true
+		for _, vmbd := range vmbds {
+			if vmbd.Status.Phase != "Attached" {
+				allOk = false
+				break
+			}
+		}
+		if allOk {
+			break
+		}
+
+		if i >= retries {
+			Fatalf("Timeout waiting VMBD attached")
+		}
+
+		Debugf("VMBD %s not Attached", vmbds[0].Name)
+		//Debugf("VMBD %s: %#v", vmbd.Name, vmbd.Status)
+		time.Sleep(10 * time.Second)
+	}
+	return nil
+}
+
+func (clr *KCluster) AttachVMBD(vmName, vmdName, storageClass string, size int64) error {
+	vmdList, err := clr.GetVMDs(TestNS, vmdName)
+	if err != nil {
+		return err
+	}
+	if len(vmdList) == 0 {
+		_, err = clr.CreateVMD(TestNS, vmdName, storageClass, size)
+		if err != nil {
+			return err
+		}
+	}
+
 	err = clr.rtClient.Create(clr.ctx, &virt.VirtualMachineBlockDeviceAttachment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmdName,
-			Namespace: nsName,
+			Namespace: TestNS,
 		},
 		Spec: virt.VirtualMachineBlockDeviceAttachmentSpec{
 			VirtualMachineName: vmName,
@@ -584,10 +649,6 @@ ssh_authorized_keys:
 		return err
 	}
 
-	err = clr.rtClient.Create(clr.ctx, vmObj)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
-	}
 	return nil
 }
 
