@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 	"strings"
+	"time"
 )
 
 const (
@@ -15,13 +15,13 @@ const (
 	KubePath      = "../../../config"
 	RemoteAppPath = "/home/user"
 
-	PrivKeyName                 = "id_rsa_test"
-	PubKeyName                  = "id_rsa_test.pub"
-	ConfigTplName               = "config.yml.tpl"
-	ConfigName                  = "config.yml"
-	ResourcesTplName            = "resources.yml.tpl"
-	ResourcesName               = "resources.yml"
-	UserCreateScriptName        = "createuser.sh"
+	PrivKeyName          = "id_rsa_test"
+	PubKeyName           = "id_rsa_test.pub"
+	ConfigTplName        = "config.yml.tpl"
+	ConfigName           = "config.yml"
+	ResourcesTplName     = "resources.yml.tpl"
+	ResourcesName        = "resources.yml"
+	UserCreateScriptName = "createuser.sh"
 
 	PVCKind               = "PersistentVolumeClaim"
 	PVCAPIVersion         = "v1"

@@ -13,9 +13,7 @@ func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 
 	// Create all (split by group/node)
-	clr.Test(t).PerGroupNode(func(t *testing.T, node util.TestNode) {
-		testLVGCreate(t, node.Name, (node.Id % 3) + 1)
-	})
+	clr.Test(t).PerGroupNode(directLVGCreate)
 
 	/* [SAMPLE] Create all (split by node)
 	t.Run("create", func(t *testing.T) {
@@ -75,7 +73,8 @@ func TestLvgDelete(t *testing.T) {
 	}
 }
 
-func testLVGCreate(t *testing.T, nodeName string, bdCount int) {
+func directLVGCreate(t *testing.T, node util.TestNode) {
+	nodeName, bdCount := node.Name, (node.Id%3)+1
 	clr := util.GetCluster("", "")
 	lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}, Node: util.Cond{In: []string{nodeName}}})
 	if len(lvgMap) > 0 {
