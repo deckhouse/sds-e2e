@@ -3,7 +3,6 @@ package integration
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	util "github.com/deckhouse/sds-e2e/util"
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
@@ -12,8 +11,7 @@ import (
 func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	// Create all (split by group/node)
-	clr.Test(t).PerGroupNode(directLVGCreate)
+	clr.RunTestGroupNodes(t, directLVGCreate)
 
 	/* [SAMPLE] Create all (split by node)
 	t.Run("create", func(t *testing.T) {
@@ -27,24 +25,9 @@ func TestLvgCreate(t *testing.T) {
 		....
 	})*/
 
-	for i := 0; ; i++ {
-		lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}})
-		lvgsUp := true
-		for _, lvg := range lvgMap {
-			if lvg.Status.Phase != "Ready" {
-				util.Debugf("LVG %s '%s'", lvg.Name, lvg.Status.Phase)
-				lvgsUp = false
-				break
-			}
-		}
-		if lvgsUp {
-			break
-		}
-		if i > 20 {
-			t.Error("not all LVGs ready")
-			break
-		}
-		time.Sleep(5 * time.Second)
+	err := clr.CheckStatusLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}})
+	if err != nil {
+		t.Error(err.Error())
 	}
 }
 
@@ -73,9 +56,11 @@ func TestLvgDelete(t *testing.T) {
 	}
 }
 
-func directLVGCreate(t *testing.T, node util.TestNode) {
-	nodeName, bdCount := node.Name, (node.Id%3)+1
+func directLVGCreate(t *testing.T, tNode util.TestNode) {
+	util.Infof("Start LVG create for %s.%s", tNode.GroupName, tNode.Name)
+	nodeName, bdCount := tNode.Name, (tNode.Id%3)+1
 	clr := util.GetCluster("", "")
+
 	lvgMap, _ := clr.GetLVGs(util.LvgFilter{Name: util.Cond{Contains: []string{"e2e-lvg-"}}, Node: util.Cond{In: []string{nodeName}}})
 	if len(lvgMap) > 0 {
 		util.Infof("test LVG already exists")
@@ -91,16 +76,13 @@ func directLVGCreate(t *testing.T, node util.TestNode) {
 			hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 10)
 		}
 
-		_ = hypervisorClr.CheckVMBDs(util.TestNS, nodeName, "")
+		_ = hypervisorClr.WaitVMBDs(util.TestNS, nodeName, "")
 	}
 
 	bds, _ := clr.GetBDs(util.BdFilter{Node: util.Cond{In: []string{nodeName}}, Consumable: util.Cond{In: []string{"true"}}})
 	if len(bds) < bdCount {
-		if util.SkipOptional {
-			util.Warnf("skip create LVG test for %s", nodeName)
-			t.Skip("no Device to create LVG")
-		}
-		t.Fatalf("no Device to create LVG (%d < %d)", len(bds), bdCount)
+		t.Errorf("not enough Device to create LVG (%d < %d)", len(bds), bdCount)
+		return
 	}
 
 	for bdName, bd := range bds {
@@ -113,7 +95,7 @@ func directLVGCreate(t *testing.T, node util.TestNode) {
 			util.Errf("LVG creating:", err.Error())
 			continue
 		}
-		util.Infof("LVG %s created for BD %s", name, bd.Name)
+		util.Debugf("LVG %s created for BD %s", name, bd.Name)
 		bdCount--
 	}
 

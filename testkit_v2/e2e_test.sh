@@ -48,7 +48,7 @@ function usage() {
 
     --ssh-host 'user@1.2.3.4':
         Set server IP and User for ssh forwarding
-        
+
     --ssh-key '~/.ssh/id_rsa':
         Customized path to ssh key file
 
@@ -89,7 +89,6 @@ function ssh_fwd() {
 
   # kill old port forwarding
   for id in $(ps aux | grep "ssh -fN -x .*-L [^\s]*\s" | awk '{print $2}'); do kill -3 $id; done
-  #for id in $(ps aux | grep "ssh -fN -x .*-L [^\s]*\s${ssh_host}" | awk '{print $2}'); do kill -3 $id; done
 
   local ssh_flags=(-fN -x)
   if [[ -n "$ssh_key" ]]; then
@@ -111,10 +110,6 @@ function run_local() {
 }
 
 function run_dev() {
-  # kubernetes api forwarding
-  ssh_fwd 6445:127.0.0.1:6445
-
-  # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
   if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
@@ -131,11 +126,6 @@ function run_ci() {
 }
 
 function run_bare_metal() {
-  # kubernetes api forwarding (Bare Metal server, Master node) + VirtualMachines ssh forwarding
-  ssh_fwd 6445:127.0.0.1:6445 6443:10.10.10.80:6443 \
-          2220:10.10.10.80:22 2221:10.10.10.81:22 2222:10.10.10.82:22 2223:10.10.10.183:22 2224:10.10.10.184:22
-
-  # run tests
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
   if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
@@ -194,6 +184,8 @@ function main() {
     esac
   done
 
+  if [[ -z "$ssh_host" ]]; then echo -e "  ${red}No '--ssh-host' command line argument${nc}\n"; usage; exit 1; fi
+
   test_args+=(-stand "${run_stand}")
 
   case "${run_stand}" in
@@ -202,10 +194,9 @@ function main() {
       ;;
     dev)
       # Optionally some params can be hardcoded
-      #ssh_host="ubuntu@158.160.36.69"
-      #ssh_key="~/.ssh/id_rsa_T14"
+      #ssh_host="ubuntu@55.44.33.22"
+      #ssh_key="~/.ssh/id_rsa"
 
-      #test_args+=(-kconfig "${DIR}/data/kube-dev.config")
       run_dev
       ;;
     stage)
@@ -216,12 +207,13 @@ function main() {
       ;;
     metal)
       # Optionally some params can be hardcoded
-      #ssh_host="d.shipkov@94.26.231.181"
-      #ssh_key="~/.ssh/id_rsa_T14"
+      #ssh_host="user@99.88.77.66"
+      #ssh_key="~/.ssh/id_rsa"
 
       test_flags+=(-skip="TestFatal/ignore") # Fake example
-      #test_args+=(-kconfig "${DIR}/data/kube-metal.config")
       test_flags+=(-timeout "30m")
+      test_args+=(-sshhost "${ssh_host}")
+      test_args+=(-sshkey "${ssh_key}")
       run_bare_metal
       ;;
   esac

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
-	"github.com/melbahja/goph"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
@@ -26,14 +25,13 @@ type vm struct {
 	cpu       int
 	memory    string
 	imageName string
-	sshPort   uint
 }
 
 var (
 	vmCfgs = []vm{
-		{"vm11", "10.10.10.80", 4, "8Gi", UbuntuCloudImage, 2220},
-		{"vm12", "10.10.10.81", 2, "6Gi", UbuntuCloudImage, 2221},
-		{"vm13", "10.10.10.82", 2, "6Gi", UbuntuCloudImage, 2222},
+		{"vm11", "", 4, "8Gi", UbuntuCloudImage},
+		{"vm12", "", 2, "6Gi", UbuntuCloudImage},
+		{"vm13", "", 2, "6Gi", UbuntuCloudImage},
 	}
 )
 
@@ -51,17 +49,23 @@ func vmCreate(clr *KCluster, vms []vm, nsName string) {
 			Fatalf(err.Error())
 		}
 	}
+}
+
+func vmSync(clr *KCluster, vms []vm, nsName string) {
+	if vmList, err := clr.GetVMs(nsName); err != nil || len(vmList) < len(vms) {
+		vmCreate(clr, vms, nsName)
+	}
 
 	// Check all machines running
 	for i := 0; ; i++ {
 		allVMUp := true
 		vmList, err := clr.GetVMs(nsName)
 		if err != nil {
-			Fatalf(err.Error())
+			Fatalf("Get vm list error: %s", err.Error())
 		}
 		Debugf("%v", vmList)
-		for _, item := range vmList {
-			if item.Status != virt.MachineRunning {
+		for _, vm := range vmList {
+			if vm.Status != virt.MachineRunning {
 				allVMUp = false
 				break
 			}
@@ -76,6 +80,19 @@ func vmCreate(clr *KCluster, vms []vm, nsName string) {
 		}
 
 		time.Sleep(10 * time.Second)
+	}
+
+	vmList, err := clr.GetVMs(nsName)
+	if err != nil {
+		Fatalf(err.Error())
+	}
+	for _, vm := range vmList {
+		for i, cfg := range vms {
+			if vm.Name == cfg.name {
+				vms[i].ip = vm.Ip
+				break
+			}
+		}
 	}
 }
 
@@ -100,40 +117,40 @@ func mkResources() {
 	mkTemplateFile(filepath.Join(DataPath, ResourcesTplName), filepath.Join(DataPath, ResourcesName), registryDockerCfg)
 }
 
-func installVmDh(client *goph.Client, masterIp string) error {
+func installVmDh(client sshClient, masterIp string) error {
 	Infof("Apt update docker")
-	out := []byte("Unable to lock directory")
-	for strings.Contains(string(out), "Unable to lock directory") {
-		out, _ = client.Run("sudo apt update && sudo apt -y install docker.io")
+	out := "Unable to lock directory"
+	for strings.Contains(out, "Unable to lock directory") {
+		out, _ = client.Exec("sudo apt update && sudo apt -y install docker.io")
 	}
 
 	dhImg := DhCeImg
 	if licenseKey != "" {
-		_ = ExecSshFatal(client, fmt.Sprintf(RegistryLoginCmd, licenseKey))
+		_ = client.ExecFatal(fmt.Sprintf(RegistryLoginCmd, licenseKey))
 		dhImg = DhDevImg
 	}
 
 	Infof("Master dhctl bootstrap config (5-7m)")
 	Debugf(DhInstallCommand, dhImg, masterIp)
-	_ = ExecSshFatal(client, fmt.Sprintf(DhInstallCommand, dhImg, masterIp))
+	_ = client.ExecFatal(fmt.Sprintf(DhInstallCommand, dhImg, masterIp))
 
 	Infof("Master dhctl bootstrap resources")
 	Debugf(DhResourcesInstallCommand, dhImg, masterIp)
-	_ = ExecSshFatal(client, fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp))
+	_ = client.ExecFatal(fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp))
 
 	return nil
 }
 
-func initVmDh(masterVm, clientVm vm, vmKeyPath string) {
-	masterClient := NewSSHClient("user", "127.0.0.1", masterVm.sshPort, vmKeyPath)
+func initVmDh(hvClient sshClient, masterVm, workerVm vm, vmKeyPath string) {
+	masterClient := hvClient.GetFwdClient("user", masterVm.ip+":22", vmKeyPath)
 	defer masterClient.Close()
 
-	out := ExecSshFatal(masterClient, "ls -1 /opt/deckhouse | wc -l")
+	out := masterClient.ExecFatal("ls -1 /opt/deckhouse | wc -l")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
 		mkConfig()
 		mkResources()
 
-		client := NewSSHClient("user", "127.0.0.1", clientVm.sshPort, vmKeyPath)
+		client := hvClient.GetFwdClient("user", workerVm.ip+":22", vmKeyPath)
 		defer client.Close()
 
 		for _, f := range []string{ConfigName, ResourcesName} {
@@ -143,51 +160,30 @@ func initVmDh(masterVm, clientVm vm, vmKeyPath string) {
 			}
 		}
 
-		for _, f := range []string{PrivKeyName,} {
+		for _, f := range []string{PrivKeyName} {
 			err := client.Upload(filepath.Join(KubePath, f), filepath.Join(RemoteAppPath, f))
 			if err != nil {
 				Fatalf(err.Error())
 			}
 		}
 
-		// TODO deprecated
-		for _, f := range []string{UserCreateScriptName} {
-			err := masterClient.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
-			if err != nil {
-				Fatalf(err.Error())
-			}
-		}
-
-		_ = installVmDh(client, vmCfgs[0].ip)
+		_ = installVmDh(client, masterVm.ip)
 	}
 
 	Infof("Get vm kube config")
-	out = ExecSshFatal(masterClient, "sudo cat /root/.kube/config")
-	out = strings.Replace(out, "127.0.0.1:6445", "127.0.0.1:6443", -1)
+	out = masterClient.ExecFatal("sudo cat /root/.kube/config")
+	out = strings.Replace(out, "127.0.0.1:6445", "127.0.0.1:"+NestedDhPort, -1)
 	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
 	if err != nil {
 		Fatalf(err.Error())
 	}
 }
 
-func cleanUpNs(clr *KCluster) {
-	unixNow := time.Now().Unix()
-	nsExists, _ := clr.GetNs(NsFilter{Name: Cond{Contains: []string{"te2est-"}}})
-	for _, ns := range nsExists {
-		if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "te2est-") {
-			continue
-		}
-		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
-			Debugf("Dedeting NS %s", ns.Name)
-			if err := clr.DeleteNs(ns.Name); err != nil {
-				Errf("Can't delete NS %s", ns.Name)
-			}
-		}
-	}
-}
-
 func ClusterCreate() {
 	nsName := TestNS
+
+	hvClient := GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
+	go hvClient.NewTunnel("127.0.0.1:"+HvDhPort, "127.0.0.1:"+HvDhPort)
 
 	clr, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
@@ -208,10 +204,11 @@ func ClusterCreate() {
 	}
 
 	Infof("Create VM (2-3m)")
-	vmCreate(clr, vmCfgs, nsName)
+	vmSync(clr, vmCfgs, nsName)
 
 	Infof("Install VM DeckHouse (7-8m)")
-	initVmDh(vmCfgs[0], vmCfgs[1], vmKeyPath)
+	initVmDh(hvClient, vmCfgs[0], vmCfgs[1], vmKeyPath)
+	go hvClient.NewTunnel("127.0.0.1:"+NestedDhPort, vmCfgs[0].ip+":"+NestedDhPort)
 
 	clr, err = InitKCluster("", "")
 	if err != nil {

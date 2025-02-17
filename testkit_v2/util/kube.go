@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 	"testing"
+	"time"
 
 	logr "github.com/go-logr/logr"
 	"k8s.io/client-go/dynamic"
@@ -428,6 +428,7 @@ func (clr *KCluster) GetBDs(filters ...BdFilter) (map[string]snc.BlockDevice, er
 type VM struct {
 	Name   string
 	Status virt.MachinePhase
+	Ip     string
 }
 
 func (clr *KCluster) GetVMs(nsName string) ([]VM, error) {
@@ -440,7 +441,7 @@ func (clr *KCluster) GetVMs(nsName string) ([]VM, error) {
 
 	vmList := []VM{}
 	for _, item := range objs.Items {
-		vmList = append(vmList, VM{Name: item.Name, Status: item.Status.Phase})
+		vmList = append(vmList, VM{Name: item.Name, Status: item.Status.Phase, Ip: item.Status.IPAddress})
 	}
 
 	return vmList, nil
@@ -591,7 +592,7 @@ func (clr *KCluster) GetVMBDs(nsName, vmName, vmdName string) ([]virt.VirtualMac
 	return resp, nil
 }
 
-func (clr *KCluster) CheckVMBDs(nsName, vmName, vmdName string) error {
+func (clr *KCluster) WaitVMBDs(nsName, vmName, vmdName string) error {
 	for i := 0; ; i++ {
 		vmbds, err := clr.GetVMBDs(nsName, vmName, vmdName)
 		if err != nil {
@@ -988,6 +989,29 @@ func (clr *KCluster) GetLVGs(filters ...LvgFilter) (map[string]snc.LVMVolumeGrou
 	return resp, nil
 }
 
+func (clr *KCluster) CheckStatusLVGs(filters ...LvgFilter) error {
+	for i := 0; ; i++ {
+		allLvgsUp := true
+		lvgMap, _ := clr.GetLVGs(filters...)
+		for _, lvg := range lvgMap {
+			if lvg.Status.Phase != "Ready" {
+				Debugf("LVG %s '%s'", lvg.Name, lvg.Status.Phase)
+				allLvgsUp = false
+				break
+			}
+		}
+		if allLvgsUp {
+			break
+		}
+		if i > 20 {
+			return fmt.Errorf("not all LVGs ready")
+		}
+		time.Sleep(5 * time.Second)
+	}
+
+	return nil
+}
+
 func (clr *KCluster) CreateLVG(name, nodeName, bdName string) (*snc.LVMVolumeGroup, error) {
 	lvmVolumeGroup := &snc.LVMVolumeGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1125,8 +1149,8 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       PVCKind,
-			APIVersion: PVCAPIVersion,
+			Kind:       "PersistentVolumeClaim",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1178,8 +1202,8 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 func (clr *KCluster) DeletePVC(name string) error {
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       PVCKind,
-			APIVersion: PVCAPIVersion,
+			Kind:       "PersistentVolumeClaim",
+			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -1242,8 +1266,179 @@ func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
 	return clr.rtClient.Update(clr.ctx, vmd)
 }
 
+/*  Pod  */
+
+func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
+	pod, err := clr.goClient.CoreV1().Pods(nsName).Get(clr.ctx, pName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return pod, nil
+	}
+	return pod, err
+}
+
+func (clr *KCluster) GetPods(nsName string) ([]coreapi.Pod, error) {
+	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return pods.Items, nil
+}
+
+func (clr *KCluster) GetPodRt(nsName, pName string) (coreapi.Pod, error) {
+	if nsName == "" {
+		nsName = TestNS
+	}
+
+	pod := coreapi.Pod{}
+	err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+		Name:      pName,
+		Namespace: nsName,
+	}, &pod)
+	if err != nil {
+		return pod, err
+	}
+
+	return pod, nil
+}
+
+func (clr *KCluster) GetPodsRt(nsName string) ([]coreapi.Pod, error) {
+	podList := coreapi.PodList{}
+	optsList := ctrlrtclient.ListOptions{}
+	if nsName != "" {
+		optsList.Namespace = nsName
+	}
+	opts := ctrlrtclient.ListOption(&optsList)
+	if err := clr.rtClient.List(clr.ctx, &podList, opts); err != nil {
+		return nil, err
+	}
+
+	return podList.Items, nil
+}
+
+func (clr *KCluster) CreatePod(nsName, pName string) error {
+	if nsName == "" {
+		nsName = TestNS
+	}
+
+	pod := coreapi.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pName,
+			Namespace: nsName,
+		},
+		Spec: coreapi.PodSpec{},
+	}
+	if err := clr.rtClient.Create(clr.ctx, &pod); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) DeletePod(nsName, pName string) error {
+	if nsName == "" {
+		nsName = TestNS
+	}
+
+	pod := coreapi.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pName,
+			Namespace: nsName,
+		},
+	}
+	if err := clr.rtClient.Delete(clr.ctx, &pod); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) WaitPods(nsName string) error {
+	//pods := clr.GetPods(nsName)
+	//if pod.Status.Phase != corev1.PodRunning {
+	//	allPodsReady = false
+	//}
+
+	Errf("Not implemented function")
+	return fmt.Errorf("Not implemented")
+}
+
+/*  Service  */
+
+func (clr *KCluster) GetSvcs(nsName string) ([]coreapi.Service, error) {
+	svcList := coreapi.ServiceList{}
+	optsList := ctrlrtclient.ListOptions{}
+	if nsName != "" {
+		fmt.Println("NS: ", nsName)
+		optsList.Namespace = nsName
+	}
+
+	opts := ctrlrtclient.ListOption(&optsList)
+	if err := clr.rtClient.List(clr.ctx, &svcList, opts); err != nil {
+		return nil, err
+	}
+
+	return svcList.Items, nil
+}
+
+func (clr *KCluster) CreateSvcNodePort(nsName, sName string, selector map[string]string, port, nodePort int) error {
+	svc := coreapi.Service{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Service",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sName,
+			Namespace: nsName,
+		},
+		Spec: coreapi.ServiceSpec{
+			Type:     coreapi.ServiceTypeNodePort,
+			Selector: selector,
+			Ports: []coreapi.ServicePort{{
+				Port:     int32(port),
+				NodePort: int32(nodePort),
+			}},
+		},
+	}
+
+	err := clr.rtClient.Create(clr.ctx, &svc)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
 /*  Test  */
 
-func (clr *KCluster) Test(t *testing.T) tRunner {
-	return tRunner{clr, t}
+type TestNode struct {
+	Id        int
+	GroupName string
+	Name      string
+}
+
+func (clr *KCluster) RunTestGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
+	for gName, nodes := range clr.GetGroupNodes() {
+		if len(nodes) == 0 && !SkipOptional {
+			t.Errorf("no Nodes for group '%s'", gName)
+			continue
+		}
+
+		for i, nName := range nodes {
+			tn := TestNode{Id: i, GroupName: gName, Name: nName}
+			f(t, tn)
+		}
+		t.Logf("'%s' tests count: %d", gName, len(nodes))
+	}
 }

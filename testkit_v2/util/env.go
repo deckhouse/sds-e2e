@@ -15,16 +15,13 @@ const (
 	KubePath      = "../../../config"
 	RemoteAppPath = "/home/user"
 
-	PrivKeyName          = "id_rsa_test"
-	PubKeyName           = "id_rsa_test.pub"
-	ConfigTplName        = "config.yml.tpl"
-	ConfigName           = "config.yml"
-	ResourcesTplName     = "resources.yml.tpl"
-	ResourcesName        = "resources.yml"
-	UserCreateScriptName = "createuser.sh"
+	PrivKeyName      = "id_rsa_test"
+	PubKeyName       = "id_rsa_test.pub"
+	ConfigTplName    = "config.yml.tpl"
+	ConfigName       = "config.yml"
+	ResourcesTplName = "resources.yml.tpl"
+	ResourcesName    = "resources.yml"
 
-	PVCKind               = "PersistentVolumeClaim"
-	PVCAPIVersion         = "v1"
 	PVCWaitInterval       = 1
 	PVCWaitIterationCount = 20
 	PVCDeletedStatus      = "Deleted"
@@ -35,8 +32,19 @@ const (
 )
 
 var (
-	HypervisorKubeConfig    = ""
+	HvHost               = ""
+	HvSshUser            = ""
+	HvSshKey             = ""
+	HvDhPort             = "6445"
+	HypervisorKubeConfig = ""
+
+	NestedHost              = "127.0.0.1"
+	NestedSshUser           = "user"
+	NestedSshKey            = ""
+	NestedDhPort            = "6445"
 	NestedClusterKubeConfig = "kube-nested.config"
+
+	VerboseOut = false
 
 	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
 	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
@@ -45,6 +53,8 @@ var (
 	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
 	standFlag             = flag.String("stand", "", "Test stand name")
 	nsFlag                = flag.String("namespace", "", "Test name space")
+	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
+	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
 
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
@@ -85,6 +95,8 @@ var (
 )
 
 func envInit() {
+	VerboseOut = *verboseFlag
+
 	if *nsFlag != "" {
 		TestNS = *nsFlag
 	}
@@ -98,12 +110,30 @@ func envInit() {
 		SkipOptional = false
 	}
 
+	sshList := strings.Split(*sshhostFlag, "@")
 	if *hypervisorkconfigFlag != "" {
 		if strings.HasPrefix(*hypervisorkconfigFlag, "/") {
 			HypervisorKubeConfig = *hypervisorkconfigFlag
 		} else {
 			HypervisorKubeConfig = filepath.Join(KubePath, *hypervisorkconfigFlag)
 		}
+
+		if len(sshList) >= 2 {
+			HvHost = sshList[1]
+			HvSshUser = sshList[0]
+		} else {
+			HvHost = sshList[0]
+		}
+		HvSshKey = *sshkeyFlag
+		NestedDhPort = "6443"
+	} else {
+		if len(sshList) >= 2 {
+			NestedHost = sshList[1]
+			NestedSshUser = sshList[0]
+		} else {
+			NestedHost = sshList[0]
+		}
+		NestedSshKey = *sshkeyFlag
 	}
 	if strings.HasPrefix(*kconfigFlag, "/") {
 		NestedClusterKubeConfig = *kconfigFlag

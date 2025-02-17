@@ -5,19 +5,19 @@ import (
 	"time"
 )
 
-/*  Logs  */
-
 func getPrefix() string {
 	return "    "
 }
 
 func getDuration() string {
 	i := int(time.Since(startTime).Seconds())
+	char := int('🯰')
+
 	if i >= 1000 {
 		i = i / 60
-		return string('🯰' + i%100 / 10) + string('🯰' + i%10) + "m"
+		return string(char+i%100/10) + string(char+i%10) + "m"
 	}
-	return string('🯰' + i%1000 / 100) + string('🯰' + i%100 / 10) + string('🯰' + i%10)
+	return string(char+i%1000/100) + string(char+i%100/10) + string(char+i%10)
 }
 
 func Debugf(format string, v ...any) {
@@ -45,45 +45,24 @@ func Warnf(format string, v ...any) {
 	log.Printf("\033[93m🗈 \033[2m"+getDuration()+" \033[0;2m"+format+"\033[0m", v...)
 }
 
-func Errf(format string, v ...any) {
+func Errorf(format string, v ...any) {
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
 	log.Printf("\033[91m❕\033[2m"+getDuration()+" \033[0m"+format+"\033[0m", v...)
 }
 
+func Errf(format string, v ...any) {
+	Errorf(format, v...)
+}
+
 func Critf(format string, v ...any) {
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
-	log.Printf("\033[91;5m🔥\033[2m"+getDuration()+" \033[0;91m"+format+"\033[0m", v...)
+	log.Printf("\033[91;5m⚠️ \033[2m"+getDuration()+" \033[0;91m"+format+"\033[0m", v...)
 }
 
 func Fatalf(format string, v ...any) {
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
-	log.Fatalf("\033[31m"+getDuration()+" \033[0m"+format, v...)
-}
-
-/*  Kuber Client  */
-
-var clrCache = map[string]*KCluster{}
-
-func GetCluster(configPath, clusterName string) *KCluster {
-	if len(clrCache) == 0 {
-		envInit()
-		if HypervisorKubeConfig != "" {
-			ClusterCreate()
-		}
-	}
-
-	k := configPath + ":" + clusterName
-	if _, ok := clrCache[k]; !ok {
-		clr, err := InitKCluster(configPath, clusterName)
-		if err != nil {
-			Critf("Kubeclient '%s' problem", k)
-			panic(err)
-		}
-		clrCache[k] = clr
-	}
-
-	return clrCache[k]
+	log.Fatalf("\033[31m🯀 "+getDuration()+" \033[0m"+format, v...)
 }
