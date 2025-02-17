@@ -12,7 +12,7 @@ import (
 const (
 	AppTmpPath    = "/app/tmp"
 	DataPath      = "../data"
-	KubePath      = "../../../config"
+	KubePath      = "../../../sds-e2e-cfg"
 	RemoteAppPath = "/home/user"
 
 	PrivKeyName      = "id_rsa_test"
