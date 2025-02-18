@@ -29,9 +29,9 @@ type vm struct {
 
 var (
 	vmCfgs = []vm{
-		{"vm11", "", 4, "8Gi", UbuntuCloudImage},
-		{"vm12", "", 2, "6Gi", UbuntuCloudImage},
-		{"vm13", "", 2, "6Gi", UbuntuCloudImage},
+		{"vm11", "", 4, "8Gi", ImageUbuntu_22},
+		{"vm12", "", 2, "6Gi", ImageUbuntu_22},
+		{"vm13", "", 2, "6Gi", ImageUbuntu_22},
 	}
 )
 

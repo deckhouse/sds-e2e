@@ -28,7 +28,43 @@ const (
 	nsCleanUpSeconds      = 30 * 60
 	retries               = 100
 
-	UbuntuCloudImage = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+	//https://cloud-images.ubuntu.com/
+	ImageUbuntu_22      = "https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img"
+	ImageUbuntu_24      = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img"
+	ImageUbuntu_24_vmdk = "https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.vmdk"
+	//https://cloud.debian.org/images/cloud/
+	ImageDebian_11 = "https://cloud.debian.org/images/cloud/bullseye/latest/debian-11-genericcloud-amd64.qcow2"
+	//RedOs
+	ImageRedOS_7_3       = "https://files.red-soft.ru/redos/7.3/x86_64/iso/redos-MUROM-7.3.4-20231220.0-Everything-x86_64-DVD1.iso"
+	ImageRedOS_7_3_qcow2 = "https://static.storage-e2e.virtlab.flant.com/media/redos733.qcow2"
+	//https://ftp.altlinux.ru/pub/distributions/ALTLinux/
+	ImageAlt_10        = "https://ftp.altlinux.ru/pub/distributions/ALTLinux/platform/images/cloud/x86_64/alt-p10-cloud-x86_64.qcow2"
+	ImageAlt_10_Server = "https://ftp.altlinux.ru/pub/distributions/ALTLinux/platform/images/cloud/x86_64/alt-server-p10-cloud-x86_64.qcow2"
+	ImageAlt_11        = "https://ftp.altlinux.ru/pub/distributions/ALTLinux/images/p11/cloud/x86_64/alt-p11-cloud-x86_64.qcow2"
+	//https://download.astralinux.ru/ui/native/mg-generic/
+	ImageAstra_1_7_Max  = "https://download.astralinux.ru/artifactory/mg-generic/alse/cloudinit/alse-1.7-max-cloudinit-latest-amd64.qcow2"
+	ImageAstra_1_8_Base = "https://download.astralinux.ru/artifactory/mg-generic/alse/cloud/alse-1.8.1-base-cloud-mg13.3.0-amd64.qcow2"
+	//https://cloud.centos.org/centos/
+	ImageCentOS_9  = "https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-x86_64-9-latest.x86_64.qcow2"
+	ImageCentOS_10 = "https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-x86_64-10-latest.x86_64.qcow2"
+	//https://almalinux.org/get-almalinux/#Cloud_Images
+	ImageAlma_9_5 = "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-9.5-20241120.x86_64.qcow2"
+	//https://alpinelinux.org/cloud/
+	ImageAlpine_3_21 = "https://dl-cdn.alpinelinux.org/alpine/v3.21/releases/cloud/generic_alpine-3.21.2-x86_64-bios-cloudinit-r0.qcow2"
+	//https://gitlab.archlinux.org/archlinux/arch-boxes/
+	ImageArch = "https://geo.mirror.pkgbuild.com/images/latest/Arch-Linux-x86_64-cloudimg.qcow2"
+	//https://fedoraproject.org/cloud/download
+	ImageFedora_41 = "https://download.fedoraproject.org/pub/fedora/linux/releases/41/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2"
+	//https://bsd-cloud-image.org/
+	ImagrFreeBsd_14_2     = "https://object-storage.public.mtl1.vexxhost.net/swift/v1/1dbafeefbd4f4c80864414a441e72dd2/bsd-cloud-image.org/images/freebsd/14.2/2024-12-08/ufs/freebsd-14.2-ufs-2024-12-08.qcow2"
+	ImageNetBsd_10_1      = "https://object-storage.public.mtl1.vexxhost.net/swift/v1/1dbafeefbd4f4c80864414a441e72dd2/bsd-cloud-image.org/images/netbsd/10.1/2025-02-15/ufs/netbsd-10.1-2025-02-15.qcow2"
+	ImageOpenBsd_7_6      = "https://github.com/hcartiaux/openbsd-cloud-image/releases/download/v7.6_2024-10-08-22-40/openbsd-min.qcow2"
+	ImageDragonFlyBsd_6_4 = "https://object-storage.public.mtl1.vexxhost.net/swift/v1/1dbafeefbd4f4c80864414a441e72dd2/bsd-cloud-image.org/images/dragonflybsd/6.4.0/2023-04-23/ufs/dragonflybsd-6.4.0-ufs-2023-04-23.qcow2"
+	//https://download.freebsd.org/ftp/snapshots/
+	ImagrFreeBsd_15 = "https://download.freebsd.org/ftp/snapshots/ISO-IMAGES/15.0/FreeBSD-15.0-CURRENT-amd64-20250213-6156da866e7d-275409-disc1.iso"
+	//https://mirrors.slackware.com/slackware/
+	ImageSlackware_15 = "https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/slackware64-15.0-install-dvd.iso"
+	//TODO RedHat
 )
 
 var (
