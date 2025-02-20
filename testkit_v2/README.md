@@ -12,6 +12,4 @@
     - `export licensekey="<deckhouse license key>"`
     - `export hv_ssh_dst="<user>@<host>"`
     - `export hv_ssh_key=<key path>`
-    - `./e2e_test.sh Metal --ssh-host $hv_ssh_dst --ssh-key $hv_ssh_key \`
-      `--hypervisor-kconfig kube-hypervisor.config \`
-      `-v -d --ns te2est-2025 tests/01_sds_nc_test.go`
+    - `./e2e_test.sh Metal --ssh-host $hv_ssh_dst --ssh-key $hv_ssh_key --hypervisor-kconfig kube-hypervisor.config -v -d --ns te2est-2025 tests/01_sds_nc_test.go`

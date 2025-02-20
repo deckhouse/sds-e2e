@@ -57,7 +57,6 @@ func TestLvgDelete(t *testing.T) {
 }
 
 func directLVGCreate(t *testing.T, tNode util.TestNode) {
-	util.Infof("Start LVG create for %s.%s", tNode.GroupName, tNode.Name)
 	nodeName, bdCount := tNode.Name, (tNode.Id%3)+1
 	clr := util.GetCluster("", "")
 

@@ -19,27 +19,20 @@ const (
 	RegistryLoginCmd          = "sudo docker login -u license-token -p %s dev-registry.deckhouse.io"
 )
 
-type vm struct {
+type VmConfig struct {
 	name      string
 	ip        string
 	cpu       int
 	memory    string
 	imageName string
+	diskSize  int
 }
 
-var (
-	vmCfgs = []vm{
-		{"vm11", "", 4, "8Gi", ImageUbuntu_22},
-		{"vm12", "", 2, "6Gi", ImageUbuntu_22},
-		{"vm13", "", 2, "6Gi", ImageUbuntu_22},
-	}
-)
-
-func vmCreate(clr *KCluster, vms []vm, nsName string) {
+func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, "linstor-r1", vmItem.imageName, sshPubKeyString, 20)
+		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, "linstor-r1", vmItem.imageName, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
 			Fatalf(err.Error())
 		}
@@ -51,15 +44,16 @@ func vmCreate(clr *KCluster, vms []vm, nsName string) {
 	}
 }
 
-func vmSync(clr *KCluster, vms []vm, nsName string) {
-	if vmList, err := clr.GetVMs(nsName); err != nil || len(vmList) < len(vms) {
+func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
+	vmList, err := clr.GetVMs(nsName)
+	if err != nil || len(vmList) < len(vms) {
 		vmCreate(clr, vms, nsName)
 	}
 
 	// Check all machines running
 	for i := 0; ; i++ {
 		allVMUp := true
-		vmList, err := clr.GetVMs(nsName)
+		vmList, err = clr.GetVMs(nsName)
 		if err != nil {
 			Fatalf("Get vm list error: %s", err.Error())
 		}
@@ -82,10 +76,6 @@ func vmSync(clr *KCluster, vms []vm, nsName string) {
 		time.Sleep(10 * time.Second)
 	}
 
-	vmList, err := clr.GetVMs(nsName)
-	if err != nil {
-		Fatalf(err.Error())
-	}
 	for _, vm := range vmList {
 		for i, cfg := range vms {
 			if vm.Name == cfg.name {
@@ -141,7 +131,7 @@ func installVmDh(client sshClient, masterIp string) error {
 	return nil
 }
 
-func initVmDh(hvClient sshClient, masterVm, workerVm vm, vmKeyPath string) {
+func initVmDh(hvClient sshClient, masterVm, workerVm VmConfig, vmKeyPath string) {
 	masterClient := hvClient.GetFwdClient("user", masterVm.ip+":22", vmKeyPath)
 	defer masterClient.Close()
 
@@ -204,18 +194,23 @@ func ClusterCreate() {
 	}
 
 	Infof("Create VM (2-3m)")
-	vmSync(clr, vmCfgs, nsName)
+	vmSync(clr, VmCluster, nsName)
 
-	Infof("Install VM DeckHouse (7-8m)")
-	initVmDh(hvClient, vmCfgs[0], vmCfgs[1], vmKeyPath)
-	go hvClient.NewTunnel("127.0.0.1:"+NestedDhPort, vmCfgs[0].ip+":"+NestedDhPort)
+	Infof("Install VM DeckHouse (7-10m)")
+	initVmDh(hvClient, VmCluster[0], VmCluster[1], vmKeyPath)
+	go hvClient.NewTunnel("127.0.0.1:"+NestedDhPort, VmCluster[0].ip+":"+NestedDhPort)
 
 	clr, err = InitKCluster("", "")
 	if err != nil {
 		Critf("Kubeclient '%s' problem", NestedClusterKubeConfig)
 		Fatalf(err.Error())
 	}
-	if err := clr.AddStaticNodes("ubuntu", "user", []string{vmCfgs[1].ip, vmCfgs[2].ip}); err != nil {
+
+	nodeIps := make([]string, len(VmCluster)-1)
+	for i, vm := range VmCluster[1:] {
+		nodeIps[i] = vm.ip
+	}
+	if err := clr.AddStaticNodes("e2e", "user", nodeIps); err != nil {
 		Fatalf(err.Error())
 	}
 
@@ -228,7 +223,7 @@ func ClusterCreate() {
 				Fatalf(err.Error())
 			}
 			waitTime = 30 * time.Second
-		} else if int(dsNodeConfigurator.Status.NumberReady) >= len(vmCfgs) {
+		} else if int(dsNodeConfigurator.Status.NumberReady) >= len(VmCluster) {
 			break
 		} else {
 			Debugf("sds-node-configurator ready: %d", dsNodeConfigurator.Status.NumberReady)

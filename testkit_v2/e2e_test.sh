@@ -8,7 +8,7 @@ nc="\033[0m"
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 OPTIONS="hi:v"
-LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,run:,skip:,ns:,namespace:,hypervisor-kconfig:"
+LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,tree,run:,skip:,ns:,namespace:,hypervisor-kconfig:"
 
 function usage() {
   >&2 cat <<EOF
@@ -39,6 +39,9 @@ function usage() {
 
     -d, --debug:
         Display debug messages, skip unavailable tests
+
+    --tree:
+        Display test output in tree mode
 
     --run '<expression>':
         Run tests that match the regular expression
@@ -166,6 +169,7 @@ function main() {
       --run) test_flags+=(-run="$2"); shift 2 ;;
       --skip) test_flags+=(-skip="$2"); shift 2 ;;
       --ns|--namespace) test_args+=(-namespace "$2"); shift 2 ;;
+      --tree) test_args+=(-tree); shift ;;
 
       # TODO add options
 

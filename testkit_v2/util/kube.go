@@ -309,7 +309,7 @@ func (clr *KCluster) GetNs(filters ...NsFilter) ([]coreapi.Namespace, error) {
 	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
 	err := clr.rtClient.List(clr.ctx, &objs, opts)
 	if err != nil {
-		Errf("Can't get NSs: %s", err.Error())
+		Warnf("Can't get NSs: %s", err.Error())
 		return nil, err
 	}
 
@@ -366,7 +366,7 @@ func (clr *KCluster) GetNodes(filters ...NodeFilter) (map[string]coreapi.Node, e
 
 	nodes, err := (*clr.goClient).CoreV1().Nodes().List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Errf("Can't get Nodes: %s", err.Error())
+		Warnf("Can't get Nodes: %s", err.Error())
 		return nil, err
 	}
 
@@ -402,7 +402,7 @@ func (clr *KCluster) GetBDs(filters ...BdFilter) (map[string]snc.BlockDevice, er
 	bdList := &snc.BlockDeviceList{}
 	err := clr.rtClient.List(clr.ctx, bdList)
 	if err != nil {
-		Errf("Can't get BDs: %s", err.Error())
+		Warnf("Can't get BDs: %s", err.Error())
 		return nil, err
 	}
 
@@ -454,12 +454,17 @@ func (clr *KCluster) CreateVM(
 	cpu int,
 	memory string,
 	storageClass string,
-	imgUrl string,
+	imgName string,
 	sshPubKey string,
-	systemDriveSize int64,
+	systemDriveSize int,
 ) error {
-	splittedUrl := strings.Split(imgUrl, "/")
-	CVMIName := strings.Split(splittedUrl[len(splittedUrl)-1], ".")[0]
+	imgUrl, ok := Images[imgName]
+	if !ok {
+		return fmt.Errorf("No '%s' image", imgName)
+	}
+	CVMIName := strings.ToLower(strings.Replace(strings.Replace(imgName, "_", "-", -1), " ", "-", -1))
+	CVMIName = fmt.Sprintf("test-%s-%s", CVMIName, hashMd5(imgUrl)[:4])
+
 	vmCVMI := &virt.ClusterVirtualImage{}
 	CVMIList, err := clr.GetCVMIs(CVMIName)
 	if err != nil {
@@ -495,11 +500,7 @@ func (clr *KCluster) CreateVM(
 
 	vmSystemDisk := &virt.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
-	vmdList, err := clr.GetVMDs(nsName, vmdName)
-	if err != nil {
-		return err
-	}
-	if len(vmdList) == 0 {
+	if _, err := clr.GetVMD(nsName, vmdName); err != nil {
 		vmSystemDisk, err = clr.CreateVMDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
 		if err != nil {
 			return err
@@ -622,18 +623,14 @@ func (clr *KCluster) WaitVMBDs(nsName, vmName, vmdName string) error {
 }
 
 func (clr *KCluster) AttachVMBD(vmName, vmdName, storageClass string, size int64) error {
-	vmdList, err := clr.GetVMDs(TestNS, vmdName)
-	if err != nil {
-		return err
-	}
-	if len(vmdList) == 0 {
+	if _, err := clr.GetVMD(TestNS, vmdName); err != nil {
 		_, err = clr.CreateVMD(TestNS, vmdName, storageClass, size)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = clr.rtClient.Create(clr.ctx, &virt.VirtualMachineBlockDeviceAttachment{
+	err := clr.rtClient.Create(clr.ctx, &virt.VirtualMachineBlockDeviceAttachment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmdName,
 			Namespace: TestNS,
@@ -707,13 +704,13 @@ func (clr *KCluster) CreateOrUpdSSHCredentials(name, user, privSshKey string) er
 
 	err = clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{Name: name}, sshcredentials)
 	if err != nil {
-		Errf("Can't get SSHCredentials %s: %s", name, err.Error())
+		Warnf("Can't get SSHCredentials %s: %s", name, err.Error())
 		return err
 	}
 	sshcredentials.Spec.User = user
 	sshcredentials.Spec.PrivateSSHKey = privSshKey
 	if err = clr.rtClient.Update(clr.ctx, sshcredentials); err != nil {
-		Errf("Can't update SSHCredentials %s: %s", name, err.Error())
+		Warnf("Can't update SSHCredentials %s: %s", name, err.Error())
 		return err
 	}
 	return nil
@@ -887,25 +884,34 @@ func (clr *KCluster) CreateVMIPClaim(nsName string, name string, ip string) (*vi
 	return vmClaim, nil
 }
 
-/* VMD */
+/*  Virtual Disk (VMD)  */
 
-func (clr *KCluster) GetVMDs(nsName string, VMDSearch string) ([]virt.VirtualDisk, error) {
-	objs := virt.VirtualDiskList{}
-	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
-
-	err := clr.rtClient.List(clr.ctx, &objs, opts)
+func (clr *KCluster) GetVMD(nsName, vmdName string) (*virt.VirtualDisk, error) {
+	vmdList, err := clr.GetVMDs(nsName)
 	if err != nil {
 		return nil, err
 	}
 
-	vmdList := []virt.VirtualDisk{}
-	for _, item := range objs.Items {
-		if VMDSearch == "" || VMDSearch == item.Name {
-			vmdList = append(vmdList, item)
+	for _, vmd := range vmdList {
+		if vmd.Name == vmdName {
+			return &vmd, nil
 		}
 	}
 
-	return vmdList, nil
+	return nil, fmt.Errorf("NotFound")
+}
+
+func (clr *KCluster) GetVMDs(nsName string) ([]virt.VirtualDisk, error) {
+	vmds := virt.VirtualDiskList{}
+	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
+
+	err := clr.rtClient.List(clr.ctx, &vmds, opts)
+	if err != nil {
+		Warnf("Can't get '%s' VMDs: %s", nsName, err.Error())
+		return nil, err
+	}
+
+	return vmds.Items, nil
 }
 
 func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, sizeInGi int64) (*virt.VirtualDisk, error) {
@@ -930,7 +936,7 @@ func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, 
 	return vmDisk, nil
 }
 
-func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass string, sizeInGi int64, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
+func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -938,7 +944,7 @@ func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass 
 		},
 		Spec: virt.VirtualDiskSpec{
 			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
-				Size:         resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
+				Size:         resource.NewQuantity(int64(sizeInGi*1024*1024*1024), resource.BinarySI),
 				StorageClass: &storageClass,
 			},
 			DataSource: &virt.VirtualDiskDataSource{
@@ -966,7 +972,7 @@ func (clr *KCluster) GetLVGs(filters ...LvgFilter) (map[string]snc.LVMVolumeGrou
 
 	lvgList := &snc.LVMVolumeGroupList{}
 	if err := clr.rtClient.List(clr.ctx, lvgList); err != nil {
-		Errf("Can't get LVGs: %s", err.Error())
+		Warnf("Can't get LVGs: %s", err.Error())
 		return nil, err
 	}
 
@@ -1109,7 +1115,7 @@ func (clr *KCluster) DeleteSC(name string) error {
 func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, error) {
 	ds, err := (*clr.goClient).AppsV1().DaemonSets(nsName).Get(clr.ctx, dsName, metav1.GetOptions{})
 	if err != nil {
-		Errf("Can't get '%s.%s' DS: %s", nsName, dsName, err.Error())
+		Warnf("Can't get '%s.%s' DS: %s", nsName, dsName, err.Error())
 		return nil, err
 	}
 
@@ -1119,7 +1125,7 @@ func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, er
 func (clr *KCluster) GetDaemonSets(nsName string) ([]appsapi.DaemonSet, error) {
 	dsList, err := (*clr.goClient).AppsV1().DaemonSets(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Errf("Can't get '%s' DSs: %s", nsName, err.Error())
+		Warnf("Can't get '%s' DSs: %s", nsName, err.Error())
 		return nil, err
 	}
 
@@ -1131,7 +1137,7 @@ func (clr *KCluster) GetDaemonSets(nsName string) ([]appsapi.DaemonSet, error) {
 func (clr *KCluster) GetPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
 	pvcList, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Errf("Can't get '%s' PVCs: %s", nsName, err.Error())
+		Warnf("Can't get '%s' PVCs: %s", nsName, err.Error())
 		return nil, err
 	}
 
@@ -1177,7 +1183,7 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 
 func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 	pvc := coreapi.PersistentVolumeClaim{}
-	for i := 0; i < PVCWaitIterationCount; i++ {
+	for i := 0; i < pvcWaitIterationCount; i++ {
 		err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
 			Namespace: TestNS,
@@ -1190,13 +1196,13 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 		}
 
 		if len(pvc.Status.Phase) == 0 {
-			return PVCDeletedStatus, nil
+			return "Deleted", nil
 		}
 
-		time.Sleep(PVCWaitInterval * time.Second)
+		time.Sleep(pvcWaitInterval * time.Second)
 	}
 	return string(pvc.Status.Phase), fmt.Errorf("the waiting time %d or the pvc to be ready has expired",
-		PVCWaitInterval*PVCWaitIterationCount)
+		pvcWaitInterval*pvcWaitIterationCount)
 }
 
 func (clr *KCluster) DeletePVC(name string) error {
@@ -1230,40 +1236,6 @@ func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
 	}
 
 	return nil
-}
-
-/*  Virtual Disk  */
-
-func (clr *KCluster) GetVMD(nsName, vmdName string) ([]virt.VirtualDisk, error) {
-	vmds := virt.VirtualDiskList{}
-	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
-
-	err := clr.rtClient.List(clr.ctx, &vmds, opts)
-	if err != nil {
-		Errf("Can't get '%s' VMD %s: %s", nsName, vmdName, err.Error())
-		return nil, err
-	}
-
-	if vmdName == "" {
-		return vmds.Items, nil
-	}
-
-	vmdList := []virt.VirtualDisk{}
-	for _, vmd := range vmds.Items {
-		if vmdName == vmd.Name {
-			vmdList = append(vmdList, vmd)
-		}
-	}
-
-	return vmdList, nil
-}
-
-func (clr *KCluster) GetTestVMD() ([]virt.VirtualDisk, error) {
-	return clr.GetVMD(TestNS, "")
-}
-
-func (clr *KCluster) UpdateVMD(vmd *virt.VirtualDisk) error {
-	return clr.rtClient.Update(clr.ctx, vmd)
 }
 
 /*  Pod  */
@@ -1429,6 +1401,11 @@ type TestNode struct {
 }
 
 func (clr *KCluster) RunTestGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
+	if *treeFlag {
+		clr.RunTestTreeGroupNodes(t, f)
+		return
+	}
+
 	for gName, nodes := range clr.GetGroupNodes() {
 		if len(nodes) == 0 && !SkipOptional {
 			t.Errorf("no Nodes for group '%s'", gName)
@@ -1436,9 +1413,27 @@ func (clr *KCluster) RunTestGroupNodes(t *testing.T, f func(t *testing.T, tNode 
 		}
 
 		for i, nName := range nodes {
+			Infof("Start LVG create for %s/%s", gName, nName)
 			tn := TestNode{Id: i, GroupName: gName, Name: nName}
 			f(t, tn)
 		}
 		t.Logf("'%s' tests count: %d", gName, len(nodes))
+	}
+}
+
+func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
+	for gName, nodes := range clr.GetGroupNodes() {
+		t.Run(gName, func(t *testing.T) {
+			if len(nodes) == 0 && !SkipOptional {
+				t.Fatalf("no Nodes for group '%s'", gName)
+			}
+
+			for i, nName := range nodes {
+				t.Run(nName, func(t *testing.T) {
+					node := TestNode{Id: i, GroupName: gName, Name: nName}
+					f(t, node)
+				})
+			}
+		})
 	}
 }

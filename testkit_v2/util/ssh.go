@@ -313,14 +313,14 @@ func (c sshClient) NewTunnel(lAddr, rAddr string) {
 
 		go func() {
 			if _, err = io.Copy(local, remote); err != nil {
-				Errf("Copy local->remote error: %s", err.Error())
+				Warnf("Copy local->remote error: %s", err.Error())
 			}
 			done <- struct{}{}
 		}()
 
 		go func() {
 			if _, err = io.Copy(remote, local); err != nil {
-				Errf("Copy remote->local error: %s", err.Error())
+				Warnf("Copy remote->local error: %s", err.Error())
 			}
 			done <- struct{}{}
 		}()
