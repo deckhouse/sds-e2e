@@ -59,37 +59,37 @@ var (
 
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
-			Name: Cond{NotContains: []string{"-master-"}},
-			Os:   Cond{Contains: []string{"Ubuntu 22.04"}},
+			Name: "!%-master-%",
+			Os:   "%Ubuntu 22.04%",
 		},
 		"Ubu24": {
-			Name:    Cond{NotContains: []string{"-master-"}},
-			Os:      Cond{Contains: []string{"Ubuntu 24"}},
-			Kernel:  Cond{Contains: []string{"5.15.0-122", "5.15.0-128", "5.15.0-127", "6.8.0-53"}},
-			Kubelet: Cond{Contains: []string{"v1.28.15"}},
+			Name:    "!%-master-%",
+			Os:      "%Ubuntu 24%",
+			Kernel:  WhereLike{"5.15.0-122", "5.15.0-128", "5.15.0-127", "6.8.0-53"},
+			Kubelet: WhereLike{"v1.28.15"},
 		},
 		"Deb11": {
-			Name:   Cond{NotContains: []string{"-master-"}},
-			Os:     Cond{Contains: []string{"Debian 11", "Debian GNU/Linux 11"}},
-			Kernel: Cond{Contains: []string{"5.10.0-33-cloud-amd64", "5.10.0-19-amd64"}},
+			Name:   "!%-master-%",
+			Os:     WhereLike{"Debian 11", "Debian GNU/Linux 11"},
+			Kernel: WhereLike{"5.10.0-33-cloud-amd64", "5.10.0-19-amd64"},
 		},
 		//"Red7": {
-		//	Name:   Cond{NotContains: []string{"-master-"}},
-		//	Os:     Cond{Contains: []string{"RedOS 7.3", "RED OS MUROM (7.3"}},
-		//	Kernel: Cond{Contains: []string{"6.1.52-1.el7.3.x86_64"}},
+		//	Name: "!%-master-%",
+		//	Os:     WhereLike{"RedOS 7.3", "RED OS MUROM (7.3"},
+		//	Kernel: WhereLike{"6.1.52-1.el7.3.x86_64"},
 		//},
 		"Red8": {
-			Name:   Cond{NotContains: []string{"-master-"}},
-			Os:     Cond{Contains: []string{"RED OS 8"}},
-			Kernel: Cond{Contains: []string{"6.6.6-1.red80.x86_64"}},
+			Name:   "!%-master-%",
+			Os:     WhereLike{"RED OS 8"},
+			Kernel: WhereLike{"6.6.6-1.red80.x86_64"},
 		},
 		"Astra": {
-			Name: Cond{NotContains: []string{"-master-"}},
-			Os:   Cond{Contains: []string{"Astra Linux"}},
+			Name: "!%-master-%",
+			Os:   WhereLike{"Astra Linux"},
 		},
 		//"Alt10": {
-		//	Name: Cond{NotContains: []string{"-master-"}},
-		//	Os:   Cond{Contains: []string{"Alt 10"}},
+		//	Name: "!%-master-%",
+		//	Os:   WhereLike{"Alt 10"},
 		//},
 	}
 
@@ -143,8 +143,8 @@ var (
 		{"vm-ub22-1", "", 4, "8Gi", "Ubuntu_22", 20}, //master
 		{"vm-ub22-2", "", 2, "4Gi", "Ubuntu_22", 20}, //setup DH
 		{"vm-ub22-3", "", 2, "4Gi", "Ubuntu_22", 20},
-		{"vm-ub24-1", "", 2, "4Gi", "Ubuntu_24", 20},
-		{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
+		//{"vm-ub24-1", "", 2, "4Gi", "Ubuntu_24", 20},
+		//{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
 		//{"vm-re8-1", "", 2, "4Gi", "RedOS_8_flant", 20},
 		//{"vm-as18-1", "", 2, "4Gi", "Astra_1_8_Base", 20},
 		//{"vm-al10-1", "", 2, "4Gi", "Alt_10_flant", 30},

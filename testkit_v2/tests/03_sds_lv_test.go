@@ -36,15 +36,13 @@ func testPVCCreate(t *testing.T) {
 	if err != nil {
 		util.Debugf("PVC %s status: %s", pvc.Name, pvcStatus)
 		// TODO Error is ok, need POD-consumer
-		//t.Error(err)
 	}
 }
 
 func testPVCResize(t *testing.T) {
-	//t.Skip("Not implemented")
 	clr := util.GetCluster("", "")
 
-	pvcList, err := clr.GetPVC(util.TestNS)
+	pvcList, err := clr.ListPVC(util.TestNS)
 	if err != nil {
 		t.Error("PVC getting:", err)
 	}

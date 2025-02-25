@@ -36,16 +36,11 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 		if err != nil {
 			Fatalf(err.Error())
 		}
-
-		vmdName := fmt.Sprintf("%s-data-1", vmItem.name)
-		if err = clr.AttachVMBD(vmItem.name, vmdName, "linstor-r1", 20); err != nil {
-			Fatalf(err.Error())
-		}
 	}
 }
 
 func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
-	vmList, err := clr.GetVMs(nsName)
+	vmList, err := clr.ListVM(nsName)
 	if err != nil || len(vmList) < len(vms) {
 		vmCreate(clr, vms, nsName)
 	}
@@ -53,13 +48,12 @@ func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 	// Check all machines running
 	for i := 0; ; i++ {
 		allVMUp := true
-		vmList, err = clr.GetVMs(nsName)
+		vmList, err = clr.ListVM(nsName)
 		if err != nil {
 			Fatalf("Get vm list error: %s", err.Error())
 		}
-		Debugf("%v", vmList)
 		for _, vm := range vmList {
-			if vm.Status != virt.MachineRunning {
+			if vm.Status.Phase != virt.MachineRunning {
 				allVMUp = false
 				break
 			}
@@ -79,7 +73,7 @@ func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 	for _, vm := range vmList {
 		for i, cfg := range vms {
 			if vm.Name == cfg.name {
-				vms[i].ip = vm.Ip
+				vms[i].ip = vm.Status.IPAddress
 				break
 			}
 		}
@@ -181,7 +175,7 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	Infof("Clean old NS")
+	//Infof("Clean old NS")
 	// cleanUpNs(clr)
 
 	Infof("Make RSA key")
@@ -193,7 +187,7 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	Infof("Create VM (2-3m)")
+	Infof("Create VM (2-4m)")
 	vmSync(clr, VmCluster, nsName)
 
 	Infof("Install VM DeckHouse (7-10m)")
