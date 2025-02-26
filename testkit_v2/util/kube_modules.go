@@ -10,7 +10,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/scheme"
 )
 
-
 type StaticInstanceStatusCurrentStatusPhase string
 
 const (
@@ -22,7 +21,7 @@ const (
 )
 
 var (
-	GroupVersion = schema.GroupVersion{Group: "deckhouse.io", Version: "v1alpha1"}
+	GroupVersion    = schema.GroupVersion{Group: "deckhouse.io", Version: "v1alpha1"}
 	DhSchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 )
 
@@ -51,7 +50,6 @@ type SSHCredentials struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec SSHCredentialsSpec `json:"spec,omitempty"`
-//	Status SSHCredentialsStatus `json:"status,omitempty"`
 }
 
 type SSHCredentialsList struct {
@@ -63,8 +61,8 @@ type SSHCredentialsList struct {
 func GetSSHCredentialsRef(name string) *corev1.ObjectReference {
 	return &corev1.ObjectReference{
 		APIVersion: "deckhouse.io/v1alpha1",
-		Kind: "SSHCredentials",
-		Name: name,
+		Kind:       "SSHCredentials",
+		Name:       name,
 	}
 }
 

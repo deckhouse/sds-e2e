@@ -6,7 +6,8 @@ require (
 	github.com/deckhouse/sds-node-configurator/api v0.0.0-20241211082010-e61684e9db31
 	github.com/deckhouse/sds-replicated-volume/api v0.0.0-20241206095502-b096856636cd
 	github.com/deckhouse/virtualization/api v0.0.0-20241211095216-afe682a5c78f
-	github.com/melbahja/goph v1.4.0
+	github.com/go-logr/logr v1.4.2
+	github.com/pkg/sftp v1.13.5
 	golang.org/x/crypto v0.31.0
 	k8s.io/api v0.32.0
 	k8s.io/apiextensions-apiserver v0.31.3
@@ -21,7 +22,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.12.1 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
@@ -42,7 +42,6 @@ require (
 	github.com/openshift/custom-resource-status v1.1.2 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pkg/sftp v1.13.5 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect

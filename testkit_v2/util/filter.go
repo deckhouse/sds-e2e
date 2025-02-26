@@ -55,7 +55,7 @@ func CheckCondition(where any, val any) bool {
 		Errf("Invalid filter type: %#v", v)
 		return false
 	}
-	return false
+
 }
 
 type WhereIn []string
@@ -124,29 +124,4 @@ func (f WhereNotReg) IsValid(val string) bool {
 		}
 	}
 	return true
-}
-
-func intersec(val []string, in []string, notIn []string) bool {
-	if val == nil {
-		return true
-	}
-
-	set := map[string]interface{}{}
-	for _, v := range val {
-		set[v] = nil
-	}
-
-	for _, v := range notIn {
-		delete(set, v)
-	}
-	if in != nil {
-		for _, v := range in {
-			if _, ok := set[v]; ok {
-				return true
-			}
-		}
-		return false
-	}
-
-	return len(set) > 0
 }

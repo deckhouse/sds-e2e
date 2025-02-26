@@ -11,7 +11,7 @@ func TestNode(t *testing.T) {
 
 	nodeMap := clr.MapLabelNodes(nil)
 
-	astraNodes, ok := NodeMap["Astra"]
+	astraNodes, ok := nodeMap["Astra"]
 	if !ok || len(astraNodes) == 0 {
 		t.Error("No Astra node - not good")
 	}

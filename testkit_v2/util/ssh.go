@@ -17,7 +17,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/terminal"
+	terminal "golang.org/x/term"
 )
 
 // generatePrivateKey creates an RSA Private Key of specified byte size
@@ -276,7 +276,6 @@ func (c sshClient) Dial(n, addr string) (net.Conn, error) {
 		time.Sleep(10 * time.Second)
 	}
 
-	return nil, nil
 }
 
 func (c sshClient) GetFwdClient(user, addr, keyPath string) sshClient {
@@ -304,10 +303,11 @@ func (c sshClient) NewTunnel(lAddr, rAddr string) {
 		if err != nil {
 			Fatalf("Accept listener error: %s", err.Error())
 		}
-		defer local.Close()
 
-		remote, _ := c.Dial("tcp", rAddr)
-		defer remote.Close()
+		remote, err := c.Dial("tcp", rAddr)
+		if err != nil {
+			Fatalf("Accept tcp connection error: %s", err.Error())
+		}
 
 		done := make(chan struct{})
 

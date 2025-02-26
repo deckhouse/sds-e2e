@@ -243,7 +243,7 @@ func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 	return pod, err
 }
 
-func (clr *KCluster) GetPods(nsName string) ([]coreapi.Pod, error) {
+func (clr *KCluster) ListPod(nsName string) ([]coreapi.Pod, error) {
 	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err

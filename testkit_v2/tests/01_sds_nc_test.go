@@ -25,7 +25,7 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 		for i := 1; i <= bdCount; i++ {
 			vmdName := fmt.Sprintf("%s-data-%d", nodeName, i)
 			util.Debugf("Attach VMBD %s", vmdName)
-			hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 6)
+			_ = hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 6)
 		}
 
 		_ = hypervisorClr.WaitVMBD(util.TestNS, nodeName, "")
@@ -34,8 +34,6 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 	bds, _ := clr.ListBD(util.BdFilter{Node: nodeName, Consumable: true})
 	if len(bds) < bdCount {
 		t.Errorf("not enough Device to create LVG (%d < %d)", len(bds), bdCount)
-		xxbds, _ := clr.ListBD(util.BdFilter{Node: nodeName, Consumable: false})
-		util.Debugf("# ListBD %#v", xxbds)
 		return
 	}
 
@@ -77,7 +75,7 @@ func directLVGResize(t *testing.T, nodeName string) {
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
 		vmdName := fmt.Sprintf("%s-data-%d", nodeName, 21)
 		util.Debugf("Add VMBD %s", vmdName)
-		hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 8)
+		_ = hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 8)
 
 		_ = hypervisorClr.WaitVMBD(util.TestNS, nodeName, "")
 	}

@@ -210,24 +210,21 @@ func ClusterCreate() {
 
 	Infof("Check Cluster ready")
 	for i := 0; ; i++ {
-		waitTime := time.Second
 		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {
 			if !apierrors.IsNotFound(err) {
 				Fatalf(err.Error())
 			}
-			waitTime = 30 * time.Second
 		} else if int(dsNodeConfigurator.Status.NumberReady) >= len(VmCluster) {
 			break
 		} else {
 			Debugf("sds-node-configurator ready: %d", dsNodeConfigurator.Status.NumberReady)
-			waitTime = 10 * time.Second
 		}
 
 		if i >= retries {
 			Fatalf("Timeout waiting all DS sds-node-configurator ready")
 		}
 
-		time.Sleep(waitTime)
+		time.Sleep(10 * time.Second)
 	}
 }

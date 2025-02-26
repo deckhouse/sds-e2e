@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"log"
 	"time"
 )
@@ -15,9 +16,12 @@ func getDuration() string {
 
 	if i >= 1000 {
 		i = i / 60
-		return string(char+i%100/10) + string(char+i%10) + "m"
+		return fmt.Sprintf("%c%cm", rune(char+i%100/10), rune(char+i%10))
 	}
-	return string(char+i%1000/100) + string(char+i%100/10) + string(char+i%10)
+	return fmt.Sprintf("%c%c%c", rune(char+i%1000/100), rune(char+i%100/10), rune(char+i%10))
+	//	return fmt.Sprint(rune(char+i%100/10)) + fmt.Sprint(rune(char+i%10)) + "m"
+	//}
+	//return fmt.Sprint(rune(char+i%1000/100)) + fmt.Sprint(rune(char+i%100/10)) + fmt.Sprint(rune(char+i%10))
 }
 
 func Debugf(format string, v ...any) {
