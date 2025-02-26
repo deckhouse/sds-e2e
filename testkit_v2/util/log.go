@@ -19,9 +19,6 @@ func getDuration() string {
 		return fmt.Sprintf("%c%cm", rune(char+i%100/10), rune(char+i%10))
 	}
 	return fmt.Sprintf("%c%c%c", rune(char+i%1000/100), rune(char+i%100/10), rune(char+i%10))
-	//	return fmt.Sprint(rune(char+i%100/10)) + fmt.Sprint(rune(char+i%10)) + "m"
-	//}
-	//return fmt.Sprint(rune(char+i%1000/100)) + fmt.Sprint(rune(char+i%100/10)) + fmt.Sprint(rune(char+i%10))
 }
 
 func Debugf(format string, v ...any) {

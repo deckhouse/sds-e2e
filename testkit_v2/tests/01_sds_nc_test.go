@@ -33,7 +33,7 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 
 	bds, _ := clr.ListBD(util.BdFilter{Node: nodeName, Consumable: true})
 	if len(bds) < bdCount {
-		t.Errorf("not enough Device to create LVG (%d < %d)", len(bds), bdCount)
+		t.Errorf("%s: not enough Device to create LVG (%d < %d)", tNode.Name, len(bds), bdCount)
 		return
 	}
 
@@ -59,7 +59,7 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	clr.RunTestGroupNodes(t, directLVGCreate)
+	clr.RunTestGroupNodes(t, nil, directLVGCreate)
 
 	err := clr.CheckStatusLVGs(util.LvgFilter{Name: "%e2e-lvg-%"})
 	if err != nil {
@@ -67,7 +67,8 @@ func TestLvgCreate(t *testing.T) {
 	}
 }
 
-func directLVGResize(t *testing.T, nodeName string) {
+func directLVGResize(t *testing.T, tNode util.TestNode) {
+	nodeName := tNode.Name
 	clr := util.GetCluster("", "")
 
 	if util.HypervisorKubeConfig != "" {
@@ -134,22 +135,10 @@ func directLVGResize(t *testing.T, nodeName string) {
 	}
 }
 
+// Resize (exclusion "Deb11" for example)
 func TestLvgResize(t *testing.T) {
 	clr := util.GetCluster("", "")
-	// Resize (exclusion "Deb11" for example)
-	for group, nodes := range clr.MapLabelNodes(util.WhereNotIn{"Deb11"}) {
-		t.Run("resize_"+group, func(t *testing.T) {
-			if len(nodes) == 0 {
-				t.Skip("no Nodes for case")
-			}
-			for _, nodeName := range nodes {
-				t.Run(nodeName, func(t *testing.T) {
-					t.Parallel()
-					directLVGResize(t, nodeName)
-				})
-			}
-		})
-	}
+	clr.RunTestGroupNodes(t, util.WhereNotIn{"Deb11"}, directLVGResize)
 }
 
 func TestLvgDelete(t *testing.T) {

@@ -8,13 +8,13 @@ type TestNode struct {
 	Name      string
 }
 
-func (clr *KCluster) RunTestGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
+func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *testing.T, tNode TestNode), filters ...NodeFilter) {
 	if *treeFlag {
-		clr.RunTestTreeGroupNodes(t, f)
+		clr.RunTestTreeGroupNodes(t, label, f, filters...)
 		return
 	}
 
-	for label, nodes := range clr.MapLabelNodes(nil) {
+	for label, nodes := range clr.MapLabelNodes(label, filters...) {
 		if len(nodes) == 0 && !SkipOptional {
 			Errf("0 Nodes for label '%s'", label)
 			t.Errorf("no Nodes for label '%s'", label)
@@ -30,8 +30,8 @@ func (clr *KCluster) RunTestGroupNodes(t *testing.T, f func(t *testing.T, tNode 
 	}
 }
 
-func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
-	for label, nodes := range clr.MapLabelNodes(nil) {
+func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *testing.T, tNode TestNode), filters ...NodeFilter) {
+	for label, nodes := range clr.MapLabelNodes(label, filters...) {
 		t.Run(label, func(t *testing.T) {
 			if len(nodes) == 0 && !SkipOptional {
 				Errf("0 Nodes for label '%s'", label)
@@ -48,8 +48,8 @@ func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, f func(t *testing.T, tN
 	}
 }
 
-func (clr *KCluster) RunTestParallelGroupNodes(t *testing.T, f func(t *testing.T, tNode TestNode)) {
-	for label, nodes := range clr.MapLabelNodes(nil) {
+func (clr *KCluster) RunTestParallelGroupNodes(t *testing.T, label any, f func(t *testing.T, tNode TestNode), filters ...NodeFilter) {
+	for label, nodes := range clr.MapLabelNodes(label, filters...) {
 		t.Run(label, func(t *testing.T) {
 			if len(nodes) == 0 && !SkipOptional {
 				Errf("0 Nodes for label '%s'", label)
