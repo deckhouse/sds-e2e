@@ -25,10 +25,10 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 		for i := 1; i <= bdCount; i++ {
 			vmdName := fmt.Sprintf("%s-data-%d", nodeName, i)
 			util.Debugf("Attach VMBD %s", vmdName)
-			_ = hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 6)
+			_ = hypervisorClr.CreateVMBD(nodeName, vmdName, "linstor-r1", 6)
 		}
 
-		_ = hypervisorClr.WaitVMBD(util.TestNS, nodeName, "")
+		_ = hypervisorClr.WaitVMBD(util.VmBdFilter{NameSpace: util.TestNS, VmName: nodeName})
 	}
 
 	bds, _ := clr.ListBD(util.BdFilter{Node: nodeName, Consumable: true})
@@ -59,7 +59,7 @@ func directLVGCreate(t *testing.T, tNode util.TestNode) {
 func TestLvgCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 
-	clr.RunTestGroupNodes(t, nil, directLVGCreate)
+	clr.RunTestGroupNodes(t, directLVGCreate)
 
 	err := clr.CheckStatusLVGs(util.LvgFilter{Name: "%e2e-lvg-%"})
 	if err != nil {
@@ -67,8 +67,7 @@ func TestLvgCreate(t *testing.T) {
 	}
 }
 
-func directLVGResize(t *testing.T, tNode util.TestNode) {
-	nodeName := tNode.Name
+func directLVGResize(t *testing.T, nodeName string) {
 	clr := util.GetCluster("", "")
 
 	if util.HypervisorKubeConfig != "" {
@@ -76,18 +75,18 @@ func directLVGResize(t *testing.T, tNode util.TestNode) {
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
 		vmdName := fmt.Sprintf("%s-data-%d", nodeName, 21)
 		util.Debugf("Add VMBD %s", vmdName)
-		_ = hypervisorClr.AttachVMBD(nodeName, vmdName, "linstor-r1", 8)
+		_ = hypervisorClr.CreateVMBD(nodeName, vmdName, "linstor-r1", 8)
 
-		_ = hypervisorClr.WaitVMBD(util.TestNS, nodeName, "")
+		_ = hypervisorClr.WaitVMBD(util.VmBdFilter{NameSpace: util.TestNS, VmName: nodeName})
 	}
 
 	bds, _ := clr.ListBD(util.BdFilter{Node: nodeName, Consumable: true})
 	if len(bds) == 0 {
 		if util.SkipOptional {
 			util.Warnf("skip resize LVG test for %s", nodeName)
-			t.Skipf("no Device to resize '%s' LVGs", nodeName)
 		}
-		t.Fatalf("no Device to resize '%s' LVGs", nodeName)
+		t.Errorf("no Device to resize '%s' LVGs", nodeName)
+		return
 	}
 	bdMap := map[string]*snc.BlockDevice{}
 	for _, bd := range bds {
@@ -131,14 +130,26 @@ func directLVGResize(t *testing.T, tNode util.TestNode) {
 	}
 
 	if !lvgUpdated {
-		t.Fatalf("No resized LVG for Node %s", nodeName)
+		t.Errorf("No resized LVG for Node %s", nodeName)
 	}
 }
 
-// Resize (exclusion "Deb11" for example)
 func TestLvgResize(t *testing.T) {
 	clr := util.GetCluster("", "")
-	clr.RunTestGroupNodes(t, util.WhereNotIn{"Deb11"}, directLVGResize)
+	// Resize (exclusion "Deb11" for example)
+	for group, nodes := range clr.MapLabelNodes(util.WhereNotIn{"Deb11"}) {
+		t.Run("resize_"+group, func(t *testing.T) {
+			if len(nodes) == 0 {
+				t.Skip("no Nodes for case")
+			}
+			for _, nodeName := range nodes {
+				t.Run(nodeName, func(t *testing.T) {
+					t.Parallel()
+					directLVGResize(t, nodeName)
+				})
+			}
+		})
+	}
 }
 
 func TestLvgDelete(t *testing.T) {
@@ -146,5 +157,10 @@ func TestLvgDelete(t *testing.T) {
 	if err := clr.DeleteLVG(util.LvgFilter{Name: "%e2e-lvg-%"}); err != nil {
 		t.Error("LVG deleting:", err)
 	}
-	// TODO delete virt disks
+
+	if util.HypervisorKubeConfig != "" {
+		// delete virtual disks
+		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
+		_ = hypervisorClr.DeleteVMBD(util.VmBdFilter{NameSpace: util.TestNS})
+	}
 }

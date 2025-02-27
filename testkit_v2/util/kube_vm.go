@@ -246,7 +246,7 @@ func (clr *KCluster) ListVMD(nsName string) ([]virt.VirtualDisk, error) {
 	return vmds.Items, nil
 }
 
-func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, sizeInGi int64) (*virt.VirtualDisk, error) {
+func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, sizeInGi int64) error {
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -261,11 +261,26 @@ func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, 
 	}
 
 	err := clr.rtClient.Create(clr.ctx, vmDisk)
-	if err != nil {
-		return nil, err
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
 	}
 
-	return vmDisk, nil
+	return nil
+}
+
+func (clr *KCluster) DeleteVMD(nsName, name string) error {
+	vmDisk := &virt.VirtualDisk{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: nsName,
+		},
+	}
+
+	if err := clr.rtClient.Delete(clr.ctx, vmDisk); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
@@ -299,38 +314,49 @@ func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass 
 
 /*  VM BlockDevice  */
 
-func (clr *KCluster) ListVMBD(nsName, vmName, vmdName string) ([]virt.VirtualMachineBlockDeviceAttachment, error) {
+type VmBdFilter struct {
+	NameSpace any
+	Name      any
+	VmName    any
+}
+
+type vmbdType = virt.VirtualMachineBlockDeviceAttachment
+
+func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
+	for _, vmbd := range vmbds {
+		if f.Name != nil && !CheckCondition(f.Name, vmbd.ObjectMeta.Name) {
+			continue
+		}
+		if f.NameSpace != nil && !CheckCondition(f.Name, vmbd.ObjectMeta.Namespace) {
+			continue
+		}
+		if f.VmName != nil && !CheckCondition(f.VmName, vmbd.Spec.VirtualMachineName) {
+			continue
+		}
+		resp = append(resp, vmbd)
+	}
+	return
+}
+
+func (clr *KCluster) ListVMBD(filters ...VmBdFilter) ([]vmbdType, error) {
 	vmbdas := virt.VirtualMachineBlockDeviceAttachmentList{}
 	optsList := ctrlrtclient.ListOptions{}
-	if nsName != "" {
-		optsList.Namespace = nsName
-	}
 	opts := ctrlrtclient.ListOption(&optsList)
 	if err := clr.rtClient.List(clr.ctx, &vmbdas, opts); err != nil {
 		return nil, err
 	}
 
-	if vmName == "" && vmdName == "" {
-		return vmbdas.Items, nil
-	}
-
-	resp := []virt.VirtualMachineBlockDeviceAttachment{}
-	for _, vmbd := range vmbdas.Items {
-		if vmName != "" && vmbd.Spec.VirtualMachineName != vmName {
-			continue
-		}
-		if vmdName != "" && vmbd.Name != vmdName {
-			continue
-		}
-		resp = append(resp, vmbd)
+	resp := vmbdas.Items
+	for _, filter := range filters {
+		resp = filter.Apply(resp)
 	}
 
 	return resp, nil
 }
 
-func (clr *KCluster) WaitVMBD(nsName, vmName, vmdName string) error {
+func (clr *KCluster) WaitVMBD(filters ...VmBdFilter) error {
 	for i := 0; ; i++ {
-		vmbds, err := clr.ListVMBD(nsName, vmName, vmdName)
+		vmbds, err := clr.ListVMBD(filters...)
 		if err != nil {
 			return err
 		}
@@ -339,6 +365,7 @@ func (clr *KCluster) WaitVMBD(nsName, vmName, vmdName string) error {
 		for _, vmbd := range vmbds {
 			if vmbd.Status.Phase != "Attached" {
 				allOk = false
+				Debugf("VMBD %s not Attached", vmbd.ObjectMeta.Name)
 				break
 			}
 		}
@@ -350,24 +377,22 @@ func (clr *KCluster) WaitVMBD(nsName, vmName, vmdName string) error {
 			Fatalf("Timeout waiting VMBD attached")
 		}
 
-		Debugf("VMBDs %s not Attached", vmName)
 		time.Sleep(10 * time.Second)
 	}
 	return nil
 }
 
-func (clr *KCluster) AttachVMBD(vmName, vmdName, storageClass string, size int64) error {
-	if _, err := clr.GetVMD(TestNS, vmdName); err != nil {
-		_, err = clr.CreateVMD(TestNS, vmdName, storageClass, size)
-		if err != nil {
-			return err
-		}
+func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64) error {
+	nsName := TestNS
+
+	if err := clr.CreateVMD(nsName, vmdName, storageClass, size); err != nil {
+		return err
 	}
 
 	err := clr.rtClient.Create(clr.ctx, &virt.VirtualMachineBlockDeviceAttachment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmdName,
-			Namespace: TestNS,
+			Namespace: nsName,
 		},
 		Spec: virt.VirtualMachineBlockDeviceAttachmentSpec{
 			VirtualMachineName: vmName,
@@ -379,6 +404,27 @@ func (clr *KCluster) AttachVMBD(vmName, vmdName, storageClass string, size int64
 	})
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
+	vmbds, err := clr.ListVMBD(filters...)
+	if err != nil {
+		return err
+	}
+
+	for _, vmbd := range vmbds {
+		err := clr.rtClient.Delete(clr.ctx, &vmbd)
+		if err != nil {
+			return err
+		}
+
+		err = clr.DeleteVMD(vmbd.ObjectMeta.Namespace, vmbd.ObjectMeta.Name)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

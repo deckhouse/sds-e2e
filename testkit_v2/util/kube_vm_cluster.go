@@ -114,7 +114,7 @@ func installVmDh(client sshClient, masterIp string) error {
 		dhImg = DhDevImg
 	}
 
-	Infof("Master dhctl bootstrap config (5-7m)")
+	Infof("Master dhctl bootstrap config (6-9m)")
 	Debugf(DhInstallCommand, dhImg, masterIp)
 	_ = client.ExecFatal(fmt.Sprintf(DhInstallCommand, dhImg, masterIp))
 
@@ -190,7 +190,7 @@ func ClusterCreate() {
 	Infof("Create VM (2-4m)")
 	vmSync(clr, VmCluster, nsName)
 
-	Infof("Install VM DeckHouse (7-10m)")
+	Infof("Install VM DeckHouse (8-12m)")
 	initVmDh(hvClient, VmCluster[0], VmCluster[1], vmKeyPath)
 	go hvClient.NewTunnel("127.0.0.1:"+NestedDhPort, VmCluster[0].ip+":"+NestedDhPort)
 
@@ -208,7 +208,7 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	Infof("Check Cluster ready")
+	Infof("Check Cluster ready (8-10m)")
 	for i := 0; ; i++ {
 		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {

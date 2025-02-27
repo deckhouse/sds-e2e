@@ -141,7 +141,7 @@ var (
 
 	VmCluster = []VmConfig{
 		{"vm-ub22-1", "", 4, "8Gi", "Ubuntu_22", 20}, //master
-		{"vm-ub22-2", "", 2, "4Gi", "Ubuntu_22", 20}, //setup DH
+		{"vm-ub22-2", "", 2, "6Gi", "Ubuntu_22", 20}, //setup DH
 		{"vm-ub22-3", "", 2, "4Gi", "Ubuntu_22", 20},
 		//{"vm-ub24-1", "", 2, "4Gi", "Ubuntu_24", 20},
 		//{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
