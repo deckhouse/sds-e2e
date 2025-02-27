@@ -25,6 +25,7 @@ func Debugf(format string, v ...any) {
 	if !*debugFlag {
 		return
 	}
+	log.SetFlags(0)
 	//log.SetFlags(log.Lmicroseconds)
 	log.SetPrefix(getPrefix())
 	log.Printf("\033[32m🦗\033[2m"+getDuration()+" \033[0m"+format+"\033[0m", v...)

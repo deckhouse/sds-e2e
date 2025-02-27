@@ -162,8 +162,8 @@ function main() {
       -h|--help) usage; exit; ;;
       -v|--verbose) verbose=true; test_flags+=(-v); test_args+=(-verbose); shift ;;  #summary_format=standard-verbose
       -d|--debug) debug=true; test_args+=(-debug); shift ;;
-      -i|--ssh-key) ssh_key="$2"; shift 2 ;;
-      --ssh-host) ssh_host="$2"; shift 2 ;;
+      -i|--ssh-key) ssh_key="$2"; test_args+=(-sshkey "$2"); shift 2 ;;
+      --ssh-host) ssh_host="$2"; test_args+=(-sshhost "$2"); shift 2 ;;
       --kconfig) test_args+=(-kconfig "$2"); shift 2 ;;
       --hypervisor-kconfig) test_args+=(-hypervisorkconfig "$2"); shift 2 ;;
       --run) test_flags+=(-run="$2"); shift 2 ;;
@@ -197,10 +197,6 @@ function main() {
       run_local
       ;;
     dev)
-      # Optionally some params can be hardcoded
-      #ssh_host="ubuntu@55.44.33.22"
-      #ssh_key="~/.ssh/id_rsa"
-
       run_dev
       ;;
     stage)
@@ -210,14 +206,8 @@ function main() {
       run_ci
       ;;
     metal)
-      # Optionally some params can be hardcoded
-      #ssh_host="user@99.88.77.66"
-      #ssh_key="~/.ssh/id_rsa"
-
       test_flags+=(-skip="TestFatal/ignore") # Fake example
       test_flags+=(-timeout "30m")
-      test_args+=(-sshhost "${ssh_host}")
-      test_args+=(-sshkey "${ssh_key}")
       run_bare_metal
       ;;
   esac
