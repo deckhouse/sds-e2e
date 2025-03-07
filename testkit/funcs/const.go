@@ -8,9 +8,9 @@ const (
 	PubKeyName  = "id_rsa_test.pub"
 
 	NamespaceName       = "test1"
-	MasterNodeIP        = "10.10.10.80"
-	InstallWorkerNodeIp = "10.10.10.81"
-	WorkerNode2         = "10.10.10.82"
+	MasterNodeIP        = "10.10.10.180"
+	InstallWorkerNodeIp = "10.10.10.181"
+	WorkerNode2         = "10.10.10.182"
 
 	RemoteAppPath = "/home/user"
 
