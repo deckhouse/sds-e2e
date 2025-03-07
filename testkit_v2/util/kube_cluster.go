@@ -20,6 +20,7 @@ func GetCluster(configPath, clusterName string) *KCluster {
 			Critf("Kubeclient '%s' problem", k)
 			panic(err)
 		}
+		_ = clr.CreateNs(TestNS)
 		clrCache[k] = clr
 	}
 

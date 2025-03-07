@@ -15,7 +15,6 @@ import (
 func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, error) {
 	ds, err := (*clr.goClient).AppsV1().DaemonSets(nsName).Get(clr.ctx, dsName, metav1.GetOptions{})
 	if err != nil {
-		Debugf("Can't get '%s.%s' DS: %s", nsName, dsName, err.Error())
 		return nil, err
 	}
 
@@ -25,7 +24,6 @@ func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, er
 func (clr *KCluster) ListDaemonSet(nsName string) ([]appsapi.DaemonSet, error) {
 	dsList, err := (*clr.goClient).AppsV1().DaemonSets(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Debugf("Can't get '%s' DS list: %s", nsName, err.Error())
 		return nil, err
 	}
 

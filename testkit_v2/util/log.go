@@ -47,6 +47,10 @@ func Warnf(format string, v ...any) {
 	log.Printf("\033[93m🗈 \033[2m"+getDuration()+" \033[0;2m"+format+"\033[0m", v...)
 }
 
+func Warn(v ...any) {
+	Warnf(fmt.Sprint(v...))
+}
+
 func Errorf(format string, v ...any) {
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())

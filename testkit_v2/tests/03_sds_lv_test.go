@@ -17,15 +17,11 @@ func TestPVC(t *testing.T) {
 	t.Run("PVC creating", testPVCCreate)
 	t.Run("PVC resizing", testPVCResize)
 	t.Run("PVC deleting", testPVCDelete)
-	t.Run("PVC cleanup", testPVCCleanup)
 }
 
 func testPVCCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 	_, _ = clr.CreateSC(scName)
-
-	// TODO move NS creating to tests init script
-	_ = clr.CreateNs(util.TestNS)
 
 	pvc, err := clr.CreatePVC("test-pvc", scName, "1Gi")
 	if err != nil {
@@ -35,7 +31,6 @@ func testPVCCreate(t *testing.T) {
 	pvcStatus, err := clr.WaitPVCStatus(pvc.Name)
 	if err != nil {
 		util.Debugf("PVC %s status: %s", pvc.Name, pvcStatus)
-		// TODO Error is ok, need POD-consumer
 	}
 }
 
@@ -67,15 +62,4 @@ func testPVCDelete(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-
-	pvcStatus, err := clr.DeletePVCWait("test-pvc")
-	util.Debugf("PVC %s status: %s", "test-pvc", pvcStatus)
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func testPVCCleanup(t *testing.T) {
-	clr := util.GetCluster("", "")
-	_ = clr.DeleteSC(scName)
 }

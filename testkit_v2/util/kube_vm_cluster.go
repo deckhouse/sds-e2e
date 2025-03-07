@@ -5,17 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
 	DhDevImg                  = "dev-registry.deckhouse.io/sys/deckhouse-oss/install:main"
 	DhCeImg                   = "registry.deckhouse.io/deckhouse/ce/install:stable"
-	DhInstallCommand          = "sudo -i docker run --network=host -t -v '/home/user/config.yml:/config.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --config=/config.yml"
-	DhResourcesInstallCommand = "sudo -i docker run --network=host -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --resources=/resources.yml"
+	DhInstallCommand          = "docker run --network=host -t -v '/home/user/config.yml:/config.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --config=/config.yml"
+	DhResourcesInstallCommand = "docker run --network=host -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --resources=/resources.yml"
 	RegistryLoginCmd          = "sudo docker login -u license-token -p %s dev-registry.deckhouse.io"
 )
 
@@ -40,34 +38,23 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 }
 
 func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
-	vmList, err := clr.ListVM(nsName)
+	vmList, err := clr.ListVM(VmFilter{NameSpace: nsName})
 	if err != nil || len(vmList) < len(vms) {
+		Infof("Create VM (2-4m)")
 		vmCreate(clr, vms, nsName)
 	}
 
-	// Check all machines running
-	for i := 0; ; i++ {
-		allVMUp := true
-		vmList, err = clr.ListVM(nsName)
+	if err := RetrySec(360, func() error {
+		vmList, err = clr.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
 		if err != nil {
-			Fatalf("Get vm list error: %s", err.Error())
+			return err
 		}
-		for _, vm := range vmList {
-			if vm.Status.Phase != virt.MachineRunning {
-				allVMUp = false
-				break
-			}
+		if len(vmList) < len(vms) {
+			return fmt.Errorf("VMs ready: %d of %d", len(vmList), len(vms))
 		}
-
-		if allVMUp && len(vmList) >= len(vms) {
-			break
-		}
-
-		if i >= retries {
-			Fatalf("Timeout waiting for all VMs to be ready")
-		}
-
-		time.Sleep(10 * time.Second)
+		return nil
+	}); err != nil {
+		Fatalf(err.Error())
 	}
 
 	for _, vm := range vmList {
@@ -115,26 +102,37 @@ func installVmDh(client sshClient, masterIp string) error {
 	}
 
 	Infof("Master dhctl bootstrap config (6-9m)")
-	Debugf(DhInstallCommand, dhImg, masterIp)
-	_ = client.ExecFatal(fmt.Sprintf(DhInstallCommand, dhImg, masterIp))
+	cmd := fmt.Sprintf(DhInstallCommand, dhImg, masterIp)
+	Debugf(cmd)
+	cmd = "sudo -i timeout 720 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
+	if out, err := client.Exec(cmd); err != nil {
+		Critf(out)
+		return fmt.Errorf("dhctl bootstrap config error")
+	}
 
 	Infof("Master dhctl bootstrap resources")
-	Debugf(DhResourcesInstallCommand, dhImg, masterIp)
-	_ = client.ExecFatal(fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp))
+	cmd = fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp)
+	Debugf(cmd)
+	cmd = "sudo -i timeout 600 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
+	if out, err := client.Exec(cmd); err != nil {
+		Critf(out)
+		return fmt.Errorf("dhctl bootstrap resources error")
+	}
 
 	return nil
 }
 
-func initVmDh(hvClient sshClient, masterVm, workerVm VmConfig, vmKeyPath string) {
+func initVmDh(hvClient sshClient, masterVm, bootstrapVm VmConfig, vmKeyPath string) {
 	masterClient := hvClient.GetFwdClient("user", masterVm.ip+":22", vmKeyPath)
 	defer masterClient.Close()
 
-	out := masterClient.ExecFatal("ls -1 /opt/deckhouse | wc -l")
+	out, _ := masterClient.Exec("ls /opt/deckhouse")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
+		Infof("Install VM DeckHouse (8-12m)")
 		mkConfig()
 		mkResources()
 
-		client := hvClient.GetFwdClient("user", workerVm.ip+":22", vmKeyPath)
+		client := hvClient.GetFwdClient("user", bootstrapVm.ip+":22", vmKeyPath)
 		defer client.Close()
 
 		for _, f := range []string{ConfigName, ResourcesName} {
@@ -151,7 +149,9 @@ func initVmDh(hvClient sshClient, masterVm, workerVm VmConfig, vmKeyPath string)
 			}
 		}
 
-		_ = installVmDh(client, masterVm.ip)
+		if err := installVmDh(client, masterVm.ip); err != nil {
+			Fatalf(err.Error())
+		}
 	}
 
 	Infof("Get vm kube config")
@@ -182,16 +182,16 @@ func ClusterCreate() {
 	vmKeyPath := filepath.Join(KubePath, PrivKeyName)
 	GenerateRSAKeys(vmKeyPath, filepath.Join(KubePath, PubKeyName))
 
-	Infof("Create NS '%s'", nsName)
+	Infof("NS '%s'", nsName)
 	if err := clr.CreateNs(nsName); err != nil {
 		Fatalf(err.Error())
 	}
 
-	Infof("Create VM (2-4m)")
+	Infof("VM check")
 	vmSync(clr, VmCluster, nsName)
 
-	Infof("Install VM DeckHouse (8-12m)")
-	initVmDh(hvClient, VmCluster[0], VmCluster[1], vmKeyPath)
+	masterVm, bootstrapVm := VmCluster[0], VmCluster[1]
+	initVmDh(hvClient, masterVm, bootstrapVm, vmKeyPath)
 	go hvClient.NewTunnel("127.0.0.1:"+NestedDhPort, VmCluster[0].ip+":"+NestedDhPort)
 
 	clr, err = InitKCluster("", "")
@@ -209,22 +209,16 @@ func ClusterCreate() {
 	}
 
 	Infof("Check Cluster ready (8-10m)")
-	for i := 0; ; i++ {
+	if err := RetrySec(720, func() error {
 		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {
-			if !apierrors.IsNotFound(err) {
-				Fatalf(err.Error())
-			}
-		} else if int(dsNodeConfigurator.Status.NumberReady) >= len(VmCluster) {
-			break
-		} else {
-			Debugf("sds-node-configurator ready: %d", dsNodeConfigurator.Status.NumberReady)
+			return err
 		}
-
-		if i >= retries {
-			Fatalf("Timeout waiting all DS sds-node-configurator ready")
+		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
+			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
 		}
-
-		time.Sleep(10 * time.Second)
+		return nil
+	}); err != nil {
+		Fatalf(err.Error())
 	}
 }

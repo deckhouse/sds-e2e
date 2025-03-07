@@ -275,7 +275,6 @@ func (c sshClient) Dial(n, addr string) (net.Conn, error) {
 		}
 		time.Sleep(10 * time.Second)
 	}
-
 }
 
 func (c sshClient) GetFwdClient(user, addr, keyPath string) sshClient {

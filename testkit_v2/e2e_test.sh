@@ -8,7 +8,7 @@ nc="\033[0m"
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 OPTIONS="hi:v"
-LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,tree,run:,skip:,ns:,namespace:,hypervisor-kconfig:"
+LONGOPTS="help,ssh-key:,ssh-host:,kconfig:,verbose,debug,tree,skip-optional,run:,skip:,ns:,namespace:,hypervisor-kconfig:,parallel:"
 
 function usage() {
   >&2 cat <<EOF
@@ -19,14 +19,8 @@ function usage() {
     $0 [stand] [options] [tests_path]
 
   ${bold}Stand:${normal}
-    Local:
-        Run on local device (not implemented)
     Dev:
         Run on developer cluster, without virtualization (default)
-    Stage:
-        (not implemented)
-    Ci:
-        (not implemented)
     Metal:
         Run on bare meal cluster, with virtualization
 
@@ -42,6 +36,9 @@ function usage() {
 
     --tree:
         Display test output in tree mode
+
+    --skip-optional:
+        Skip optional tests (no required resources)
 
     --run '<expression>':
         Run tests that match the regular expression
@@ -64,8 +61,8 @@ function usage() {
     --ns, --namespace 'te2est-1234':
         Set test name space
 
-    --fakepubsub-node-port <fakepubsub_node_port>:
-        (not implemented)
+    --parallel N:
+        Allow parallel execution of test functions
 
   ${bold}Env:${normal}
     export licensekey=s6Cr6T
@@ -107,25 +104,10 @@ function ssh_fwd() {
   ${shcmd}
 }
 
-function run_local() {
-  echo >&2 "Not implemented"
-  exit 1
-}
-
 function run_dev() {
   shcmd="go test ${test_flags[*]} ${tests_path} ${test_args[*]}"
   if $debug; then echo "RUN: ${shcmd}"; fi
   ${shcmd}
-}
-
-function run_stage() {
-  echo >&2 "Not implemented"
-  exit 1
-}
-
-function run_ci() {
-  echo >&2 "Not implemented"
-  exit 1
 }
 
 function run_bare_metal() {
@@ -143,6 +125,7 @@ function main() {
   local test_args=()
   local verbose=false
   local debug=false
+  local parallel=0
 
   case "$1" in
     Local) run_stand="lockal"; shift ;;
@@ -170,8 +153,8 @@ function main() {
       --skip) test_flags+=(-skip="$2"); shift 2 ;;
       --ns|--namespace) test_args+=(-namespace "$2"); shift 2 ;;
       --tree) test_args+=(-tree); shift ;;
-
-      # TODO add options
+      --skip-optional) test_args+=(-skipoptional); shift ;;
+      --parallel) parallel=$2; shift 2 ;;
 
       -- ) shift; break ;;
       * ) break ;;
@@ -189,21 +172,14 @@ function main() {
   done
 
   if [[ -z "$ssh_host" ]]; then echo -e "  ${red}No '--ssh-host' command line argument${nc}\n"; usage; exit 1; fi
+  if [ $parallel -eq 1 ]; then test_flags+=(-parallel $parallel); test_args+=(-notparallel); fi
+  if [ $parallel -gt 1 ]; then test_flags+=(-parallel $parallel); fi
 
   test_args+=(-stand "${run_stand}")
 
   case "${run_stand}" in
-    local)
-      run_local
-      ;;
     dev)
       run_dev
-      ;;
-    stage)
-      run_stage
-      ;;
-    ci)
-      run_ci
       ;;
     metal)
       test_flags+=(-skip="TestFatal/ignore") # Fake example

@@ -3,7 +3,6 @@ package integration
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,15 +11,44 @@ import (
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (clr *KCluster) ListVM(nsName string) ([]virt.VirtualMachine, error) {
-	objs := virt.VirtualMachineList{}
-	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
-	err := clr.rtClient.List(clr.ctx, &objs, opts)
+type vmType = virt.VirtualMachine
+
+type VmFilter struct {
+	NameSpace any
+	Name      any
+	Phase     any
+}
+
+func (f *VmFilter) Apply(vms []vmType) (resp []vmType) {
+	for _, vm := range vms {
+		if f.Name != nil && !CheckCondition(f.Name, vm.ObjectMeta.Name) {
+			continue
+		}
+		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vm.ObjectMeta.Namespace) {
+			continue
+		}
+		if f.Phase != nil && !CheckCondition(f.Phase, string(vm.Status.Phase)) {
+			continue
+		}
+		resp = append(resp, vm)
+	}
+	return
+}
+
+func (clr *KCluster) ListVM(filters ...VmFilter) ([]vmType, error) {
+	vms := virt.VirtualMachineList{}
+	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
+	err := clr.rtClient.List(clr.ctx, &vms, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return objs.Items, nil
+	resp := vms.Items
+	for _, filter := range filters {
+		resp = filter.Apply(resp)
+	}
+
+	return resp, nil
 }
 
 func (clr *KCluster) CreateVM(
@@ -70,8 +98,8 @@ func (clr *KCluster) CreateVM(
 
 	vmSystemDisk := &virt.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
-	if _, err := clr.GetVMD(nsName, vmdName); err != nil {
-		vmSystemDisk, err = clr.CreateVMDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
+	if _, err := clr.GetVD(nsName, vmdName); err != nil {
+		vmSystemDisk, err = clr.CreateVDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
 		if err != nil {
 			return err
 		}
@@ -216,37 +244,63 @@ func (clr *KCluster) CreateVMIPClaim(nsName string, name string, ip string) (*vi
 	return vmClaim, nil
 }
 
-/*  Virtual Disk (VMD)  */
+/*  Virtual Disk (VD)  */
 
-func (clr *KCluster) GetVMD(nsName, vmdName string) (*virt.VirtualDisk, error) {
-	vmdList, err := clr.ListVMD(nsName)
-	if err != nil {
-		return nil, err
-	}
+type vdType = virt.VirtualDisk
 
-	for _, vmd := range vmdList {
-		if vmd.Name == vmdName {
-			return &vmd, nil
+type VdFilter struct {
+	NameSpace any
+	Name      any
+	Phase     any
+}
+
+func (f *VdFilter) Apply(vds []vdType) (resp []vdType) {
+	for _, vd := range vds {
+		if f.Name != nil && !CheckCondition(f.Name, vd.ObjectMeta.Name) {
+			continue
 		}
+		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vd.ObjectMeta.Namespace) {
+			continue
+		}
+		if f.Phase != nil && !CheckCondition(f.Phase, string(vd.Status.Phase)) {
+			continue
+		}
+		resp = append(resp, vd)
 	}
-
-	return nil, fmt.Errorf("NotFound")
+	return
 }
 
-func (clr *KCluster) ListVMD(nsName string) ([]virt.VirtualDisk, error) {
-	vmds := virt.VirtualDiskList{}
-	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{Namespace: nsName})
-
-	err := clr.rtClient.List(clr.ctx, &vmds, opts)
+func (clr *KCluster) GetVD(nsName, vdName string) (*vdType, error) {
+	vd := vdType{}
+	err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+		Name:      vdName,
+		Namespace: nsName,
+	}, &vd)
 	if err != nil {
-		Debugf("Can't get '%s' VMDs: %s", nsName, err.Error())
+		return nil, err
+	}
+	return &vd, nil
+}
+
+func (clr *KCluster) ListVD(filters ...VdFilter) ([]vdType, error) {
+	vds := virt.VirtualDiskList{}
+	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
+
+	err := clr.rtClient.List(clr.ctx, &vds, opts)
+	if err != nil {
+		Debugf("Can't get VDs: %s", err.Error())
 		return nil, err
 	}
 
-	return vmds.Items, nil
+	resp := vds.Items
+	for _, filter := range filters {
+		resp = filter.Apply(resp)
+	}
+
+	return resp, nil
 }
 
-func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, sizeInGi int64) error {
+func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, sizeInGi int64) error {
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -268,22 +322,23 @@ func (clr *KCluster) CreateVMD(nsName string, name string, storageClass string, 
 	return nil
 }
 
-func (clr *KCluster) DeleteVMD(nsName, name string) error {
-	vmDisk := &virt.VirtualDisk{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: nsName,
-		},
+func (clr *KCluster) DeleteVD(filters ...VdFilter) error {
+	vds, err := clr.ListVD(filters...)
+	if err != nil {
+		return err
 	}
 
-	if err := clr.rtClient.Delete(clr.ctx, vmDisk); err != nil {
-		return err
+	for _, vd := range vds {
+		err := clr.rtClient.Delete(clr.ctx, &vd)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (clr *KCluster) CreateVMDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
+func (clr *KCluster) CreateVDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -318,6 +373,7 @@ type VmBdFilter struct {
 	NameSpace any
 	Name      any
 	VmName    any
+	Phase     any
 }
 
 type vmbdType = virt.VirtualMachineBlockDeviceAttachment
@@ -331,6 +387,9 @@ func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
 			continue
 		}
 		if f.VmName != nil && !CheckCondition(f.VmName, vmbd.Spec.VirtualMachineName) {
+			continue
+		}
+		if f.Phase != nil && !CheckCondition(f.Phase, string(vmbd.Status.Phase)) {
 			continue
 		}
 		resp = append(resp, vmbd)
@@ -354,38 +413,24 @@ func (clr *KCluster) ListVMBD(filters ...VmBdFilter) ([]vmbdType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) WaitVMBD(filters ...VmBdFilter) error {
-	for i := 0; ; i++ {
+func (clr *KCluster) WaitVmbdAttached(filters ...VmBdFilter) error {
+	return RetrySec(100, func() error {
+		filters = append(filters, VmBdFilter{Phase: "!Attached"})
 		vmbds, err := clr.ListVMBD(filters...)
 		if err != nil {
 			return err
 		}
-
-		allOk := true
-		for _, vmbd := range vmbds {
-			if vmbd.Status.Phase != "Attached" {
-				allOk = false
-				Debugf("VMBD %s not Attached", vmbd.ObjectMeta.Name)
-				break
-			}
+		if len(vmbds) > 0 {
+			return fmt.Errorf("VMBDs not Attached: %d (%s, ...)", len(vmbds), vmbds[0].ObjectMeta.Name)
 		}
-		if allOk {
-			break
-		}
-
-		if i >= retries {
-			Fatalf("Timeout waiting VMBD attached")
-		}
-
-		time.Sleep(10 * time.Second)
-	}
-	return nil
+		return nil
+	})
 }
 
 func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64) error {
 	nsName := TestNS
 
-	if err := clr.CreateVMD(nsName, vmdName, storageClass, size); err != nil {
+	if err := clr.CreateVD(nsName, vmdName, storageClass, size); err != nil {
 		return err
 	}
 
@@ -421,7 +466,7 @@ func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
 			return err
 		}
 
-		err = clr.DeleteVMD(vmbd.ObjectMeta.Namespace, vmbd.ObjectMeta.Name)
+		err = clr.DeleteVD(VdFilter{NameSpace: vmbd.ObjectMeta.Namespace, Name: vmbd.ObjectMeta.Name})
 		if err != nil {
 			return err
 		}

@@ -28,11 +28,13 @@ const (
 )
 
 var (
-	SkipOptional      = true
+	SkipOptional      = false
 	startTime         = time.Now()
 	TestNS            = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
 	licenseKey        = os.Getenv("licensekey")
 	registryDockerCfg = "e30="
+	Parallel          = false
+	TreeMode          = false
 
 	HypervisorKubeConfig = ""
 	HvHost               = ""
@@ -56,6 +58,8 @@ var (
 	nsFlag                = flag.String("namespace", "", "Test name space")
 	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
 	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
+	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
+	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
 
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
@@ -144,7 +148,7 @@ var (
 		{"vm-ub22-2", "", 2, "6Gi", "Ubuntu_22", 20}, //setup DH
 		{"vm-ub22-3", "", 2, "4Gi", "Ubuntu_22", 20},
 		//{"vm-ub24-1", "", 2, "4Gi", "Ubuntu_24", 20},
-		//{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
+		{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
 		//{"vm-re8-1", "", 2, "4Gi", "RedOS_8_flant", 20},
 		//{"vm-as18-1", "", 2, "4Gi", "Astra_1_8_Base", 20},
 		//{"vm-al10-1", "", 2, "4Gi", "Alt_10_flant", 30},
@@ -161,8 +165,15 @@ func envInit() {
 		registryDockerCfg = base64Encode(fmt.Sprintf("{\"auths\":{\"dev-registry.deckhouse.io\":{\"auth\":\"%s\"}}}", registryAuthToken))
 	}
 
-	if *standFlag == "stage" || *standFlag == "ci" || *standFlag == "metal" {
-		SkipOptional = false
+	if *skipOptionalFlag && *standFlag != "stage" && *standFlag != "ci" {
+		SkipOptional = true
+	}
+
+	if *treeFlag {
+		TreeMode = true
+	}
+	if !*notParallelFlag {
+		TreeMode, Parallel = true, true
 	}
 
 	sshList := strings.Split(*sshhostFlag, "@")
