@@ -34,7 +34,7 @@ func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 
-	log.Println("Private Key generated")
+	Infof("Private Key generated")
 	return privateKey, nil
 }
 
@@ -66,7 +66,7 @@ func generatePublicKey(privateKey *rsa.PublicKey) ([]byte, error) {
 
 	pubKeyBytes := ssh.MarshalAuthorizedKey(publicRsaKey)
 
-	log.Println("Public key generated")
+	Infof("Public key generated")
 	return pubKeyBytes, nil
 }
 
@@ -86,27 +86,28 @@ func GenerateRSAKeys(privateFilename string, publicFilename string) {
 		return
 	}
 
+	Infof("Generate RSA key")
 	bitSize := 4096
 	privateKey, err := generatePrivateKey(bitSize)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	publicKeyBytes, err := generatePublicKey(&privateKey.PublicKey)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	privateKeyBytes := encodePrivateKeyToPEM(privateKey)
 
 	err = writeKeyToFile(privateKeyBytes, privateFilename)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	err = writeKeyToFile(publicKeyBytes, publicFilename)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 }
 
@@ -115,7 +116,7 @@ func CheckAndGetSSHKeys(dir string, privateKeyName string, pubKeyName string) (s
 
 	sshPubKey, err := os.ReadFile(filepath.Join(dir, pubKeyName))
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	return string(sshPubKey)
