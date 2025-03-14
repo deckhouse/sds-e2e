@@ -1,10 +1,12 @@
 package integration
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
+	"time"
 
 	coreapi "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,6 +14,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apirtschema "k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	kubescheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 var (
@@ -48,6 +52,14 @@ func (f *NodeFilter) Apply(nodes []nodeType) (resp []nodeType) {
 	return
 }
 
+func (clr *KCluster) GetNode(name string) (*nodeType, error) {
+	node, err := (*clr.goClient).CoreV1().Nodes().Get(clr.ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return node, nil
+	}
+	return node, err
+}
+
 func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
 	nodeList, err := (*clr.goClient).CoreV1().Nodes().List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
@@ -63,8 +75,66 @@ func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]string {
-	resp := map[string][]string{}
+func (clr *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
+	node, err := clr.GetNode(name)
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == "InternalIP" {
+			client := NestedSshClient.GetFwdClient(NestedSshUser, addr.Address+":22", NestedSshKey)
+			return client.Exec(cmd)
+		}
+	}
+
+	return "", fmt.Errorf("No node InternalIP")
+}
+
+func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error) {
+	nsName := "d8-sds-node-configurator"
+	pods, err := clr.ListPod(nsName, PodFilter{Name: "%sds-node-configurator-%", Node: name})
+	if err != nil {
+		return "", "", err
+	}
+	if len(pods) == 0 {
+		return "", "", fmt.Errorf("No sds-node-configurator for node %s", name)
+	}
+
+	cmd = append([]string{"/opt/deckhouse/sds/bin/nsenter.static", "-m", "-u", "-i", "-p", "-t", "1", "--"}, cmd...)
+	req := clr.goClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(pods[0].ObjectMeta.Name).
+		Namespace(nsName).
+		SubResource("exec").
+		Timeout(5 * time.Second)
+	req = req.VersionedParams(&coreapi.PodExecOptions{
+		Container: pods[0].Spec.Containers[0].Name,
+		Command:   cmd,
+		Stdin:     false,
+		Stdout:    true,
+		Stderr:    true,
+	}, kubescheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(clr.restCfg, "POST", req.URL())
+	if err != nil {
+		return "", "", err
+	}
+
+	var stdout, stderr bytes.Buffer
+	streamOps := remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}
+	err = exec.StreamWithContext(context.Background(), streamOps)
+	if err != nil {
+		return "", "", err
+	}
+
+	return stdout.String(), stderr.String(), nil
+}
+
+func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]nodeType {
+	resp := map[string][]nodeType{}
 
 	nodes, err := clr.ListNode(filters...)
 	if err != nil {
@@ -75,10 +145,7 @@ func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string]
 			continue
 		}
 
-		resp[lName] = []string{}
-		for _, node := range lFilter.Apply(nodes) {
-			resp[lName] = append(resp[lName], node.ObjectMeta.Name)
-		}
+		resp[lName] = lFilter.Apply(nodes)
 	}
 
 	return resp
@@ -202,9 +269,9 @@ func (clr *KCluster) DeleteStaticInstance(name string) error {
 /*  Static Node  */
 
 func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
-	privSshKey, err := os.ReadFile(filepath.Join(KubePath, PrivKeyName))
+	privSshKey, err := os.ReadFile(NestedSshKey)
 	if err != nil {
-		Errf("Read %s: %s", PrivKeyName, err.Error())
+		Errf("Read %s: %s", NestedSshKey, err.Error())
 		return err
 	}
 	b64SshKey := base64.StdEncoding.EncodeToString(privSshKey)
@@ -235,6 +302,26 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 
 /*  Pod  */
 
+type PodFilter struct {
+	Name any
+	Node any
+}
+
+type podType = coreapi.Pod
+
+func (f *PodFilter) Apply(pods []podType) (resp []podType) {
+	for _, pod := range pods {
+		if f.Name != nil && !CheckCondition(f.Name, pod.ObjectMeta.Name) {
+			continue
+		}
+		if f.Node != nil && !CheckCondition(f.Node, pod.Spec.NodeName) {
+			continue
+		}
+		resp = append(resp, pod)
+	}
+	return
+}
+
 func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 	pod, err := clr.goClient.CoreV1().Pods(nsName).Get(clr.ctx, pName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
@@ -243,12 +330,19 @@ func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 	return pod, err
 }
 
-func (clr *KCluster) ListPod(nsName string) ([]coreapi.Pod, error) {
+func (clr *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod, error) {
 	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
+		Errf("Can't get Pods: %s", err.Error())
 		return nil, err
 	}
-	return pods.Items, nil
+
+	resp := pods.Items
+	for _, filter := range filters {
+		resp = filter.Apply(resp)
+	}
+
+	return resp, nil
 }
 
 func (clr *KCluster) CreatePod(nsName, pName string) error {

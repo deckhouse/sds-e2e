@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"math/rand"
 	"time"
 )
 
@@ -41,5 +42,14 @@ func RetrySec(sec int, f func() error) error {
 		}
 		time.Sleep(latency * time.Second)
 	}
-	return nil
+}
+
+const letters = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+func RandString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }

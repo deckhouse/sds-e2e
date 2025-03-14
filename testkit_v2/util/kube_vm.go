@@ -454,6 +454,16 @@ func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64
 	return nil
 }
 
+func (clr *KCluster) CreateVmdbWithCheck(vmName string, size int64) error {
+	vmdName := fmt.Sprintf("%s-data-%s", vmName, RandString(4))
+	err := clr.CreateVMBD(vmName, vmdName, "linstor-r1", size)
+	if err != nil {
+		Errf("Create VMBD error: %s", err.Error())
+		return err
+	}
+	return clr.WaitVmbdAttached(VmBdFilter{NameSpace: TestNS, VmName: vmName})
+}
+
 func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
 	vmbds, err := clr.ListVMBD(filters...)
 	if err != nil {

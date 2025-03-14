@@ -41,12 +41,14 @@ var (
 	HvSshUser            = ""
 	HvSshKey             = ""
 	HvDhPort             = "6445"
+	HvSshClient          sshClient
 
 	NestedHost              = "127.0.0.1"
 	NestedSshUser           = "user"
 	NestedSshKey            = ""
 	NestedDhPort            = "6445"
 	NestedClusterKubeConfig = "kube-nested.config"
+	NestedSshClient         sshClient
 
 	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
 	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
@@ -191,6 +193,7 @@ func envInit() {
 			HvHost = sshList[0]
 		}
 		HvSshKey = *sshkeyFlag
+		NestedSshKey = filepath.Join(KubePath, PrivKeyName)
 		NestedDhPort = "6443"
 	} else {
 		if len(sshList) >= 2 {

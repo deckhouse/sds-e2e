@@ -8,8 +8,8 @@ func GetCluster(configPath, clusterName string) *KCluster {
 		if HypervisorKubeConfig != "" {
 			ClusterCreate()
 		} else {
-			client := GetSshClient(NestedSshUser, NestedHost+":22", NestedSshKey)
-			go client.NewTunnel("127.0.0.1:"+NestedDhPort, "127.0.0.1:"+NestedDhPort)
+			NestedSshClient = GetSshClient(NestedSshUser, NestedHost+":22", NestedSshKey)
+			go NestedSshClient.NewTunnel("127.0.0.1:"+NestedDhPort, "127.0.0.1:"+NestedDhPort)
 		}
 	}
 
