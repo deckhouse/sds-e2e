@@ -32,12 +32,12 @@ func RetrySec(sec int, f func() error) error {
 			return nil
 		}
 		if int(time.Since(start).Seconds()) > sec {
-			Errf("Retry timeout %ds: %s", sec, err.Error())
+			Warnf("Retry %ds: %s", sec, err.Error())
 			return err
 		}
 		if (time.Since(lastLog) > 10*time.Second && lastMsg != err.Error()) ||
 			time.Since(lastLog) > 2*time.Minute {
-			Debugf(err.Error())
+			Debugf("Waiting... %s", err.Error())
 			lastLog, lastMsg = time.Now(), err.Error()
 		}
 		time.Sleep(latency * time.Second)

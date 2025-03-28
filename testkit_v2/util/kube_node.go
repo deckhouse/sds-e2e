@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	coreapi "k8s.io/api/core/v1"
@@ -35,7 +37,7 @@ type nodeType = coreapi.Node
 
 func (f *NodeFilter) Apply(nodes []nodeType) (resp []nodeType) {
 	for _, node := range nodes {
-		if f.Name != nil && !CheckCondition(f.Name, node.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, node.Name) {
 			continue
 		}
 		if f.Os != nil && !CheckCondition(f.Os, node.Status.NodeInfo.OSImage) {
@@ -87,7 +89,7 @@ func (clr *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("No node InternalIP")
+	return "", fmt.Errorf("no node InternalIP")
 }
 
 func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error) {
@@ -97,10 +99,10 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 		return "", "", err
 	}
 	if len(pods) == 0 {
-		return "", "", fmt.Errorf("No sds-node-configurator for node %s", name)
+		return "", "", fmt.Errorf("no sds-node-configurator for node %s", name)
 	}
 
-	cmd = append([]string{"/opt/deckhouse/sds/bin/nsenter.static", "-m", "-u", "-i", "-p", "-t", "1", "--"}, cmd...)
+	nsCmd := append([]string{"/opt/deckhouse/sds/bin/nsenter.static", "-m", "-u", "-i", "-p", "-t", "1", "--"}, cmd...)
 	req := clr.goClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(pods[0].ObjectMeta.Name).
@@ -109,7 +111,7 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 		Timeout(5 * time.Second)
 	req = req.VersionedParams(&coreapi.PodExecOptions{
 		Container: pods[0].Spec.Containers[0].Name,
-		Command:   cmd,
+		Command:   nsCmd,
 		Stdin:     false,
 		Stdout:    true,
 		Stderr:    true,
@@ -127,10 +129,52 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 	}
 	err = exec.StreamWithContext(context.Background(), streamOps)
 	if err != nil {
-		return "", "", err
+		return stdout.String(), stderr.String(), fmt.Errorf("Exec %s %v: %s", name, cmd, err.Error())
 	}
 
 	return stdout.String(), stderr.String(), nil
+}
+
+func (clr *KCluster) ExecNodeMatch(nName string, querys map[string][]string) error {
+	for cmd, resp := range querys {
+		stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+		if err != nil {
+			Debugf("Exec %s: %s", nName, cmd)
+			Debugf("  stdErr: %s", stErr)
+			return err
+		}
+		for _, r := range resp {
+			if match, _ := regexp.MatchString(r, stOut); !match {
+				Debugf("Exec %s: %s", nName, cmd)
+				Debugf("  Exp: '%s'", r)
+				Debugf("  Out:\n%s", stOut)
+				return fmt.Errorf("wrong %s `%s` output", nName, cmd)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (clr *KCluster) ExecNodeNotMatch(nName string, querys map[string][]string) error {
+	for cmd, resp := range querys {
+		stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+		if err != nil {
+			Debugf("Exec %s: %s", nName, cmd)
+			Debugf("  stdErr: %s", stErr)
+			return err
+		}
+		for _, r := range resp {
+			if match, _ := regexp.MatchString(r, stOut); match {
+				Debugf("Exec %s: %s", nName, cmd)
+				Debugf("  Exp: '%s'", r)
+				Debugf("  Out:\n%s", stOut)
+				return fmt.Errorf("wrong %s `%s` output", nName, cmd)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]nodeType {
@@ -311,7 +355,7 @@ type podType = coreapi.Pod
 
 func (f *PodFilter) Apply(pods []podType) (resp []podType) {
 	for _, pod := range pods {
-		if f.Name != nil && !CheckCondition(f.Name, pod.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, pod.Name) {
 			continue
 		}
 		if f.Node != nil && !CheckCondition(f.Node, pod.Spec.NodeName) {

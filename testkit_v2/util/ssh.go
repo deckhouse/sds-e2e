@@ -298,34 +298,33 @@ func (c sshClient) NewTunnel(lAddr, rAddr string) {
 	defer listener.Close()
 
 	for {
-		// one local connections at a time
 		local, err := listener.Accept()
 		if err != nil {
 			Fatalf("Accept listener error: %s", err.Error())
 		}
 
-		remote, err := c.Dial("tcp", rAddr)
-		if err != nil {
-			Fatalf("Accept tcp connection error: %s", err.Error())
-		}
-
-		done := make(chan struct{})
-
 		go func() {
-			if _, err = io.Copy(local, remote); err != nil {
-				Warnf("Copy local->remote error: %s", err.Error())
+			remote, err := c.Dial("tcp", rAddr)
+			if err != nil {
+				Fatalf("Accept tcp connection error: %s", err.Error())
 			}
-			done <- struct{}{}
-		}()
 
-		go func() {
-			if _, err = io.Copy(remote, local); err != nil {
-				Warnf("Copy remote->local error: %s", err.Error())
-			}
-			done <- struct{}{}
-		}()
+			done := make(chan struct{})
 
-		<-done
+			go func() {
+				_, _ = io.Copy(local, remote)
+				done <- struct{}{}
+			}()
+
+			go func() {
+				_, _ = io.Copy(remote, local)
+				done <- struct{}{}
+			}()
+
+			<-done
+			_ = remote.Close()
+			_ = local.Close()
+		}()
 	}
 }
 

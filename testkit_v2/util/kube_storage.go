@@ -18,6 +18,7 @@ type BdFilter struct {
 	Name       any
 	Node       any
 	Consumable any
+	Size       float32
 }
 
 type bdType = snc.BlockDevice
@@ -33,13 +34,19 @@ func (f *BdFilter) Apply(bds []bdType) (resp []bdType) {
 		if f.Consumable != nil && !CheckCondition(f.Consumable, bd.Status.Consumable) {
 			continue
 		}
+		if f.Size != 0 {
+			s := int64(f.Size * 1024 * 1024 * 1024)
+			if bd.Status.Size.Value() < s || bd.Status.Size.Value() > s+10737418 {
+				continue
+			}
+		}
 
 		resp = append(resp, bd)
 	}
 	return
 }
 
-func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
+func (clr *KCluster) ListBD(filters ...BdFilter) ([]bdType, error) {
 	bdList := &snc.BlockDeviceList{}
 	err := clr.rtClient.List(clr.ctx, bdList)
 	if err != nil {
@@ -53,6 +60,20 @@ func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
 	}
 
 	return resp, nil
+}
+
+func (clr *KCluster) DeleteBd(filters ...BdFilter) error {
+	bdList, err := clr.ListBD(filters...)
+	if err != nil {
+		return err
+	}
+	for _, bd := range bdList {
+		if err := clr.rtClient.Delete(clr.ctx, &bd); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 /*  LVM Volume Group  */
@@ -109,17 +130,33 @@ func (clr *KCluster) ListLVG(filters ...LvgFilter) ([]lvgType, error) {
 }
 
 func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
-	filters = append(filters, LvgFilter{Phase: "!Ready"})
-	return RetrySec(40, func() error {
-		lvgs, err := clr.ListLVG(filters...)
+	filtersNotReady := append(filters, LvgFilter{Phase: "!Ready"})
+	if err := RetrySec(35, func() error {
+		lvgs, err := clr.ListLVG(filtersNotReady...)
 		if err != nil {
 			return err
 		}
 		if len(lvgs) > 0 {
-			return fmt.Errorf("%d LVGs not Ready (%s, ...)", len(lvgs), lvgs[0].Name)
+			return fmt.Errorf("LVGs not Ready: %d (%s, ...)", len(lvgs), lvgs[0].Name)
 		}
 		return nil
-	})
+	}); err != nil {
+		lvgs, _ := clr.ListLVG(filtersNotReady...)
+		Debugf("Not Ready LVGs: %#v", lvgs)
+		return err
+	}
+
+	lvgs, err := clr.ListLVG(filters...)
+	if err != nil {
+		return err
+	}
+	for _, lvg := range lvgs {
+		if len(lvg.Status.Nodes) == 0 {
+			return fmt.Errorf("no nodes in LVG %s status", lvg.Name)
+		}
+	}
+
+	return nil
 }
 
 func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
@@ -146,6 +183,44 @@ func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
 	return nil
 }
 
+func (clr *KCluster) CreateLvgWithCheck(name, nodeName string, bds []string) error {
+	if err := clr.CreateLVG(name, nodeName, bds); err != nil {
+		return err
+	}
+
+	return clr.CheckLVGsReady(LvgFilter{Name: name})
+}
+
+func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) error {
+	lvg := &snc.LVMVolumeGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: snc.LVMVolumeGroupSpec{
+			ActualVGNameOnTheNode: name,
+			BlockDeviceSelector:   &metav1.LabelSelector{},
+			Type:                  "Local",
+			Local:                 snc.LVMVolumeGroupLocalSpec{NodeName: nodeName},
+		},
+	}
+	if bds, ok := ext["bds"]; ok {
+		lvg.Spec.BlockDeviceSelector.MatchExpressions = []metav1.LabelSelectorRequirement{{
+			Key:      "kubernetes.io/metadata.name",
+			Operator: metav1.LabelSelectorOpIn,
+			Values:   bds.([]string),
+		}}
+	}
+	if tp, ok := ext["thinpools"]; ok {
+		lvg.Spec.ThinPools = tp.([]snc.LVMVolumeGroupThinPoolSpec)
+	}
+	err := clr.rtClient.Create(clr.ctx, lvg)
+	if err != nil {
+		Errf("Can't create LVG %s/%s", nodeName, name)
+		return err
+	}
+	return nil
+}
+
 func (clr *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
 	err := clr.rtClient.Update(clr.ctx, lvg)
 	if err != nil {
@@ -166,6 +241,23 @@ func (clr *KCluster) DeleteLVG(filters ...LvgFilter) error {
 	}
 
 	return nil
+}
+
+func (clr *KCluster) DeleteLvgWithCheck(filters ...LvgFilter) error {
+	if err := clr.DeleteLVG(filters...); err != nil {
+		return err
+	}
+
+	return RetrySec(15, func() error {
+		lvgs, err := clr.ListLVG(filters...)
+		if err != nil {
+			return err
+		}
+		if len(lvgs) > 0 {
+			return fmt.Errorf("LVGs not deleted: %d", len(lvgs))
+		}
+		return nil
+	})
 }
 
 /*  Storage Class  */

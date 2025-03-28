@@ -152,7 +152,7 @@ func initVmDh(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
 	}
 
 	out = NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
-	out = strings.Replace(out, "127.0.0.1:6445", "127.0.0.1:"+NestedDhPort, -1)
+	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedDhPort)
 	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
 	if err != nil {
 		Fatalf(err.Error())

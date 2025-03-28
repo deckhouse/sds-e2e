@@ -23,7 +23,7 @@ func (t *T) Skip(args ...any) {
 		Warn(args...)
 		t.T.Skip(args...)
 	}
-	t.T.Fatal(args...)
+	t.Fatal(args...)
 }
 
 func (t *T) Skipf(format string, args ...any) {
@@ -31,7 +31,7 @@ func (t *T) Skipf(format string, args ...any) {
 		Warnf(format, args...)
 		t.T.Skipf(format, args...)
 	}
-	t.T.Fatalf(format, args...)
+	t.Fatalf(format, args...)
 }
 
 func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
@@ -48,8 +48,8 @@ func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), fi
 		}
 
 		for i, node := range nodes {
-			Debugf("Run %s/%s test", label, node.ObjectMeta.Name)
-			tn := TestNode{Id: i, Name: node.ObjectMeta.Name, GroupName: label, Raw: &node}
+			Debugf("Run %s/%s test", label, node.Name)
+			tn := TestNode{Id: i, Name: node.Name, GroupName: label, Raw: &node}
 			f(&T{t, &tn})
 		}
 		t.Logf("'%s' tests count: %d", label, len(nodes))
@@ -71,11 +71,11 @@ func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *T)
 			}
 
 			for i, node := range nodes {
-				t.Run(node.ObjectMeta.Name, func(t *testing.T) {
+				t.Run(node.Name, func(t *testing.T) {
 					if Parallel {
 						t.Parallel()
 					}
-					tn := TestNode{Id: i, Name: node.ObjectMeta.Name, GroupName: label, Raw: &node}
+					tn := TestNode{Id: i, Name: node.Name, GroupName: label, Raw: &node}
 					f(&T{t, &tn})
 				})
 			}

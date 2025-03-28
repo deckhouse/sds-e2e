@@ -21,10 +21,10 @@ type VmFilter struct {
 
 func (f *VmFilter) Apply(vms []vmType) (resp []vmType) {
 	for _, vm := range vms {
-		if f.Name != nil && !CheckCondition(f.Name, vm.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, vm.Name) {
 			continue
 		}
-		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vm.ObjectMeta.Namespace) {
+		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vm.Namespace) {
 			continue
 		}
 		if f.Phase != nil && !CheckCondition(f.Phase, string(vm.Status.Phase)) {
@@ -64,9 +64,9 @@ func (clr *KCluster) CreateVM(
 ) error {
 	imgUrl, ok := Images[imgName]
 	if !ok {
-		return fmt.Errorf("No '%s' image", imgName)
+		return fmt.Errorf("no '%s' image", imgName)
 	}
-	cvmiName := strings.ToLower(strings.Replace(strings.Replace(imgName, "_", "-", -1), " ", "-", -1))
+	cvmiName := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(imgName, "_", "-"), " ", "-"))
 	cvmiName = fmt.Sprintf("test-%s-%s", cvmiName, hashMd5(imgUrl)[:4])
 
 	vmCVMI, err := clr.GetCVMI(cvmiName)
@@ -256,10 +256,10 @@ type VdFilter struct {
 
 func (f *VdFilter) Apply(vds []vdType) (resp []vdType) {
 	for _, vd := range vds {
-		if f.Name != nil && !CheckCondition(f.Name, vd.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, vd.Name) {
 			continue
 		}
-		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vd.ObjectMeta.Namespace) {
+		if f.NameSpace != nil && !CheckCondition(f.NameSpace, vd.Namespace) {
 			continue
 		}
 		if f.Phase != nil && !CheckCondition(f.Phase, string(vd.Status.Phase)) {
@@ -316,6 +316,16 @@ func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, s
 
 	err := clr.rtClient.Create(clr.ctx, vmDisk)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) UpdateVd(vd *vdType) error {
+	err := clr.rtClient.Update(clr.ctx, vd)
+	if err != nil {
+		Errf("Can't update VD %s", vd.Name)
 		return err
 	}
 
@@ -380,10 +390,10 @@ type vmbdType = virt.VirtualMachineBlockDeviceAttachment
 
 func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
 	for _, vmbd := range vmbds {
-		if f.Name != nil && !CheckCondition(f.Name, vmbd.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, vmbd.Name) {
 			continue
 		}
-		if f.NameSpace != nil && !CheckCondition(f.Name, vmbd.ObjectMeta.Namespace) {
+		if f.NameSpace != nil && !CheckCondition(f.Name, vmbd.Namespace) {
 			continue
 		}
 		if f.VmName != nil && !CheckCondition(f.VmName, vmbd.Spec.VirtualMachineName) {
@@ -414,26 +424,21 @@ func (clr *KCluster) ListVMBD(filters ...VmBdFilter) ([]vmbdType, error) {
 }
 
 func (clr *KCluster) WaitVmbdAttached(filters ...VmBdFilter) error {
-	return RetrySec(100, func() error {
+	return RetrySec(25, func() error {
 		filters = append(filters, VmBdFilter{Phase: "!Attached"})
 		vmbds, err := clr.ListVMBD(filters...)
 		if err != nil {
 			return err
 		}
 		if len(vmbds) > 0 {
-			return fmt.Errorf("VMBDs not Attached: %d (%s, ...)", len(vmbds), vmbds[0].ObjectMeta.Name)
+			return fmt.Errorf("VMBDs not Attached: %d (%s, ...)", len(vmbds), vmbds[0].Name)
 		}
 		return nil
 	})
 }
 
-func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64) error {
+func (clr *KCluster) AttachVmbd(vmName, vmdName string) error {
 	nsName := TestNS
-
-	if err := clr.CreateVD(nsName, vmdName, storageClass, size); err != nil {
-		return err
-	}
-
 	err := clr.rtClient.Create(clr.ctx, &virt.VirtualMachineBlockDeviceAttachment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      vmdName,
@@ -454,7 +459,36 @@ func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64
 	return nil
 }
 
-func (clr *KCluster) CreateVmdbWithCheck(vmName string, size int64) error {
+func (clr *KCluster) DetachVmbd(filters ...VmBdFilter) error {
+	vmbds, err := clr.ListVMBD(filters...)
+	if err != nil {
+		return err
+	}
+
+	for _, vmbd := range vmbds {
+		err := clr.rtClient.Delete(clr.ctx, &vmbd)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64) error {
+	nsName := TestNS
+
+	if err := clr.CreateVD(nsName, vmdName, storageClass, size); err != nil {
+		return err
+	}
+	if err := clr.AttachVmbd(vmName, vmdName); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (clr *KCluster) CreateVmbdWithCheck(vmName string, size int64) error {
 	vmdName := fmt.Sprintf("%s-data-%s", vmName, RandString(4))
 	err := clr.CreateVMBD(vmName, vmdName, "linstor-r1", size)
 	if err != nil {
@@ -476,11 +510,28 @@ func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
 			return err
 		}
 
-		err = clr.DeleteVD(VdFilter{NameSpace: vmbd.ObjectMeta.Namespace, Name: vmbd.ObjectMeta.Name})
+		err = clr.DeleteVD(VdFilter{NameSpace: vmbd.Namespace, Name: vmbd.Name})
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (clr *KCluster) DeleteVmbdWithCheck(filters ...VmBdFilter) error {
+	if err := clr.DeleteVMBD(filters...); err != nil {
+		return err
+	}
+
+	return RetrySec(15, func() error {
+		vds, err := clr.ListVD(VdFilter{NameSpace: TestNS, Name: "!%-system%"})
+		if err != nil {
+			return err
+		}
+		if len(vds) > 0 {
+			return fmt.Errorf("VDs not deleted: %d", len(vds))
+		}
+		return nil
+	})
 }

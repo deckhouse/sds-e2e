@@ -1,8 +1,12 @@
 package integration
 
+import "sync"
+
 var clrCache = map[string]*KCluster{}
+var mx sync.RWMutex
 
 func GetCluster(configPath, clusterName string) *KCluster {
+	mx.Lock()
 	if len(clrCache) == 0 {
 		envInit()
 		if HypervisorKubeConfig != "" {
@@ -24,5 +28,6 @@ func GetCluster(configPath, clusterName string) *KCluster {
 		clrCache[k] = clr
 	}
 
+	mx.Unlock()
 	return clrCache[k]
 }
