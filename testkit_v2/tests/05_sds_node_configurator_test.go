@@ -152,7 +152,10 @@ func TestLvgThickAddBd(t *testing.T) {
 		}
 
 		if err := util.RetrySec(20, func() error {
-			lvg, _ = clr.GetLvg(lvg.Name)
+			lvg, err := clr.GetLvg(lvg.Name)
+			if err != nil {
+				return err
+			}
 			if lvg.Status.VGSize.Value() != int64(3*1024*1024*1024) {
 				return fmt.Errorf("VG %s size: %d != 3Gi", lvg.Name, lvg.Status.VGSize.Value())
 			}
@@ -634,10 +637,10 @@ func cleanupLvgBd() {
 
 	if util.HypervisorKubeConfig != "" {
 		hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		_ = hvClr.DeleteVMBD(util.VmBdFilter{NameSpace: util.TestNS})
-		_ = hvClr.DeleteVD(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
+		_ = hvClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
+		_ = hvClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
 	}
-	_ = clr.DeleteBd()
+	_ = clr.DeleteBdWithCheck()
 }
 
 func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree string) error {

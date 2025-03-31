@@ -76,6 +76,23 @@ func (clr *KCluster) DeleteBd(filters ...BdFilter) error {
 	return nil
 }
 
+func (clr *KCluster) DeleteBdWithCheck(filters ...BdFilter) error {
+	if err := clr.DeleteBd(filters...); err != nil {
+		return err
+	}
+	return RetrySec(20, func() error {
+		bds, err := clr.ListBD(filters...)
+		if err != nil {
+			return err
+		}
+
+		if len(bds) > 0 {
+			return fmt.Errorf("not deleted BDs: %d (%s, ...)", len(bds), bds[0].Name)
+		}
+		return nil
+	})
+}
+
 /*  LVM Volume Group  */
 
 type lvgType = snc.LVMVolumeGroup
@@ -141,8 +158,6 @@ func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
 		}
 		return nil
 	}); err != nil {
-		lvgs, _ := clr.ListLVG(filtersNotReady...)
-		Debugf("Not Ready LVGs: %#v", lvgs)
 		return err
 	}
 

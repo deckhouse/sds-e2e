@@ -348,6 +348,23 @@ func (clr *KCluster) DeleteVD(filters ...VdFilter) error {
 	return nil
 }
 
+func (clr *KCluster) DeleteVdWithCheck(filters ...VdFilter) error {
+	if err := clr.DeleteVD(filters...); err != nil {
+		return err
+	}
+
+	return RetrySec(15, func() error {
+		vds, err := clr.ListVD(filters...)
+		if err != nil {
+			return err
+		}
+		if len(vds) > 0 {
+			return fmt.Errorf("VDs not deleted: %d", len(vds))
+		}
+		return nil
+	})
+}
+
 func (clr *KCluster) CreateVDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
@@ -383,6 +400,7 @@ type VmBdFilter struct {
 	NameSpace any
 	Name      any
 	VmName    any
+	VdName    any
 	Phase     any
 }
 
@@ -397,6 +415,9 @@ func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
 			continue
 		}
 		if f.VmName != nil && !CheckCondition(f.VmName, vmbd.Spec.VirtualMachineName) {
+			continue
+		}
+		if f.VdName != nil && !CheckCondition(f.VdName, vmbd.Spec.BlockDeviceRef.Name) {
 			continue
 		}
 		if f.Phase != nil && !CheckCondition(f.Phase, string(vmbd.Status.Phase)) {
@@ -509,11 +530,6 @@ func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
 		if err != nil {
 			return err
 		}
-
-		err = clr.DeleteVD(VdFilter{NameSpace: vmbd.Namespace, Name: vmbd.Name})
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -525,12 +541,12 @@ func (clr *KCluster) DeleteVmbdWithCheck(filters ...VmBdFilter) error {
 	}
 
 	return RetrySec(15, func() error {
-		vds, err := clr.ListVD(VdFilter{NameSpace: TestNS, Name: "!%-system%"})
+		vmbds, err := clr.ListVMBD(filters...)
 		if err != nil {
 			return err
 		}
-		if len(vds) > 0 {
-			return fmt.Errorf("VDs not deleted: %d", len(vds))
+		if len(vmbds) > 0 {
+			return fmt.Errorf("VMBDs not deleted: %d", len(vmbds))
 		}
 		return nil
 	})
