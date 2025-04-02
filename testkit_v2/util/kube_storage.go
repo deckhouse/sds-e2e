@@ -35,8 +35,9 @@ func (f *BdFilter) Apply(bds []bdType) (resp []bdType) {
 			continue
 		}
 		if f.Size != 0 {
-			s := int64(f.Size * 1024 * 1024 * 1024)
-			if bd.Status.Size.Value() < s || bd.Status.Size.Value() > s+10737418 {
+			sizeB := int64(f.Size) * 1024 * 1024 * 1024
+			validDiff := int64(10 * 1024 * 1024)
+			if bd.Status.Size.Value() < sizeB-validDiff || bd.Status.Size.Value() > sizeB+validDiff {
 				continue
 			}
 		}
@@ -192,7 +193,7 @@ func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
 	}
 	err := clr.rtClient.Create(clr.ctx, lvmVolumeGroup)
 	if err != nil {
-		Errf("Can't create LVG %s (node %s, bds %v)", name, nodeName, bds)
+		Errorf("Can't create LVG %s (node %s, bds %v)", name, nodeName, bds)
 		return err
 	}
 	return nil
@@ -230,7 +231,7 @@ func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) err
 	}
 	err := clr.rtClient.Create(clr.ctx, lvg)
 	if err != nil {
-		Errf("Can't create LVG %s/%s", nodeName, name)
+		Errorf("Can't create LVG %s/%s", nodeName, name)
 		return err
 	}
 	return nil
@@ -239,7 +240,7 @@ func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) err
 func (clr *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
 	err := clr.rtClient.Update(clr.ctx, lvg)
 	if err != nil {
-		Errf("Can't update LVG %s", lvg.Name)
+		Errorf("Can't update LVG %s", lvg.Name)
 		return err
 	}
 
@@ -309,7 +310,7 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 	}
 
 	if err := clr.rtClient.Create(clr.ctx, sc); err != nil {
-		Errf("Can't create SC %s", sc.Name)
+		Errorf("Can't create SC %s", sc.Name)
 		return nil, err
 	}
 	return sc, nil

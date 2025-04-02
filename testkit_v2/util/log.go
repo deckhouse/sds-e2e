@@ -57,10 +57,6 @@ func Errorf(format string, v ...any) {
 	log.Printf("\033[91m❕\033[2m"+getDuration()+" \033[0m"+format+"\033[0m", v...)
 }
 
-func Errf(format string, v ...any) {
-	Errorf(format, v...)
-}
-
 func Critf(format string, v ...any) {
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())

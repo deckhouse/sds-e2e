@@ -122,7 +122,7 @@ func installVmDh(client sshClient, masterIp string) error {
 	return nil
 }
 
-func initVmDh(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
+func initVmD8(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
 	out, _ := NestedSshClient.Exec("ls /opt/deckhouse")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
 		Infof("Install VM DeckHouse (8-12m)")
@@ -152,7 +152,7 @@ func initVmDh(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
 	}
 
 	out = NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
-	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedDhPort)
+	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedK8sPort)
 	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
 	if err != nil {
 		Fatalf(err.Error())
@@ -163,7 +163,7 @@ func ClusterCreate() {
 	nsName := TestNS
 
 	HvSshClient = GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
-	go HvSshClient.NewTunnel("127.0.0.1:"+HvDhPort, "127.0.0.1:"+HvDhPort)
+	go HvSshClient.NewTunnel("127.0.0.1:"+HvK8sPort, "127.0.0.1:"+HvK8sPort)
 
 	clr, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
@@ -187,8 +187,8 @@ func ClusterCreate() {
 	masterVm, bootstrapVm := VmCluster[0], VmCluster[1]
 	NestedSshClient = HvSshClient.GetFwdClient(NestedSshUser, masterVm.ip+":22", NestedSshKey)
 
-	initVmDh(masterVm, bootstrapVm, NestedSshKey)
-	go NestedSshClient.NewTunnel("127.0.0.1:"+NestedDhPort, masterVm.ip+":"+NestedDhPort)
+	initVmD8(masterVm, bootstrapVm, NestedSshKey)
+	go NestedSshClient.NewTunnel("127.0.0.1:"+NestedK8sPort, masterVm.ip+":"+NestedK8sPort)
 
 	clr, err = InitKCluster("", "")
 	if err != nil {

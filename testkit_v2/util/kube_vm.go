@@ -325,7 +325,7 @@ func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, s
 func (clr *KCluster) UpdateVd(vd *vdType) error {
 	err := clr.rtClient.Update(clr.ctx, vd)
 	if err != nil {
-		Errf("Can't update VD %s", vd.Name)
+		Errorf("Can't update VD %s", vd.Name)
 		return err
 	}
 
@@ -373,7 +373,7 @@ func (clr *KCluster) CreateVDFromCVMI(nsName string, name string, storageClass s
 		},
 		Spec: virt.VirtualDiskSpec{
 			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
-				Size:         resource.NewQuantity(int64(sizeInGi*1024*1024*1024), resource.BinarySI),
+				Size:         resource.NewQuantity(int64(sizeInGi)*1024*1024*1024, resource.BinarySI),
 				StorageClass: &storageClass,
 			},
 			DataSource: &virt.VirtualDiskDataSource{
@@ -513,7 +513,7 @@ func (clr *KCluster) CreateVmbdWithCheck(vmName string, size int64) error {
 	vmdName := fmt.Sprintf("%s-data-%s", vmName, RandString(4))
 	err := clr.CreateVMBD(vmName, vmdName, "linstor-r1", size)
 	if err != nil {
-		Errf("Create VMBD error: %s", err.Error())
+		Errorf("Create VMBD error: %s", err.Error())
 		return err
 	}
 	return clr.WaitVmbdAttached(VmBdFilter{NameSpace: TestNS, VmName: vmName})

@@ -135,42 +135,40 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 	return stdout.String(), stderr.String(), nil
 }
 
-func (clr *KCluster) ExecNodeMatch(nName string, querys map[string][]string) error {
-	for cmd, resp := range querys {
-		stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
-		if err != nil {
+// Execue cmd on node and check output using expressions
+func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+	if err != nil {
+		Debugf("Exec %s: %s", nName, cmd)
+		Debugf("  StdErr: %s", stErr)
+		return err
+	}
+	for _, r := range resp {
+		if match, _ := regexp.MatchString(r, stOut); !match {
 			Debugf("Exec %s: %s", nName, cmd)
-			Debugf("  stdErr: %s", stErr)
-			return err
-		}
-		for _, r := range resp {
-			if match, _ := regexp.MatchString(r, stOut); !match {
-				Debugf("Exec %s: %s", nName, cmd)
-				Debugf("  Exp: '%s'", r)
-				Debugf("  Out:\n%s", stOut)
-				return fmt.Errorf("wrong %s `%s` output", nName, cmd)
-			}
+			Debugf("  Contains: '%s'", r)
+			Debugf("  Out:\n%s", stOut)
+			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
 		}
 	}
 
 	return nil
 }
 
-func (clr *KCluster) ExecNodeNotMatch(nName string, querys map[string][]string) error {
-	for cmd, resp := range querys {
-		stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
-		if err != nil {
+// Execue cmd on node and check output not contain expressions
+func (clr *KCluster) ExecNodeRespNotContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+	if err != nil {
+		Debugf("Exec %s: %s", nName, cmd)
+		Debugf("  StdErr: %s", stErr)
+		return err
+	}
+	for _, r := range resp {
+		if match, _ := regexp.MatchString(r, stOut); match {
 			Debugf("Exec %s: %s", nName, cmd)
-			Debugf("  stdErr: %s", stErr)
-			return err
-		}
-		for _, r := range resp {
-			if match, _ := regexp.MatchString(r, stOut); match {
-				Debugf("Exec %s: %s", nName, cmd)
-				Debugf("  Exp: '%s'", r)
-				Debugf("  Out:\n%s", stOut)
-				return fmt.Errorf("wrong %s `%s` output", nName, cmd)
-			}
+			Debugf("  Not contains: '%s'", r)
+			Debugf("  Out:\n%s", stOut)
+			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
 		}
 	}
 
@@ -295,7 +293,7 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 			return nil
 		}
 
-		Errf("Can't create StaticInstance %s", name)
+		Errorf("Can't create StaticInstance %s", name)
 		return err
 	}
 	return nil
@@ -315,14 +313,14 @@ func (clr *KCluster) DeleteStaticInstance(name string) error {
 func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 	privSshKey, err := os.ReadFile(NestedSshKey)
 	if err != nil {
-		Errf("Read %s: %s", NestedSshKey, err.Error())
+		Errorf("Read %s: %s", NestedSshKey, err.Error())
 		return err
 	}
 	b64SshKey := base64.StdEncoding.EncodeToString(privSshKey)
 
 	credentialName := name + "rsa"
 	if err = clr.CreateOrUpdSSHCredential(credentialName, user, b64SshKey); err != nil {
-		Errf("Create SSHCredential: %s", err.Error())
+		Errorf("Create SSHCredential: %s", err.Error())
 		return err
 	}
 
@@ -331,13 +329,13 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 		siName := fmt.Sprintf("si-%s-%s", name, hashMd5(ip)[:8])
 		err = clr.CreateStaticInstance(siName, role, ip, credentialName)
 		if err != nil {
-			Errf("Create StaticInstance %s: %s", siName, err.Error())
+			Errorf("Create StaticInstance %s: %s", siName, err.Error())
 			return err
 		}
 	}
 
 	if err = clr.CreateNodeGroupStatic(role, role, len(ips)); err != nil {
-		Errf("Create NodeGroup: %s", err.Error())
+		Errorf("Create NodeGroup: %s", err.Error())
 		return err
 	}
 
@@ -377,7 +375,7 @@ func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 func (clr *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod, error) {
 	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
-		Errf("Can't get Pods: %s", err.Error())
+		Errorf("Can't get Pods: %s", err.Error())
 		return nil, err
 	}
 

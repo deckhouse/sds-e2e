@@ -72,7 +72,7 @@ func NewKubeRTClient(cfg *rest.Config) (ctrlrtclient.Client, error) {
 		extapi.AddToScheme,
 		coreapi.AddToScheme,
 		storapi.AddToScheme,
-		DhSchemeBuilder.AddToScheme,
+		D8SchemeBuilder.AddToScheme,
 	}
 
 	scheme := apiruntime.NewScheme()
@@ -212,7 +212,7 @@ func (clr *KCluster) CreateNs(nsName string) error {
 		return nil
 	}
 
-	Errf("Can't create NS %s", nsName)
+	Errorf("Can't create NS %s", nsName)
 	return err
 }
 

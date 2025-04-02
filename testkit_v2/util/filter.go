@@ -40,7 +40,7 @@ func CheckCondition(where any, val any) bool {
 		case Where:
 			return w.IsValid(v)
 		default:
-			Errf("Invalid filter type for string: %#v", w)
+			Errorf("Invalid filter type for string: %#v", w)
 			return false
 		}
 	case bool:
@@ -48,11 +48,11 @@ func CheckCondition(where any, val any) bool {
 		case bool:
 			return w == v
 		default:
-			Errf("Invalid filter type for bool: %#v", w)
+			Errorf("Invalid filter type for bool: %#v", w)
 			return false
 		}
 	default:
-		Errf("Invalid filter type: %#v", v)
+		Errorf("Invalid filter type: %#v", v)
 		return false
 	}
 
