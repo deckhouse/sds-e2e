@@ -1,101 +1,172 @@
 ## Setup test
-  ```bash
-  git clone <url>
-  cd sds-e2e/testkit_v2
-  ```
+```bash
+git clone https://github.com/deckhouse/sds-e2e.git
+cd sds-e2e
+git checkout origin/not_mein_branch_if_required
+cd testkit_v2
+```
+#### Init env
+```bash
+export hv_ssh_dst="<user>@<host>"
+export hv_ssh_key="<key path>"
+export licensekey="<deckhouse license key>"
+```
+
 #### Init config data for Bare Metal Server
-  ```bash
-  export hv_ssh_dst="<user>@<host>"
-  export hv_ssh_key="<key path>"
-  export licensekey="<deckhouse license key>"
+```bash
+mkdir ../../sds-e2e-cfg
+ssh -t $hv_ssh_dst "sudo cat /root/.kube/config > kube-hypervisor.config"
+scp $hv_ssh_dst:kube-hypervisor.config ../../sds-e2e-cfg/
+```
 
-  mkdir ../../sds-e2e-cfg
-  ssh -t $hv_ssh_dst "sudo cat /root/.kube/config > kube-hypervisor.config"
-  scp $hv_ssh_dst:kube-hypervisor.config ../../sds-e2e-cfg/
-  ```
+## Check conditions
+Instrument for tests configuration. You can check config fields with functions:<br/>
+&nbsp; &nbsp; `WhereIn(STRING...)` - parameter matches with any of arguments<br/>
+&nbsp; &nbsp; `WhereNotIn(STRING...)` - parameter don't matches with all arguments<br/>
+&nbsp; &nbsp; `WhereLike(STRING...)` - parameter contains any of substrings<br/>
+&nbsp; &nbsp; `WhereNotLike(STRING...)` - parameter don't contains all substrings<br/>
+&nbsp; &nbsp; `WhereReg(STRING...)` - parameter equal to any of regular expressions<br/>
+&nbsp; &nbsp; `WhereNotReg(STRING...)` - parameter don't equal to all regular expressions
 
-## Run tests with e2e_test.sh
-  Manual and examples in `e2e_test.sh --help`
+or string hooks:<br/>
+&nbsp; &nbsp; `"<condition>"` - parameter matche with string<br/>
+&nbsp; &nbsp; `"!<condition>"` - parameter don't matche with string<br/>
+&nbsp; &nbsp; `"%<condition>%"` - parameter contains substring<br/>
+&nbsp; &nbsp; `"!%<condition>%"` - parameter don't contains substring
+
+## External configuration of required cluster
+You can update test clusner configuration in **util/env.go**<br/>
+**NodeRequired** - list of test node configurations. Run test on each node is required if <ins>-skipoptional</ins> option not set
+```
+"Label": {
+  Name:    "!%node-skip%",
+  Os:      "%Windows XP%",
+  Kernel:  WhereLike{"5.15.0-122", "5.15.0-128"},
+  Kubelet: WhereLike{"v1.28.15"},
+},
+```
+
+**Images** - list of OS image samples
+
+**VmCluster** - list of virtula machines in hypervisor mode<br/>
+&nbsp; &nbsp; Required:<br/>
+&nbsp; &nbsp; &nbsp; &nbsp; **First** will be used for Deckhouse master<br/>
+&nbsp; &nbsp; &nbsp; &nbsp; **Second** will be used for Deckhouse setup (with docker)
+```
+#name         ip          cpu ram    image        disk
+{"vm-name-1", "",         4,  "8Gi", "Ubuntu_22", 20},
+{"vm-name-2", "10.0.0.7", 2,  "6Gi", "Ubuntu_22", 20},
+```
+
+## Run tests with e2e_test.sh (Linux only)
+Manual and examples in `e2e_test.sh --help`
 
 ## Run tests with go test
-  `go test [FLAG]... PATH [FLAG|OPTION]...`
+`go test [FLAG]... PATH [FLAG|OPTION]...`
 
-  **Flags:**
+**Flags:**
 
-  `-v`
+`-v`
 
-  `-run TestOk/case1`
+&nbsp; &nbsp; Use verbose mode and reat-time output for 'go test'
 
-  `-skip TestFatal/ignore`
+`-run TestOk/case1`
 
-  `-timeout 30m`
+&nbsp; &nbsp; Select specific cases to run
 
-  `-parallel N`
+`-skip TestFatal/ignore`
 
-  **Options:**
+&nbsp; &nbsp; Select specific cases to skip
 
-  `-verbose`
+`-timeout 10m`
 
-  &nbsp; &nbsp; Output with Info messages
+&nbsp; &nbsp; Set timeout for single test execution (default: 10 min)
 
-  `-debug`
+`-parallel N`
 
-  &nbsp; &nbsp; Output with Debug messages
+&nbsp; &nbsp; Select specific cases to run
 
-  `-skipoptional`
+**Options:**
 
-  &nbsp; &nbsp; Skip optional tests (no required resources)
+`-verbose`
 
-  `-notparallel`
+&nbsp; &nbsp; Output with Info messages
 
-  &nbsp; &nbsp; Run test groups in single mode
+`-debug`
 
-  `-tree`
+&nbsp; &nbsp; Output with Debug messages
 
-  &nbsp; &nbsp; Run tests in tree mode. Can be turned on in <ins>-notparallel</ins> mode
+`-skipoptional`
 
-  `-stand (lockal|dev|metal|stage|ci)`
+&nbsp; &nbsp; Skip optional tests (no required resources)
 
-  &nbsp; &nbsp; Test stand class
+`-notparallel`
 
-  `-sshhost user@127.0.0.1`
+&nbsp; &nbsp; Run test groups in single mode
 
-  &nbsp; &nbsp; Test ssh host. Hypervisor ssh host if <ins>-hypervisorkconfig</ins> used
+`-tree`
 
-  `-sshkey /home/user/.ssh/id_rsa`
+&nbsp; &nbsp; Run tests in tree mode. Can be turned on in <ins>-notparallel</ins> mode
 
-  &nbsp; &nbsp; Test ssh key
+`-stand (lockal|dev|metal|stage|ci)`
 
-  `-kconfig kube-nested.config`
+&nbsp; &nbsp; Test stand class
 
-  &nbsp; &nbsp; The k8s config path for test
+`-sshhost user@127.0.0.1`
 
-  `-hypervisorkconfig kube-hypervisor.config`
+&nbsp; &nbsp; Test ssh host. Hypervisor ssh host if <ins>-hypervisorkconfig</ins> used (default: 127.0.0.1)
 
-  &nbsp; &nbsp; The k8s config path for hypervisor (virtualization administration)<br/>
-  &nbsp; &nbsp; For virtual stand generation requaered option <ins>-timeout 30m</ins><br/>
-  &nbsp; &nbsp; and deckhouse license key <ins>export licensekey="..."</ins><br/>
+`-sshkey /home/user/.ssh/id_rsa`
 
-  `-namespace 01-01-test`
+&nbsp; &nbsp; Test ssh key (default: ~/.ssh/id_rsa)
 
-  &nbsp; &nbsp; Test name space
+`-kconfig kube-nested.config`
 
-  **Examples:**
+&nbsp; &nbsp; The k8s config path for test
 
-  `go test -v ./tests/... -verbose`
+`-hypervisorkconfig kube-hypervisor.config`
 
-  &nbsp; &nbsp; Run all tests on localhost with medium real-time output
+&nbsp; &nbsp; The k8s config path for hypervisor (virtualization administration)<br/>
+&nbsp; &nbsp; For virtual stand generation **requaered** option <ins>-timeout 30m</ins><br/>
+&nbsp; &nbsp; and **requaered** deckhouse license key <ins>export licensekey="..."</ins><br/>
 
-  `go test -v -timeout 30m ./tests/01_first_test.go -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost 10.20.30.40 -namespace 01-01-test`
+`-namespace 01-01-test`
 
-  &nbsp; &nbsp; Run test unit with cluster generation on hypervisor
+&nbsp; &nbsp; Test name space
 
-  `go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test -run TestOk/case1`
+**Examples:**
 
-  &nbsp; &nbsp; Run test case with cluster generation on hypervisor
+`go test -v ./tests/... -verbose`
+
+&nbsp; &nbsp; Run all tests on localhost with medium real-time output
+
+`go test -v -timeout 30m ./tests/01_first_test.go -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost 10.20.30.40 -namespace 01-01-test`
+
+&nbsp; &nbsp; Run test unit with cluster generation on hypervisor
+
+`go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test -run TestOk/case1`
+
+&nbsp; &nbsp; Run test case with cluster generation on hypervisor
 
 
-  > :bulb: You can prepare run command with alias<br/>
-  > `alias e2e_test_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
-  > or script<br/>
-  > `echo "go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test" > e2e_test_hv.sh`
+> :bulb: You can prepare run command with alias<br/>
+> `alias e2e_test_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
+> or script<br/>
+> `echo "go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test" > e2e_test_hv.sh`
+
+## Debug Hypervisor cluster
+**Get actual virtual machines**
+```bash
+ssh -t $hv_ssh_dst "sudo -i kubectl get vm -A"
+  NAMESPACE     NAME        PHASE     NODE                    IPADDRESS    AGE
+  26-03-test    vm-de11-1   Running   virtlab-storage-e2e-3   10.10.10.4   8d
+  26-03-test    vm-ub22-1   Running   virtlab-storage-e2e-4   10.10.10.1   8d
+  26-03-test    vm-ub22-2   Running   virtlab-storage-e2e-2   10.10.10.2   8d
+```
+
+**Connest to virtual machines**
+
+Pick vm actual ip address (Deckhouse master - first element in <ins>VmCluster</ins>)
+```bash
+ssh -J $hv_ssh_dst -i ../../sds-e2e-cfg/id_rsa_test user@10.10.10.1
+```
