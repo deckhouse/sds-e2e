@@ -125,7 +125,7 @@ func installVmDh(client sshClient, masterIp string) error {
 func initVmD8(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
 	out, _ := NestedSshClient.Exec("ls /opt/deckhouse")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
-		Infof("Install VM DeckHouse (8-12m)")
+		Infof("Setup virtual clustaer (8-12m)")
 		mkConfig()
 		mkResources()
 

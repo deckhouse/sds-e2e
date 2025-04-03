@@ -36,7 +36,8 @@ or string hooks:<br/>
 
 ## External configuration of required cluster
 You can update test clusner configuration in **util/env.go**<br/>
-**NodeRequired** - list of test node configurations. Run test on each node is required if <ins>-skipoptional</ins> option not set
+
+**NodeRequired** - list of test node configurations
 ```
 "Label": {
   Name:    "!%node-skip%",
@@ -45,18 +46,18 @@ You can update test clusner configuration in **util/env.go**<br/>
   Kubelet: WhereLike{"v1.28.15"},
 },
 ```
+> Run test on each node is required if <ins>-skipoptional</ins> option not set
 
 **Images** - list of OS image samples
 
 **VmCluster** - list of virtula machines in hypervisor mode<br/>
-&nbsp; &nbsp; Required:<br/>
-&nbsp; &nbsp; &nbsp; &nbsp; **First** will be used for Deckhouse master<br/>
-&nbsp; &nbsp; &nbsp; &nbsp; **Second** will be used for Deckhouse setup (with docker)
 ```
 #name         ip          cpu ram    image        disk
 {"vm-name-1", "",         4,  "8Gi", "Ubuntu_22", 20},
 {"vm-name-2", "10.0.0.7", 2,  "6Gi", "Ubuntu_22", 20},
 ```
+> **First** will be used as Deckhouse master<br/>
+> **Second** will be used for Deckhouse setup (with docker)
 
 ## Run tests with e2e_test.sh (Linux only)
 Manual and examples in `e2e_test.sh --help`
@@ -80,7 +81,7 @@ Manual and examples in `e2e_test.sh --help`
 
 `-timeout 10m`
 
-&nbsp; &nbsp; Set timeout for single test execution (default: 10 min)
+&nbsp; &nbsp; Set timeout for tests execution (default: 10 min)
 
 `-parallel N`
 
@@ -134,25 +135,31 @@ Manual and examples in `e2e_test.sh --help`
 
 &nbsp; &nbsp; Test name space
 
-**Examples:**
-
-`go test -v ./tests/... -verbose`
-
-&nbsp; &nbsp; Run all tests on localhost with medium real-time output
-
-`go test -v -timeout 30m ./tests/01_first_test.go -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost 10.20.30.40 -namespace 01-01-test`
-
-&nbsp; &nbsp; Run test unit with cluster generation on hypervisor
-
-`go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test -run TestOk/case1`
-
-&nbsp; &nbsp; Run test case with cluster generation on hypervisor
-
-
 > :bulb: You can prepare run command with alias<br/>
-> `alias e2e_test_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
+> `alias run_e2e_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
 > or script<br/>
-> `echo "go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test" > e2e_test_hv.sh`
+> ```bash
+> echo "export hv_ssh_dst=\"$export hv_ssh_dst\"
+> export hv_ssh_key=\"$hv_ssh_key\"
+> export licensekey=\"$licensekey\"
+> 
+> go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost \$hv_ssh_dst -namespace 01-01-test \$@
+> " > run_e2e_hv.sh; chmod +x run_e2e_hv.sh
+> ```
+> and run `run_e2e_hv.sh -run TestNode`
+
+## Examples
+Run all tests on localhost with medium real-time output<br/>
+&nbsp; &nbsp; `go test -v ./tests/... -verbose`
+
+Run all tests with cluster generation (25+ minutes) on hypervisor cluster (one-time cluster if <ins>-namespace</ins> not set)<br/>
+&nbsp; &nbsp; `go test -v` `-timeout 30m` `./tests/...` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst`
+
+Run test file on hypervisor with existing cluster (<ins>-namespace</ins> required)<br/>
+&nbsp; &nbsp; `go test -v -timeout 30m` `./tests/00_healthcheck_test.go` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-namespace 01-01-test`
+
+Run exact test case (expression in <ins>-run</ins>) on hypervisor<br/>
+&nbsp; &nbsp; `go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config $hv_ssh_dst -namespace 01-01-test` `-run TestOk/case1`
 
 ## Debug Hypervisor cluster
 **Get actual virtual machines**

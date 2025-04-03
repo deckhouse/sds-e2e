@@ -205,7 +205,7 @@ func GetSshClient(user, addr, keyPath string) sshClient {
 	config := newSshConfig(user, keyPath)
 	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
-		Fatalf("Ssh Dial error: %s", err.Error())
+		Fatalf("Ssh Dial %s@%s error: %s", user, addr, err.Error())
 	}
 
 	return sshClient{client: client}
