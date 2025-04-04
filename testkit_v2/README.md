@@ -1,26 +1,31 @@
-## Setup test
+## Installation
 ```bash
 git clone https://github.com/deckhouse/sds-e2e.git
 cd sds-e2e
 git checkout origin/not_mein_branch_if_required
 cd testkit_v2
 ```
-#### Init env
+
+## Quick start for Bare Metal
 ```bash
+# set env
 export hv_ssh_dst="<user>@<host>"
 export hv_ssh_key="<key path>"
-export licensekey="<deckhouse license key>"
-```
+export licensekey="<EE deckhouse license key>"
 
-#### Init config data for Bare Metal Server
-```bash
+# init configs
 mkdir ../../sds-e2e-cfg
 ssh -t $hv_ssh_dst "sudo cat /root/.kube/config > kube-hypervisor.config"
 scp $hv_ssh_dst:kube-hypervisor.config ../../sds-e2e-cfg/
+
+# run tests
+go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst
 ```
 
-## Check conditions
-Instrument for tests configuration. You can check config fields with functions:<br/>
+## Configs
+### Check conditions
+Instrument for tests configuration. You can check config fields with
+- functions<br/>
 &nbsp; &nbsp; `WhereIn(STRING...)` - parameter matches with any of arguments<br/>
 &nbsp; &nbsp; `WhereNotIn(STRING...)` - parameter don't matches with all arguments<br/>
 &nbsp; &nbsp; `WhereLike(STRING...)` - parameter contains any of substrings<br/>
@@ -28,16 +33,15 @@ Instrument for tests configuration. You can check config fields with functions:<
 &nbsp; &nbsp; `WhereReg(STRING...)` - parameter equal to any of regular expressions<br/>
 &nbsp; &nbsp; `WhereNotReg(STRING...)` - parameter don't equal to all regular expressions
 
-or string hooks:<br/>
+- string hooks<br/>
 &nbsp; &nbsp; `"<condition>"` - parameter matche with string<br/>
 &nbsp; &nbsp; `"!<condition>"` - parameter don't matche with string<br/>
 &nbsp; &nbsp; `"%<condition>%"` - parameter contains substring<br/>
 &nbsp; &nbsp; `"!%<condition>%"` - parameter don't contains substring
 
-## External configuration of required cluster
-You can update test clusner configuration in **util/env.go**<br/>
-
-**NodeRequired** - list of test node configurations
+### Cluster required configuration
+You can update test clusner configuration in **util/env.go**
+- **NodeRequired** - list of test node configurations
 ```
 "Label": {
   Name:    "!%node-skip%",
@@ -48,9 +52,9 @@ You can update test clusner configuration in **util/env.go**<br/>
 ```
 > Run test on each node is required if <ins>-skipoptional</ins> option not set
 
-**Images** - list of OS image samples
+- **Images** - list of OS image samples
 
-**VmCluster** - list of virtula machines in hypervisor mode<br/>
+- **VmCluster** - list of virtula machines in hypervisor mode
 ```
 #name         ip          cpu ram    image        disk
 {"vm-name-1", "",         4,  "8Gi", "Ubuntu_22", 20},
@@ -59,10 +63,7 @@ You can update test clusner configuration in **util/env.go**<br/>
 > **First** will be used as Deckhouse master<br/>
 > **Second** will be used for Deckhouse setup (with docker)
 
-## Run tests with e2e_test.sh (Linux only)
-Manual and examples in `e2e_test.sh --help`
-
-## Run tests with go test
+## Run tests
 `go test [FLAG]... PATH [FLAG|OPTION]...`
 
 **Flags:**
@@ -139,30 +140,36 @@ Manual and examples in `e2e_test.sh --help`
 > `alias run_e2e_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
 > or script<br/>
 > ```bash
-> echo "export hv_ssh_dst=\"$export hv_ssh_dst\"
-> export hv_ssh_key=\"$hv_ssh_key\"
-> export licensekey=\"$licensekey\"
+> echo "hv_ssh_dst=\"$export hv_ssh_dst\"
+> hv_ssh_key=\"$hv_ssh_key\"
+> licensekey=\"$licensekey\"
 > 
 > go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost \$hv_ssh_dst -namespace 01-01-test \$@
 > " > run_e2e_hv.sh; chmod +x run_e2e_hv.sh
 > ```
-> and run `run_e2e_hv.sh -run TestNode`
+> and run `run_e2e_hv.sh -run TestNodeHealthCheck`
+
+> Also you can use e2e_test.sh script with handy interface (Linux only)<br/>
+> Manual and examples in `e2e_test.sh --help`
 
 ## Examples
-Run all tests on localhost with medium real-time output<br/>
+Run all tests on localhost with medium real-time output (host preparation required)<br/>
 &nbsp; &nbsp; `go test -v ./tests/... -verbose`
+
+Create virtual cluster on hypervisor (silent mode, no <ins>-verbose</ins>, no <ins>-debug</ins>)<br/>
+&nbsp; &nbsp; `go test -v ./tests/... -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-timeout 30m` `-namespace 01-01-test` `-run TestNodeHealthCheck`
 
 Run all tests with cluster generation (25+ minutes) on hypervisor cluster (one-time cluster if <ins>-namespace</ins> not set)<br/>
 &nbsp; &nbsp; `go test -v` `-timeout 30m` `./tests/...` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst`
 
 Run test file on hypervisor with existing cluster (<ins>-namespace</ins> required)<br/>
-&nbsp; &nbsp; `go test -v -timeout 30m` `./tests/00_healthcheck_test.go` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-namespace 01-01-test`
+&nbsp; &nbsp; `go test -v` `./tests/00_healthcheck_test.go` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-namespace 01-01-test`
 
 Run exact test case (expression in <ins>-run</ins>) on hypervisor<br/>
 &nbsp; &nbsp; `go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config $hv_ssh_dst -namespace 01-01-test` `-run TestOk/case1`
 
 ## Debug Hypervisor cluster
-**Get actual virtual machines**
+- **Get actual virtual machines**
 ```bash
 ssh -t $hv_ssh_dst "sudo -i kubectl get vm -A"
   NAMESPACE     NAME        PHASE     NODE                    IPADDRESS    AGE
@@ -171,8 +178,7 @@ ssh -t $hv_ssh_dst "sudo -i kubectl get vm -A"
   26-03-test    vm-ub22-2   Running   virtlab-storage-e2e-2   10.10.10.2   8d
 ```
 
-**Connest to virtual machines**
-
+- **Connest to virtual machines**<br/>
 Pick vm actual ip address (Deckhouse master - first element in <ins>VmCluster</ins>)
 ```bash
 ssh -J $hv_ssh_dst -i ../../sds-e2e-cfg/id_rsa_test user@10.10.10.1

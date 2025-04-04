@@ -3,6 +3,7 @@ package integration
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"time"
 )
 
@@ -11,9 +12,12 @@ func getPrefix() string {
 }
 
 func getDuration() string {
-	i := int(time.Since(startTime).Seconds())
-	char := int('🯰')
+	if runtime.GOOS != "linux" {
+		return fmt.Sprintf("%dm", int(time.Since(startTime).Minutes()))
+	}
 
+	char := int('🯰')
+	i := int(time.Since(startTime).Seconds())
 	if i >= 1000 {
 		i = i / 60
 		return fmt.Sprintf("%c%cm", rune(char+i%100/10), rune(char+i%10))
