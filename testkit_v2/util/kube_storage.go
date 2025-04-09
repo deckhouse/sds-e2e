@@ -90,6 +90,7 @@ func (clr *KCluster) DeleteBdWithCheck(filters ...BdFilter) error {
 		if len(bds) > 0 {
 			return fmt.Errorf("not deleted BDs: %d (%s, ...)", len(bds), bds[0].Name)
 		}
+		Debugf("BDs deleted")
 		return nil
 	})
 }
@@ -166,6 +167,7 @@ func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
 	if err != nil {
 		return err
 	}
+	Debugf("LVGs is ready: %d", len(lvgs))
 	for _, lvg := range lvgs {
 		if len(lvg.Status.Nodes) == 0 {
 			return fmt.Errorf("no nodes in LVG %s status", lvg.Name)
@@ -272,6 +274,7 @@ func (clr *KCluster) DeleteLvgWithCheck(filters ...LvgFilter) error {
 		if len(lvgs) > 0 {
 			return fmt.Errorf("LVGs not deleted: %d", len(lvgs))
 		}
+		Debugf("LVGs deleted")
 		return nil
 	})
 }

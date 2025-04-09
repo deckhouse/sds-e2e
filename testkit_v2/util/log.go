@@ -25,7 +25,15 @@ func getDuration() string {
 	return fmt.Sprintf("%c%c%c", rune(char+i%1000/100), rune(char+i%100/10), rune(char+i%10))
 }
 
+func Filelogf(format string, v ...any) {
+	if fileLogger == nil {
+		return
+	}
+	fileLogger.Printf(format, v...)
+}
+
 func Debugf(format string, v ...any) {
+	Filelogf("🦗"+format, v...)
 	if !*debugFlag {
 		return
 	}
@@ -36,6 +44,7 @@ func Debugf(format string, v ...any) {
 }
 
 func Infof(format string, v ...any) {
+	Filelogf("✎ "+format, v...)
 	if !*verboseFlag && !*debugFlag {
 		return
 	}
@@ -46,6 +55,7 @@ func Infof(format string, v ...any) {
 }
 
 func Warnf(format string, v ...any) {
+	Filelogf("🗈 "+format, v...)
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
 	log.Printf("\033[93m🗈 \033[2m"+getDuration()+" \033[0;2m"+format+"\033[0m", v...)
@@ -56,18 +66,21 @@ func Warn(v ...any) {
 }
 
 func Errorf(format string, v ...any) {
+	Filelogf("❕"+format, v...)
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
 	log.Printf("\033[91m❕\033[2m"+getDuration()+" \033[0m"+format+"\033[0m", v...)
 }
 
 func Critf(format string, v ...any) {
+	Filelogf("⚠️ "+format, v...)
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
 	log.Printf("\033[91;5m⚠️ \033[2m"+getDuration()+" \033[0;91m"+format+"\033[0m", v...)
 }
 
 func Fatalf(format string, v ...any) {
+	Filelogf("🯀 "+format, v...)
 	log.SetFlags(0)
 	log.SetPrefix(getPrefix())
 	log.Fatalf("\033[31m🯀 "+getDuration()+" \033[0m"+format, v...)

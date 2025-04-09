@@ -7,6 +7,9 @@ cd testkit_v2
 ```
 
 ## Quick start for Bare Metal
+Running on hypervisor require **Deckhouse server** with resources for VmCluster<br/>
+Test creates virtual environment (namespace, virtual machines), install Deckhouse there and collect **virtual cluster**<br/>
+All tests runs in virtual environment
 ```bash
 # set env
 export hv_ssh_dst="<user>@<host>"
@@ -19,7 +22,7 @@ ssh -t $hv_ssh_dst "sudo cat /root/.kube/config > kube-hypervisor.config"
 scp $hv_ssh_dst:kube-hypervisor.config ../../sds-e2e-cfg/
 
 # run tests
-go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst
+go test -v -timeout 99m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst
 ```
 
 ## Configs
@@ -52,16 +55,17 @@ You can update test clusner configuration in **util/env.go**
 ```
 > Run test on each node is required if <ins>-skipoptional</ins> option not set
 
-- **Images** - list of OS image samples
+- **Images** - OS image samples
 
 - **VmCluster** - list of virtula machines in hypervisor mode
 ```
-#name         ip          cpu ram    image        disk
-{"vm-name-1", "",         4,  "8Gi", "Ubuntu_22", 20},
-{"vm-name-2", "10.0.0.7", 2,  "6Gi", "Ubuntu_22", 20},
+#name         role                 ip          cpu ram disk image
+{"vm-name-1", ["master"],          "",         4,  8,  20,  "Ubuntu_22"},
+{"vm-name-2", ["setup", "worker"], "10.0.0.7", 2,  6,  20,  "Ubuntu_22"},
 ```
-> **First** will be used as Deckhouse master<br/>
-> **Second** will be used for Deckhouse setup (with docker)
+> role - list of master/setup/worker (1 master and 1 setup is required)<br/>
+> ip - static or empty (free)<br/>
+> image - key from Images map or URL
 
 ## Run tests
 `go test [FLAG]... PATH [FLAG|OPTION]...`
@@ -136,15 +140,23 @@ You can update test clusner configuration in **util/env.go**
 
 &nbsp; &nbsp; Test name space
 
+`-keepstate`
+
+&nbsp; &nbsp; Don`t clean up after test finished
+
+`-logfile testlog.out`
+
+&nbsp; &nbsp; Save detailed report to file (including verbose, debug)
+
 > :bulb: You can prepare run command with alias<br/>
-> `alias run_e2e_hv='go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
+> `alias run_e2e_hv='go test -v -timeout 30m ./tests/... -debug -hypervisorkconfig kube-hypervisor.config -sshhost user@10.20.30.40 -namespace 01-01-test'`<br/>
 > or script<br/>
 > ```bash
 > echo "hv_ssh_dst=\"$export hv_ssh_dst\"
 > hv_ssh_key=\"$hv_ssh_key\"
 > licensekey=\"$licensekey\"
 > 
-> go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost \$hv_ssh_dst -namespace 01-01-test \$@
+> go test -v -timeout 30m \$@ -debug -hypervisorkconfig kube-hypervisor.config -sshhost \$hv_ssh_dst -namespace 01-01-test
 > " > run_e2e_hv.sh; chmod +x run_e2e_hv.sh
 > ```
 > and run `run_e2e_hv.sh -run TestNodeHealthCheck`
@@ -160,17 +172,18 @@ Create virtual cluster on hypervisor (silent mode, no <ins>-verbose</ins>, no <i
 &nbsp; &nbsp; `go test -v ./tests/... -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-timeout 30m` `-namespace 01-01-test` `-run TestNodeHealthCheck`
 
 Run all tests with cluster generation (25+ minutes) on hypervisor cluster (one-time cluster if <ins>-namespace</ins> not set)<br/>
-&nbsp; &nbsp; `go test -v` `-timeout 30m` `./tests/...` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst`
+&nbsp; &nbsp; `go test -v` `-timeout 30m` `./tests/...` `-debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst`
 
 Run test file on hypervisor with existing cluster (<ins>-namespace</ins> required)<br/>
-&nbsp; &nbsp; `go test -v` `./tests/00_healthcheck_test.go` `-verbose -debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-namespace 01-01-test`
+&nbsp; &nbsp; `go test -v` `./tests/tools.go ./tests/00_healthcheck_test.go` `-debug -hypervisorkconfig kube-hypervisor.config -sshhost $hv_ssh_dst` `-namespace 01-01-test`
 
-Run exact test case (expression in <ins>-run</ins>) on hypervisor<br/>
-&nbsp; &nbsp; `go test -v -timeout 30m ./tests/... -verbose -debug -hypervisorkconfig kube-hypervisor.config $hv_ssh_dst -namespace 01-01-test` `-run TestOk/case1`
+Debug exact/single test case (expression in <ins>-run</ins>) on hypervisor<br/>
+&nbsp; &nbsp; `go test -v -timeout 30m ./tests/... -debug -hypervisorkconfig kube-hypervisor.config $hv_ssh_dst -namespace 01-01-test` `-run TestOk/case1` `-keepstate`
 
 ## Debug Hypervisor cluster
 - **Get actual virtual machines**
 ```bash
+export hv_ssh_dst="<user>@<host>"
 ssh -t $hv_ssh_dst "sudo -i kubectl get vm -A"
   NAMESPACE     NAME        PHASE     NODE                    IPADDRESS    AGE
   26-03-test    vm-de11-1   Running   virtlab-storage-e2e-3   10.10.10.4   8d
@@ -181,5 +194,6 @@ ssh -t $hv_ssh_dst "sudo -i kubectl get vm -A"
 - **Connest to virtual machines**<br/>
 Pick vm actual ip address (Deckhouse master - first element in <ins>VmCluster</ins>)
 ```bash
+export hv_ssh_dst="<user>@<host>"
 ssh -J $hv_ssh_dst -i ../../sds-e2e-cfg/id_rsa_test user@10.10.10.1
 ```

@@ -65,7 +65,7 @@ func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *T)
 			Infof("%d Nodes for label '%s'", len(nodes), label)
 			if len(nodes) == 0 {
 				if SkipOptional {
-					t.Skipf("no Nodes for label '%s'", label)
+					t.SkipNow()
 				}
 				t.Fatalf("no Nodes for label '%s'", label)
 			}

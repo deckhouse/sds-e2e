@@ -343,7 +343,7 @@ func (c sshClient) Exec(cmd string) (string, error) {
 func (c sshClient) ExecFatal(cmd string) string {
 	out, err := c.Exec(cmd)
 	if err != nil {
-		Fatalf("Exec ssh error: %s", err.Error())
+		Fatalf("Exec ssh %s:\n%s\nError: %s", cmd, out, err.Error())
 	}
 	return out
 }

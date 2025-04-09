@@ -11,22 +11,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-const (
-	lvmD8        = "/opt/deckhouse/sds/bin/lvm.static"
-	lsblkCmd     = "sudo /opt/deckhouse/bin/lsblk"
-	vgsCmd       = "sudo " + lvmD8 + " vgs"
-	pvsCmd       = "sudo " + lvmD8 + " pvs"
-	vgdisplayCmd = "sudo " + lvmD8 + " vgdisplay"
-	pvdisplayCmd = "sudo " + lvmD8 + " pvdisplay"
-	lvdisplayCmd = "sudo " + lvmD8 + " lvdisplay"
-)
-
 // ================ LVM THICK TESTS ================
 
 // 1 - Create LVMVolumeGroup. Check VG, PV auto creating
 func TestLvgThickCreateCascade(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -62,7 +53,8 @@ func TestLvgThickCreateCascade(t *testing.T) {
 // 2 - Delete LVMVolumeGroup. Check VG, PV auto deleting
 func TestLvgThickDeleteCascadeManually(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -92,7 +84,8 @@ func TestLvgThickDiskResize(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to resize VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
@@ -131,7 +124,8 @@ func TestLvgThickAddBd(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -180,7 +174,8 @@ func TestLvgThickReconnectBd(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
@@ -234,7 +229,8 @@ func TestLvgThickReconnectBd(t *testing.T) {
 // 6 - Add new LV to empty VG. Check VG allocated size increase
 func TestVgThickAddLv(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -279,7 +275,8 @@ func TestVgThickAddLv(t *testing.T) {
 // 1 - Create LVMVolumeGroup on ThinPools. Check VG, PV, LV auto creating
 func TestLvgThinCreateCascade(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -323,7 +320,8 @@ func TestLvgThinCreateCascade(t *testing.T) {
 // 2 - Delete LV before LVMVolumeGroup. Check VG, PV auto deleting
 func TestLvgThinDeleteCascadeManually(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		var out string
@@ -364,7 +362,8 @@ func TestLvgThinDeleteCascadeManually(t *testing.T) {
 // 3 - Delete LVMVolumeGroup. Check VG, PV still exist. Delete LV. Check VG, PV auto deleting
 func TestLvgThinDeleteCascadeK8s(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		var out string
@@ -426,7 +425,8 @@ func TestLvgThinDiskResize(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to resize VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
@@ -467,7 +467,8 @@ func TestLvgThinDiskResize(t *testing.T) {
 // 4.2 - Increase ThinPool size. Check LVG, PV, VG, ThinPool resizing
 func TestLvgThinPoolResize(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		lvg, err := directLvgTpCreate(t.Node.Name, 2.34)
@@ -502,7 +503,8 @@ func TestLvgThinPoolResize(t *testing.T) {
 // 4.3 - Increase ThinPool size over VG. Check LVG, PV, VG, ThinPool no changes
 func TestLvgThinPoolOversize(t *testing.T) {
 	clr := util.GetCluster("", "")
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		lvg, err := directLvgTpCreate(t.Node.Name, 2.34)
@@ -549,7 +551,8 @@ func TestLvgThinAddBd(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
@@ -601,7 +604,8 @@ func TestLvgThinReconnectBd(t *testing.T) {
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
-	cleanupLvgBd()
+	prepareClr()
+	t.Cleanup(cleanup05)
 
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
@@ -650,25 +654,12 @@ func TestLvgThinReconnectBd(t *testing.T) {
 	})
 }
 
-// ================ HELP SCRIPTS ================
+// ================ HELP TOOLS ================
 
-func cleanupLvgBd() {
-	clr := util.GetCluster("", "")
-
-	util.Debugf("Runing LVG, BD cleanup...")
-	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%"})
-	for _, lvg := range lvgs {
-		nName := lvg.Spec.Local.NodeName
-		_, _, _ = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", lvg.Name})
+func cleanup05() {
+	if !util.KeepState {
+		rmLvgBd()
 	}
-	_ = clr.DeleteLvgWithCheck(util.LvgFilter{Name: "%e2e-lvg-%"})
-
-	if util.HypervisorKubeConfig != "" {
-		hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		_ = hvClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
-		_ = hvClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
-	}
-	_ = clr.DeleteBdWithCheck()
 }
 
 func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree string) error {
@@ -686,7 +677,7 @@ func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree st
 		pvsCmd:   []string{},
 	}
 	vgSize := float32(0)
-	validDiff := int64(5 * 1024 * 1024)
+	validDiff := int64(5) * 1024 * 1024
 
 	for devId, sizeG := range vSize {
 		dSize := lvg.Status.Nodes[0].Devices[devId].DevSize.Value()
@@ -733,7 +724,7 @@ func thinPoolsCheck(lvgName string, sizes ...float32) error {
 	for _, tp := range tps {
 		tpOk := false
 		for _, s := range sizes {
-			s64 := int64(s) * 1024 * 1024 * 1024
+			s64 := int64(s * 1024 * 1024 * 1024)
 			validDiff := int64(10) * 1024 * 1024
 			if tp.ActualSize.Value() > s64-validDiff && tp.ActualSize.Value() < s64+validDiff {
 				tpOk = true
@@ -749,37 +740,6 @@ func thinPoolsCheck(lvgName string, sizes ...float32) error {
 	}
 
 	return nil
-}
-
-func ensureBdConsumable(nName string, size int64, count int) ([]snc.BlockDevice, error) {
-	clr := util.GetCluster("", "")
-	bds, _ := clr.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
-	if len(bds) >= int(count) {
-		return bds, nil
-	}
-
-	if util.HypervisorKubeConfig == "" {
-		return nil, fmt.Errorf("Not enough bds on %s: %d of %d", nName, len(bds), count)
-	}
-	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-	for i := len(bds); i < count; i++ {
-		err := hvClr.CreateVMBD(nName, nName+"-data-"+util.RandString(4), "linstor-r1", size)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := util.RetrySec(30, func() error {
-		bds, _ := clr.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
-		if len(bds) < int(count) {
-			return fmt.Errorf("Not enough bds on %s: %d of %d", nName, len(bds), count)
-		}
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-
-	return clr.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
 }
 
 func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {

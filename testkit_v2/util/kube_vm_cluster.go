@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
@@ -18,19 +19,20 @@ const (
 )
 
 type VmConfig struct {
-	name      string
-	ip        string
-	cpu       int
-	memory    string
-	imageName string
-	diskSize  int
+	name     string
+	roles    []string
+	ip       string
+	cpu      int
+	ram      int
+	diskSize int
+	image    string
 }
 
 func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.memory, "linstor-r1", vmItem.imageName, sshPubKeyString, vmItem.diskSize)
+		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, "linstor-r1", vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
 			Fatalf(err.Error())
 		}
@@ -44,7 +46,7 @@ func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 		vmCreate(clr, vms, nsName)
 	}
 
-	if err := RetrySec(360, func() error {
+	if err := RetrySec(6*60, func() error {
 		vmList, err = clr.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
 		if err != nil {
 			return err
@@ -52,6 +54,7 @@ func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 		if len(vmList) < len(vms) {
 			return fmt.Errorf("VMs ready: %d of %d", len(vmList), len(vms))
 		}
+		Debugf("VMs ready: %d", len(vmList))
 		return nil
 	}); err != nil {
 		Fatalf(err.Error())
@@ -122,9 +125,13 @@ func installVmDh(client sshClient, masterIp string) error {
 	return nil
 }
 
-func initVmD8(masterVm, bootstrapVm VmConfig, vmKeyPath string) {
+func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 	out, _ := NestedSshClient.Exec("ls /opt/deckhouse")
 	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
+		if licenseKey == "" {
+			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
+		}
+
 		Infof("Setup virtual clustaer (8-12m)")
 		mkConfig()
 		mkResources()
@@ -184,11 +191,31 @@ func ClusterCreate() {
 	Infof("VM check")
 	vmSync(clr, VmCluster, nsName)
 
-	masterVm, bootstrapVm := VmCluster[0], VmCluster[1]
-	NestedSshClient = HvSshClient.GetFwdClient(NestedSshUser, masterVm.ip+":22", NestedSshKey)
+	var vmMasters, vmWorkers []*VmConfig
+	var vmBootstrap *VmConfig
+	for _, vm := range VmCluster {
+		if slices.Contains(vm.roles, "master") {
+			vmMasters = append(vmMasters, &vm)
+			continue
+		}
+		if slices.Contains(vm.roles, "setup") {
+			vmBootstrap = &vm
+		}
+		if slices.Contains(vm.roles, "worker") {
+			vmWorkers = append(vmWorkers, &vm)
+		}
+	}
+	if vmBootstrap == nil && len(vmWorkers) > 0 {
+		vmBootstrap = vmWorkers[0]
+	}
+	if len(vmMasters) != 1 || vmBootstrap == nil {
+		Fatalf("VmCluster: 1 master and 1 setup record is required")
+	}
 
-	initVmD8(masterVm, bootstrapVm, NestedSshKey)
-	go NestedSshClient.NewTunnel("127.0.0.1:"+NestedK8sPort, masterVm.ip+":"+NestedK8sPort)
+	NestedSshClient = HvSshClient.GetFwdClient(NestedSshUser, vmMasters[0].ip+":22", NestedSshKey)
+
+	initVmD8(vmMasters[0], vmBootstrap, NestedSshKey)
+	go NestedSshClient.NewTunnel("127.0.0.1:"+NestedK8sPort, vmMasters[0].ip+":"+NestedK8sPort)
 
 	clr, err = InitKCluster("", "")
 	if err != nil {
@@ -196,8 +223,8 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	nodeIps := make([]string, len(VmCluster)-1)
-	for i, vm := range VmCluster[1:] {
+	nodeIps := make([]string, len(vmWorkers))
+	for i, vm := range vmWorkers {
 		nodeIps[i] = vm.ip
 	}
 	if err := clr.AddStaticNodes("e2e", "user", nodeIps); err != nil {
@@ -205,7 +232,7 @@ func ClusterCreate() {
 	}
 
 	Infof("Check Cluster ready (8-10m)")
-	if err := RetrySec(720, func() error {
+	if err := RetrySec(12*60, func() error {
 		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {
 			return err
@@ -213,6 +240,7 @@ func ClusterCreate() {
 		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
 			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
 		}
+		Debugf("sds-node-configurator ready")
 		return nil
 	}); err != nil {
 		Fatalf(err.Error())

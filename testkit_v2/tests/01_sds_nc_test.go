@@ -8,12 +8,24 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 )
 
+const (
+	testPrefix = "e2e-01-"
+)
+
+func cleanup01() {
+	if !util.KeepState {
+		rmLvgBd()
+	}
+}
+
 func TestLvg(t *testing.T) {
 	clr := util.GetCluster("", "")
+	prepareClr()
+	t.Cleanup(cleanup01)
 
 	t.Run("create", func(t *testing.T) {
 		clr.RunTestGroupNodes(t, nil, directLVGCreate)
-		if err := clr.CheckLVGsReady(util.LvgFilter{Name: "%e2e-lvg-%"}); err != nil {
+		if err := clr.CheckLVGsReady(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
 			t.Fatal(err.Error())
 		}
 	})
@@ -29,7 +41,7 @@ func directLVGCreate(t *util.T) {
 	bdCount := (t.Node.Id % 3) + 1
 	clr := util.GetCluster("", "")
 
-	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%", Node: util.WhereIn{t.Node.Name}})
+	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
 	if len(lvgs) > 0 {
 		t.Skipf("LVG already exists for %s", t.Node.Name)
 	}
@@ -49,14 +61,19 @@ func directLVGCreate(t *util.T) {
 		_ = hypervisorClr.WaitVmbdAttached(util.VmBdFilter{NameSpace: util.TestNS, VmName: t.Node.Name})
 	}
 
-	bds, _ := clr.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
-	if len(bds) < bdCount {
-		t.Errorf("%s: not enough Device to create LVG (%d < %d)", t.Node.Name, len(bds), bdCount)
-		return
+	var bds []snc.BlockDevice
+	if err := util.RetrySec(5, func() error {
+		bds, _ = clr.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
+		if len(bds) < bdCount {
+			return fmt.Errorf("%s: not enough Device to create LVG (%d < %d)", t.Node.Name, len(bds), bdCount)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err.Error())
 	}
 
 	for _, bd := range bds[:bdCount] {
-		name := "e2e-lvg-" + t.Node.Name[len(t.Node.Name)-1:] + "-" + bd.Name[len(bd.Name)-3:]
+		name := testPrefix + t.Node.Name[len(t.Node.Name)-1:] + "-" + bd.Name[len(bd.Name)-3:]
 		if err := clr.CreateLVG(name, t.Node.Name, []string{bd.Name}); err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
@@ -77,9 +94,9 @@ func directLVGResize(t *util.T) {
 		_ = hypervisorClr.WaitVmbdAttached(util.VmBdFilter{NameSpace: util.TestNS, VmName: t.Node.Name})
 	}
 
-	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%", Node: util.WhereIn{t.Node.Name}})
+	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
 	if len(lvgs) == 0 || len(lvgs[0].Status.Nodes) == 0 {
-		t.Skipf("No LVG for Node %s", t.Node.Name)
+		t.Fatalf("No LVG for Node %s", t.Node.Name)
 	}
 	lvg := &lvgs[len(lvgs)-1]
 
@@ -116,12 +133,12 @@ func directLVGResize(t *util.T) {
 
 func directLVGDelete(t *testing.T) {
 	clr := util.GetCluster("", "")
-	if err := clr.DeleteLVG(util.LvgFilter{Name: "%e2e-lvg-%"}); err != nil {
+	if err := clr.DeleteLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
 		t.Fatalf("LVG deleting error: %s", err.Error())
 	}
 
 	if err := util.RetrySec(10, func() error {
-		lvgs, err := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%"})
+		lvgs, err := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}})
 		if err != nil {
 			return err
 		}
@@ -130,28 +147,18 @@ func directLVGDelete(t *testing.T) {
 		}
 		return nil
 	}); err != nil {
-		t.Fatal(err.Error())
+		t.Fatal(err)
 	}
 
 	if util.HypervisorKubeConfig != "" {
-		// delete virtual disks
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		err := hypervisorClr.DeleteVMBD(util.VmBdFilter{NameSpace: util.TestNS})
+		err := hypervisorClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
 		if err != nil {
-			util.Errorf("VMBD deleting error:", err)
+			t.Errorf("VMBD deleting error: %s", err)
 		}
-
-		if err := util.RetrySec(20, func() error {
-			vds, err := hypervisorClr.ListVD(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
-			if err != nil {
-				return err
-			}
-			if len(vds) > 0 {
-				return fmt.Errorf("VDs not deleted: %d", len(vds))
-			}
-			return nil
-		}); err != nil {
-			t.Fatal(err.Error())
+		err = hypervisorClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
+		if err != nil {
+			t.Errorf("VD deleting error: %s", err)
 		}
 	}
 }

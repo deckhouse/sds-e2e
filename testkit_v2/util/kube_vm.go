@@ -56,17 +56,20 @@ func (clr *KCluster) CreateVM(
 	vmName string,
 	ip string,
 	cpu int,
-	memory string,
+	ram int,
 	storageClass string,
-	imgName string,
+	image string,
 	sshPubKey string,
 	systemDriveSize int,
 ) error {
-	imgUrl, ok := Images[imgName]
+	cvmiName := "noname"
+	imgUrl, ok := Images[image]
 	if !ok {
-		return fmt.Errorf("no '%s' image", imgName)
+		imgUrl = image
+	} else {
+		cvmiName = image
 	}
-	cvmiName := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(imgName, "_", "-"), " ", "-"))
+	cvmiName = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(cvmiName, "_", "-"), " ", "-"))
 	cvmiName = fmt.Sprintf("test-%s-%s", cvmiName, hashMd5(imgUrl)[:4])
 
 	vmCVMI, err := clr.GetCVMI(cvmiName)
@@ -105,7 +108,7 @@ func (clr *KCluster) CreateVM(
 		}
 	}
 
-	currentMemory, err := resource.ParseQuantity(memory)
+	currentMemory, err := resource.ParseQuantity(fmt.Sprintf("%dGi", ram))
 	if err != nil {
 		return err
 	}
@@ -361,6 +364,7 @@ func (clr *KCluster) DeleteVdWithCheck(filters ...VdFilter) error {
 		if len(vds) > 0 {
 			return fmt.Errorf("VDs not deleted: %d", len(vds))
 		}
+		Debugf("VDs deleted")
 		return nil
 	})
 }
@@ -454,6 +458,7 @@ func (clr *KCluster) WaitVmbdAttached(filters ...VmBdFilter) error {
 		if len(vmbds) > 0 {
 			return fmt.Errorf("VMBDs not Attached: %d (%s, ...)", len(vmbds), vmbds[0].Name)
 		}
+		Debugf("VMBDs attached")
 		return nil
 	})
 }
@@ -548,6 +553,7 @@ func (clr *KCluster) DeleteVmbdWithCheck(filters ...VmBdFilter) error {
 		if len(vmbds) > 0 {
 			return fmt.Errorf("VMBDs not deleted: %d", len(vmbds))
 		}
+		Debugf("VMBDs deleted")
 		return nil
 	})
 }

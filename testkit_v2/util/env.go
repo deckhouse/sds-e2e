@@ -3,6 +3,7 @@ package integration
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,41 +29,6 @@ const (
 )
 
 var (
-	SkipOptional      = false
-	startTime         = time.Now()
-	TestNS            = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
-	licenseKey        = os.Getenv("licensekey")
-	registryDockerCfg = "e30="
-	Parallel          = false
-	TreeMode          = false
-
-	HypervisorKubeConfig = ""
-	HvHost               = ""
-	HvSshUser            = ""
-	HvSshKey             = ""
-	HvK8sPort            = "6445"
-	HvSshClient          sshClient
-
-	NestedHost              = "127.0.0.1"
-	NestedSshUser           = "user"
-	NestedSshKey            = ""
-	NestedK8sPort           = "6445"
-	NestedClusterKubeConfig = "kube-nested.config"
-	NestedSshClient         sshClient
-
-	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
-	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
-	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
-	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
-	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
-	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
-	standFlag             = flag.String("stand", "", "Test stand name")
-	nsFlag                = flag.String("namespace", "", "Test name space")
-	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
-	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
-	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
-	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
-
 	NodeRequired = map[string]NodeFilter{
 		"Ubu22": {
 			Name: "!%-master-%",
@@ -84,15 +50,15 @@ var (
 		//	Os:     WhereLike{"RedOS 7.3", "RED OS MUROM (7.3"},
 		//	Kernel: WhereLike{"6.1.52-1.el7.3.x86_64"},
 		//},
-		"Red8": {
-			Name:   "!%-master-%",
-			Os:     WhereLike{"RED OS 8"},
-			Kernel: WhereLike{"6.6.6-1.red80.x86_64"},
-		},
-		"Astra": {
-			Name: "!%-master-%",
-			Os:   WhereLike{"Astra Linux"},
-		},
+		//"Red8": {
+		//	Name:   "!%-master-%",
+		//	Os:     WhereLike{"RED OS 8"},
+		//	Kernel: WhereLike{"6.6.6-1.red80.x86_64"},
+		//},
+		//"Astra": {
+		//	Name: "!%-master-%",
+		//	Os:   WhereLike{"Astra Linux"},
+		//},
 		//"Alt10": {
 		//	Name: "!%-master-%",
 		//	Os:   WhereLike{"Alt 10"},
@@ -146,15 +112,56 @@ var (
 	}
 
 	VmCluster = []VmConfig{
-		{"vm-ub22-1", "", 4, "8Gi", "Ubuntu_22", 20}, //master
-		{"vm-ub22-2", "", 2, "6Gi", "Ubuntu_22", 20}, //setup DH
-		{"vm-ub22-3", "", 2, "4Gi", "Ubuntu_22", 20},
-		//{"vm-ub24-1", "", 2, "4Gi", "Ubuntu_24", 20},
-		{"vm-de11-1", "", 2, "4Gi", "Debian_11", 20},
-		//{"vm-re8-1", "", 2, "4Gi", "RedOS_8_flant", 20},
-		//{"vm-as18-1", "", 2, "4Gi", "Astra_1_8_Base", 20},
-		//{"vm-al10-1", "", 2, "4Gi", "Alt_10_flant", 30},
+		{"vm-ub22-1", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
+		{"vm-ub22-2", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
+		//{"vm-ub22-3", []string{"worker"}, "", 2, 4, 20, "Ubuntu_22"},
+		//{"vm-ub24-1", []string{"worker"}, "", 2, 4, 20, "Ubuntu_24"},
+		//{"vm-de11-1", []string{"worker"}, "", 2, 4, 20, "Debian_11"},
+		//{"vm-re8-1",  []string{"worker"}, "", 2, 4, 20, "RedOS_8_flant"},
+		//{"vm-as18-1", []string{"worker"}, "", 2, 4, 20, "Astra_1_8_Base"},
+		//{"vm-al10-1", []string{"worker"}, "", 2, 4, 30, "Alt_10_flant"},
 	}
+)
+
+var (
+	SkipOptional      = false
+	startTime         = time.Now()
+	TestNS            = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
+	licenseKey        = os.Getenv("licensekey")
+	registryDockerCfg = "e30="
+	Parallel          = false
+	TreeMode          = false
+	KeepState         = false
+	fileLogger        *log.Logger
+
+	HypervisorKubeConfig = ""
+	HvHost               = ""
+	HvSshUser            = ""
+	HvSshKey             = ""
+	HvK8sPort            = "6445"
+	HvSshClient          sshClient
+
+	NestedHost              = "127.0.0.1"
+	NestedSshUser           = "user"
+	NestedSshKey            = ""
+	NestedK8sPort           = "6445"
+	NestedClusterKubeConfig = "kube-nested.config"
+	NestedSshClient         sshClient
+
+	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
+	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
+	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
+	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
+	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
+	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
+	standFlag             = flag.String("stand", "", "Test stand name")
+	nsFlag                = flag.String("namespace", "", "Test name space")
+	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
+	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
+	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
+	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
+	keepStateFlag         = flag.Bool("keepstate", false, "Don`t clean up after test finished")
+	logFileFlag           = flag.String("logfile", "", "Write extended logs to file")
 )
 
 func envInit() {
@@ -208,5 +215,15 @@ func envInit() {
 		NestedClusterKubeConfig = *kconfigFlag
 	} else {
 		NestedClusterKubeConfig = filepath.Join(KubePath, *kconfigFlag)
+	}
+
+	KeepState = *keepStateFlag
+
+	if *logFileFlag != "" {
+		f, err := os.OpenFile(*logFileFlag, os.O_RDWR|os.O_CREATE|os.O_APPEND|os.O_TRUNC, 0644)
+		if err != nil {
+			log.Fatalf("error opening file: %v", err)
+		}
+		fileLogger = log.New(f, "", log.LstdFlags)
 	}
 }
