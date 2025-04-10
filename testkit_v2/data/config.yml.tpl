@@ -95,6 +95,16 @@ spec:
     # https://deckhouse.io/documentation/v1/modules/021-cni-cilium/configuration.html
     tunnelMode: VXLAN
 ---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: sds-node-configurator
+spec:
+  enabled: true
+  settings:
+    enableThinProvisioning: true
+  version: 1
+---
 # Static cluster settings.
 # https://deckhouse.io/documentation/v1/installing/configuration.html#staticclusterconfiguration
 apiVersion: deckhouse.io/v1

@@ -50,7 +50,7 @@ func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
 		return nil, err
 	}
 
-	log.Println("Private Key generated")
+	Infof("Private Key generated")
 	return privateKey, nil
 }
 
@@ -82,7 +82,7 @@ func generatePublicKey(privateKey *rsa.PublicKey) ([]byte, error) {
 
 	pubKeyBytes := ssh.MarshalAuthorizedKey(publicRsaKey)
 
-	log.Println("Public key generated")
+	Infof("Public key generated")
 	return pubKeyBytes, nil
 }
 
@@ -102,27 +102,28 @@ func GenerateRSAKeys(privateFilename string, publicFilename string) {
 		return
 	}
 
+	Infof("Generate RSA key")
 	bitSize := 4096
 	privateKey, err := generatePrivateKey(bitSize)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	publicKeyBytes, err := generatePublicKey(&privateKey.PublicKey)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	privateKeyBytes := encodePrivateKeyToPEM(privateKey)
 
 	err = writeKeyToFile(privateKeyBytes, privateFilename)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	err = writeKeyToFile(publicKeyBytes, publicFilename)
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 }
 
@@ -131,7 +132,7 @@ func CheckAndGetSSHKeys(dir string, privateKeyName string, pubKeyName string) (s
 
 	sshPubKey, err := os.ReadFile(filepath.Join(dir, pubKeyName))
 	if err != nil {
-		log.Fatal(err.Error())
+		Fatalf(err.Error())
 	}
 
 	return string(sshPubKey)
@@ -220,7 +221,7 @@ func GetSshClient(user, addr, keyPath string) sshClient {
 	config := newSshConfig(user, keyPath)
 	client, err := ssh.Dial("tcp", addr, config)
 	if err != nil {
-		Fatalf("Ssh Dial error: %s", err.Error())
+		Fatalf("Ssh Dial %s@%s error: %s", user, addr, err.Error())
 	}
 
 	return sshClient{client: client}
@@ -313,34 +314,33 @@ func (c sshClient) NewTunnel(lAddr, rAddr string) {
 	defer listener.Close()
 
 	for {
-		// one local connections at a time
 		local, err := listener.Accept()
 		if err != nil {
 			Fatalf("Accept listener error: %s", err.Error())
 		}
 
-		remote, err := c.Dial("tcp", rAddr)
-		if err != nil {
-			Fatalf("Accept tcp connection error: %s", err.Error())
-		}
-
-		done := make(chan struct{})
-
 		go func() {
-			if _, err = io.Copy(local, remote); err != nil {
-				Warnf("Copy local->remote error: %s", err.Error())
+			remote, err := c.Dial("tcp", rAddr)
+			if err != nil {
+				Fatalf("Accept tcp connection error: %s", err.Error())
 			}
-			done <- struct{}{}
-		}()
 
-		go func() {
-			if _, err = io.Copy(remote, local); err != nil {
-				Warnf("Copy remote->local error: %s", err.Error())
-			}
-			done <- struct{}{}
-		}()
+			done := make(chan struct{})
 
-		<-done
+			go func() {
+				_, _ = io.Copy(local, remote)
+				done <- struct{}{}
+			}()
+
+			go func() {
+				_, _ = io.Copy(remote, local)
+				done <- struct{}{}
+			}()
+
+			<-done
+			_ = remote.Close()
+			_ = local.Close()
+		}()
 	}
 }
 
@@ -359,7 +359,7 @@ func (c sshClient) Exec(cmd string) (string, error) {
 func (c sshClient) ExecFatal(cmd string) string {
 	out, err := c.Exec(cmd)
 	if err != nil {
-		Fatalf("Exec ssh error: %s", err.Error())
+		Fatalf("Exec ssh %s:\n%s\nError: %s", cmd, out, err.Error())
 	}
 	return out
 }

@@ -17,10 +17,14 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path/filepath"
+	"regexp"
+	"strings"
+	"time"
 
 	coreapi "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,6 +32,8 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	apirtschema "k8s.io/apimachinery/pkg/runtime/schema"
 	apitypes "k8s.io/apimachinery/pkg/types"
+	kubescheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 var (
@@ -47,7 +53,7 @@ type nodeType = coreapi.Node
 
 func (f *NodeFilter) Apply(nodes []nodeType) (resp []nodeType) {
 	for _, node := range nodes {
-		if f.Name != nil && !CheckCondition(f.Name, node.ObjectMeta.Name) {
+		if f.Name != nil && !CheckCondition(f.Name, node.Name) {
 			continue
 		}
 		if f.Os != nil && !CheckCondition(f.Os, node.Status.NodeInfo.OSImage) {
@@ -62,6 +68,14 @@ func (f *NodeFilter) Apply(nodes []nodeType) (resp []nodeType) {
 		resp = append(resp, node)
 	}
 	return
+}
+
+func (clr *KCluster) GetNode(name string) (*nodeType, error) {
+	node, err := (*clr.goClient).CoreV1().Nodes().Get(clr.ctx, name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return node, nil
+	}
+	return node, err
 }
 
 func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
@@ -79,8 +93,106 @@ func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]string {
-	resp := map[string][]string{}
+func (clr *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
+	node, err := clr.GetNode(name)
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == "InternalIP" {
+			client := NestedSshClient.GetFwdClient(NestedSshUser, addr.Address+":22", NestedSshKey)
+			return client.Exec(cmd)
+		}
+	}
+
+	return "", fmt.Errorf("no node InternalIP")
+}
+
+func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error) {
+	nsName := "d8-sds-node-configurator"
+	pods, err := clr.ListPod(nsName, PodFilter{Name: "%sds-node-configurator-%", Node: name})
+	if err != nil {
+		return "", "", err
+	}
+	if len(pods) == 0 {
+		return "", "", fmt.Errorf("no sds-node-configurator for node %s", name)
+	}
+
+	nsCmd := append([]string{"/opt/deckhouse/sds/bin/nsenter.static", "-m", "-u", "-i", "-p", "-t", "1", "--"}, cmd...)
+	req := clr.goClient.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(pods[0].ObjectMeta.Name).
+		Namespace(nsName).
+		SubResource("exec").
+		Timeout(5 * time.Second)
+	req = req.VersionedParams(&coreapi.PodExecOptions{
+		Container: pods[0].Spec.Containers[0].Name,
+		Command:   nsCmd,
+		Stdin:     false,
+		Stdout:    true,
+		Stderr:    true,
+	}, kubescheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(clr.restCfg, "POST", req.URL())
+	if err != nil {
+		return "", "", err
+	}
+
+	var stdout, stderr bytes.Buffer
+	streamOps := remotecommand.StreamOptions{
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}
+	err = exec.StreamWithContext(context.Background(), streamOps)
+	if err != nil {
+		return stdout.String(), stderr.String(), fmt.Errorf("Exec %s %v: %s", name, cmd, err.Error())
+	}
+
+	return stdout.String(), stderr.String(), nil
+}
+
+// Execue cmd on node and check output using expressions
+func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+	if err != nil {
+		Debugf("Exec %s: %s", nName, cmd)
+		Debugf("  StdErr: %s", stErr)
+		return err
+	}
+	for _, r := range resp {
+		if match, _ := regexp.MatchString(r, stOut); !match {
+			Debugf("Exec %s: %s", nName, cmd)
+			Debugf("  Contains: '%s'", r)
+			Debugf("  Out:\n%s", stOut)
+			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
+		}
+	}
+
+	return nil
+}
+
+// Execue cmd on node and check output not contain expressions
+func (clr *KCluster) ExecNodeRespNotContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+	if err != nil {
+		Debugf("Exec %s: %s", nName, cmd)
+		Debugf("  StdErr: %s", stErr)
+		return err
+	}
+	for _, r := range resp {
+		if match, _ := regexp.MatchString(r, stOut); match {
+			Debugf("Exec %s: %s", nName, cmd)
+			Debugf("  Not contains: '%s'", r)
+			Debugf("  Out:\n%s", stOut)
+			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
+		}
+	}
+
+	return nil
+}
+
+func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]nodeType {
+	resp := map[string][]nodeType{}
 
 	nodes, err := clr.ListNode(filters...)
 	if err != nil {
@@ -91,10 +203,7 @@ func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string]
 			continue
 		}
 
-		resp[lName] = []string{}
-		for _, node := range lFilter.Apply(nodes) {
-			resp[lName] = append(resp[lName], node.ObjectMeta.Name)
-		}
+		resp[lName] = lFilter.Apply(nodes)
 	}
 
 	return resp
@@ -200,7 +309,7 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 			return nil
 		}
 
-		Errf("Can't create StaticInstance %s", name)
+		Errorf("Can't create StaticInstance %s", name)
 		return err
 	}
 	return nil
@@ -218,16 +327,16 @@ func (clr *KCluster) DeleteStaticInstance(name string) error {
 /*  Static Node  */
 
 func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
-	privSshKey, err := os.ReadFile(filepath.Join(KubePath, PrivKeyName))
+	privSshKey, err := os.ReadFile(NestedSshKey)
 	if err != nil {
-		Errf("Read %s: %s", PrivKeyName, err.Error())
+		Errorf("Read %s: %s", NestedSshKey, err.Error())
 		return err
 	}
 	b64SshKey := base64.StdEncoding.EncodeToString(privSshKey)
 
 	credentialName := name + "rsa"
 	if err = clr.CreateOrUpdSSHCredential(credentialName, user, b64SshKey); err != nil {
-		Errf("Create SSHCredential: %s", err.Error())
+		Errorf("Create SSHCredential: %s", err.Error())
 		return err
 	}
 
@@ -236,13 +345,13 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 		siName := fmt.Sprintf("si-%s-%s", name, hashMd5(ip)[:8])
 		err = clr.CreateStaticInstance(siName, role, ip, credentialName)
 		if err != nil {
-			Errf("Create StaticInstance %s: %s", siName, err.Error())
+			Errorf("Create StaticInstance %s: %s", siName, err.Error())
 			return err
 		}
 	}
 
 	if err = clr.CreateNodeGroupStatic(role, role, len(ips)); err != nil {
-		Errf("Create NodeGroup: %s", err.Error())
+		Errorf("Create NodeGroup: %s", err.Error())
 		return err
 	}
 
@@ -250,6 +359,26 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 }
 
 /*  Pod  */
+
+type PodFilter struct {
+	Name any
+	Node any
+}
+
+type podType = coreapi.Pod
+
+func (f *PodFilter) Apply(pods []podType) (resp []podType) {
+	for _, pod := range pods {
+		if f.Name != nil && !CheckCondition(f.Name, pod.Name) {
+			continue
+		}
+		if f.Node != nil && !CheckCondition(f.Node, pod.Spec.NodeName) {
+			continue
+		}
+		resp = append(resp, pod)
+	}
+	return
+}
 
 func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 	pod, err := clr.goClient.CoreV1().Pods(nsName).Get(clr.ctx, pName, metav1.GetOptions{})
@@ -259,12 +388,19 @@ func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
 	return pod, err
 }
 
-func (clr *KCluster) ListPod(nsName string) ([]coreapi.Pod, error) {
+func (clr *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod, error) {
 	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
 	if err != nil {
+		Errorf("Can't get Pods: %s", err.Error())
 		return nil, err
 	}
-	return pods.Items, nil
+
+	resp := pods.Items
+	for _, filter := range filters {
+		resp = filter.Apply(resp)
+	}
+
+	return resp, nil
 }
 
 func (clr *KCluster) CreatePod(nsName, pName string) error {

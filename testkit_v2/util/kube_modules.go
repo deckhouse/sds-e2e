@@ -38,12 +38,12 @@ const (
 
 var (
 	GroupVersion    = schema.GroupVersion{Group: "deckhouse.io", Version: "v1alpha1"}
-	DhSchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+	D8SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
 )
 
 func init() {
-	DhSchemeBuilder.Register(&SSHCredentials{}, &SSHCredentialsList{})
-	DhSchemeBuilder.Register(&StaticInstance{}, &StaticInstanceList{})
+	D8SchemeBuilder.Register(&SSHCredentials{}, &SSHCredentialsList{})
+	D8SchemeBuilder.Register(&StaticInstance{}, &StaticInstanceList{})
 }
 
 /*  SSHCredentials  */

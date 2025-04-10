@@ -44,6 +44,7 @@ import (
 type KCluster struct {
 	name     string
 	ctx      context.Context
+	restCfg  *rest.Config
 	rtClient ctrlrtclient.Client
 	goClient *kubernetes.Clientset
 	dyClient *dynamic.DynamicClient
@@ -77,12 +78,7 @@ func NewRestConfig(configPath, clusterName string) (*rest.Config, error) {
 
 /*  Kuber Client  */
 
-func NewKubeRTClient(configPath, clusterName string) (ctrlrtclient.Client, error) {
-	cfg, err := NewRestConfig(configPath, clusterName)
-	if err != nil {
-		return nil, err
-	}
-
+func NewKubeRTClient(cfg *rest.Config) (ctrlrtclient.Client, error) {
 	// Add options
 	var resourcesSchemeFuncs = []func(*apiruntime.Scheme) error{
 		virt.AddToScheme,
@@ -92,12 +88,12 @@ func NewKubeRTClient(configPath, clusterName string) (ctrlrtclient.Client, error
 		extapi.AddToScheme,
 		coreapi.AddToScheme,
 		storapi.AddToScheme,
-		DhSchemeBuilder.AddToScheme,
+		D8SchemeBuilder.AddToScheme,
 	}
 
 	scheme := apiruntime.NewScheme()
 	for _, f := range resourcesSchemeFuncs {
-		err = f(scheme)
+		err := f(scheme)
 		if err != nil {
 			return nil, err
 		}
@@ -116,12 +112,7 @@ func NewKubeRTClient(configPath, clusterName string) (ctrlrtclient.Client, error
 	return cl, nil
 }
 
-func NewKubeGoClient(configPath, clusterName string) (*kubernetes.Clientset, error) {
-	cfg, err := NewRestConfig(configPath, clusterName)
-	if err != nil {
-		return nil, err
-	}
-
+func NewKubeGoClient(cfg *rest.Config) (*kubernetes.Clientset, error) {
 	cl, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -130,12 +121,7 @@ func NewKubeGoClient(configPath, clusterName string) (*kubernetes.Clientset, err
 	return cl, nil
 }
 
-func NewKubeDyClient(configPath, clusterName string) (*dynamic.DynamicClient, error) {
-	cfg, err := NewRestConfig(configPath, clusterName)
-	if err != nil {
-		return nil, err
-	}
-
+func NewKubeDyClient(cfg *rest.Config) (*dynamic.DynamicClient, error) {
 	cl, err := dynamic.NewForConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -154,19 +140,25 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 		configPath = NestedClusterKubeConfig
 	}
 
-	rcl, err := NewKubeRTClient(configPath, clusterName)
+	restCfg, err := NewRestConfig(configPath, clusterName)
 	if err != nil {
 		Critf("Can't connect cluster %s", clusterName)
 		return nil, err
 	}
 
-	gcl, err := NewKubeGoClient(configPath, clusterName)
+	rcl, err := NewKubeRTClient(restCfg)
 	if err != nil {
 		Critf("Can't connect cluster %s", clusterName)
 		return nil, err
 	}
 
-	dcl, err := NewKubeDyClient(configPath, clusterName)
+	gcl, err := NewKubeGoClient(restCfg)
+	if err != nil {
+		Critf("Can't connect cluster %s", clusterName)
+		return nil, err
+	}
+
+	dcl, err := NewKubeDyClient(restCfg)
 	if err != nil {
 		Critf("Can't connect cluster %s", clusterName)
 		return nil, err
@@ -175,6 +167,7 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 	clr := KCluster{
 		name:     clusterName,
 		ctx:      context.Background(),
+		restCfg:  restCfg,
 		rtClient: rcl,
 		goClient: gcl,
 		dyClient: dcl,
@@ -235,7 +228,7 @@ func (clr *KCluster) CreateNs(nsName string) error {
 		return nil
 	}
 
-	Errf("Can't create NS %s", nsName)
+	Errorf("Can't create NS %s", nsName)
 	return err
 }
 

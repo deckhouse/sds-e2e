@@ -16,12 +16,17 @@ limitations under the License.
 
 package integration
 
-import "testing"
+import (
+	"testing"
+
+	coreapi "k8s.io/api/core/v1"
+)
 
 type TestNode struct {
 	Id        int
 	Name      string
 	GroupName string
+	Raw       *coreapi.Node
 }
 
 type T struct {
@@ -34,7 +39,7 @@ func (t *T) Skip(args ...any) {
 		Warn(args...)
 		t.T.Skip(args...)
 	}
-	t.T.Fatal(args...)
+	t.Fatal(args...)
 }
 
 func (t *T) Skipf(format string, args ...any) {
@@ -42,7 +47,7 @@ func (t *T) Skipf(format string, args ...any) {
 		Warnf(format, args...)
 		t.T.Skipf(format, args...)
 	}
-	t.T.Fatalf(format, args...)
+	t.Fatalf(format, args...)
 }
 
 func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
@@ -58,9 +63,9 @@ func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), fi
 			continue
 		}
 
-		for i, nName := range nodes {
-			Debugf("Run %s/%s test", label, nName)
-			tn := TestNode{Id: i, Name: nName, GroupName: label}
+		for i, node := range nodes {
+			Debugf("Run %s/%s test", label, node.Name)
+			tn := TestNode{Id: i, Name: node.Name, GroupName: label, Raw: &node}
 			f(&T{t, &tn})
 		}
 		t.Logf("'%s' tests count: %d", label, len(nodes))
@@ -76,17 +81,17 @@ func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *T)
 			Infof("%d Nodes for label '%s'", len(nodes), label)
 			if len(nodes) == 0 {
 				if SkipOptional {
-					t.Skipf("no Nodes for label '%s'", label)
+					t.SkipNow()
 				}
 				t.Fatalf("no Nodes for label '%s'", label)
 			}
 
-			for i, nName := range nodes {
-				t.Run(nName, func(t *testing.T) {
+			for i, node := range nodes {
+				t.Run(node.Name, func(t *testing.T) {
 					if Parallel {
 						t.Parallel()
 					}
-					tn := TestNode{Id: i, Name: nName, GroupName: label}
+					tn := TestNode{Id: i, Name: node.Name, GroupName: label, Raw: &node}
 					f(&T{t, &tn})
 				})
 			}
