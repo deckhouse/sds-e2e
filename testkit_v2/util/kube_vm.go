@@ -88,11 +88,11 @@ func (clr *KCluster) CreateVM(
 	cvmiName = strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(cvmiName, "_", "-"), " ", "-"))
 	cvmiName = fmt.Sprintf("test-%s-%s", cvmiName, hashMd5(imgUrl)[:4])
 
-	vmCVMI, err := clr.GetCVMI(cvmiName)
+	vmCVMI, err := clr.GetClusterVirtualImage(cvmiName)
 	if err != nil {
-		vmCVMI, err = clr.CreateCVMI(cvmiName, imgUrl)
+		vmCVMI, err = clr.CreateClusterVirtualImage(cvmiName, imgUrl)
 		if err != nil {
-			return err
+			return fmt.Errorf("CreateClusterVirtualImage: %w", err)
 		}
 	}
 
@@ -105,9 +105,9 @@ func (clr *KCluster) CreateVM(
 			return err
 		}
 		if len(vmIPClaimList) == 0 {
-			vmIPClaim, err = clr.CreateVMIPClaim(nsName, vmIPClaimName, ip)
+			vmIPClaim, err = clr.CreateVirtualMachineIPAddress(nsName, vmIPClaimName, ip)
 			if err != nil {
-				return err
+				return fmt.Errorf("CreateVirtualMachineIPAddress: %w", err)
 			}
 		} else {
 			vmIPClaim = &vmIPClaimList[0]
@@ -120,7 +120,7 @@ func (clr *KCluster) CreateVM(
 	if _, err := clr.GetVD(nsName, vmdName); err != nil {
 		vmSystemDisk, err = clr.CreateVDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
 		if err != nil {
-			return err
+			return fmt.Errorf("CreateVDFromCVMI: %w", err)
 		}
 	}
 
@@ -183,8 +183,8 @@ ssh_authorized_keys:
 
 /*  Cluster Virtual Image  */
 
-func (clr *KCluster) GetCVMI(cvmiName string) (*virt.ClusterVirtualImage, error) {
-	cvmiList, err := clr.ListCVMI()
+func (clr *KCluster) GetClusterVirtualImage(cvmiName string) (*virt.ClusterVirtualImage, error) {
+	cvmiList, err := clr.ListClusterVirtualImage()
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +198,7 @@ func (clr *KCluster) GetCVMI(cvmiName string) (*virt.ClusterVirtualImage, error)
 	return nil, fmt.Errorf("NotFound")
 }
 
-func (clr *KCluster) ListCVMI() ([]virt.ClusterVirtualImage, error) {
+func (clr *KCluster) ListClusterVirtualImage() ([]virt.ClusterVirtualImage, error) {
 	objs := virt.ClusterVirtualImageList{}
 	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
 	if err := clr.rtClient.List(clr.ctx, &objs, opts); err != nil {
@@ -208,7 +208,7 @@ func (clr *KCluster) ListCVMI() ([]virt.ClusterVirtualImage, error) {
 	return objs.Items, nil
 }
 
-func (clr *KCluster) CreateCVMI(name string, url string) (*virt.ClusterVirtualImage, error) {
+func (clr *KCluster) CreateClusterVirtualImage(name string, url string) (*virt.ClusterVirtualImage, error) {
 	vmCVMI := &virt.ClusterVirtualImage{ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: virt.ClusterVirtualImageSpec{
 			DataSource: virt.ClusterVirtualImageDataSource{Type: "HTTP", HTTP: &virt.DataSourceHTTP{URL: url}},
@@ -243,7 +243,11 @@ func (clr *KCluster) ListIPClaim(nsName string, vmIPClaimSearch string) ([]virt.
 	return vmIPClaimList, nil
 }
 
-func (clr *KCluster) CreateVMIPClaim(nsName string, name string, ip string) (*virt.VirtualMachineIPAddress, error) {
+func (clr *KCluster) CreateVirtualMachineIPAddress(
+	nsName string,
+	name string,
+	ip string,
+) (*virt.VirtualMachineIPAddress, error) {
 	vmClaim := &virt.VirtualMachineIPAddress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

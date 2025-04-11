@@ -2,7 +2,7 @@
 ```bash
 git clone https://github.com/deckhouse/sds-e2e.git
 cd sds-e2e
-git checkout origin/not_mein_branch_if_required
+git checkout origin/not_main_branch_if_required
 cd testkit_v2
 ```
 

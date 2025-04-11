@@ -50,7 +50,7 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 	for _, vmItem := range vms {
 		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, "linstor-r1", vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
-			Fatalf(err.Error())
+			Fatalf(fmt.Errorf("creating vm: %w", err).Error())
 		}
 	}
 }
