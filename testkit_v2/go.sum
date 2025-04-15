@@ -20,8 +20,8 @@ github.com/deckhouse/sds-node-configurator/api v0.0.0-20241211082010-e61684e9db3
 github.com/deckhouse/sds-node-configurator/api v0.0.0-20241211082010-e61684e9db31/go.mod h1:ROmrnlcAdtYX8HPb0pe1qsnmISpy5FSW5fn2n67JOoE=
 github.com/deckhouse/sds-replicated-volume/api v0.0.0-20241206095502-b096856636cd h1:MJzcWolbjy6SnZs9NMhvAq4KZdWRSQNIjcM9h+qGXa0=
 github.com/deckhouse/sds-replicated-volume/api v0.0.0-20241206095502-b096856636cd/go.mod h1:6yz0RtbkLVJtK2DeuvgfaqBZRl5V5ax1WsfPF5pbnvo=
-github.com/deckhouse/virtualization/api v0.0.0-20241211095216-afe682a5c78f h1:t/PQc5B7z02i1oEBati410IGUiDU1KuMxuPXHnLY99E=
-github.com/deckhouse/virtualization/api v0.0.0-20241211095216-afe682a5c78f/go.mod h1:t+6i4NC43RfNLqcZqkEc5vxY1ypKceqmOOKlVEq0cYA=
+github.com/deckhouse/virtualization/api v0.15.0 h1:yRX6n18kK9wwO2f+8fc2s2nb1N2vYKxKb3/aSRtc9Kk=
+github.com/deckhouse/virtualization/api v0.15.0/go.mod h1:t+6i4NC43RfNLqcZqkEc5vxY1ypKceqmOOKlVEq0cYA=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/elazarl/goproxy v0.0.0-20180725130230-947c36da3153/go.mod h1:/Zj4wYkgs4iZTTu3o/KG3Itv/qCCa8VVMlb3i9OVuzc=
 github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633/go.mod h1:otzb+WCGbkyDHkqmQmT5YD2WR4BBwUdeQoFo8l/7tVs=
