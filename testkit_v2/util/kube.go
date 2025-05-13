@@ -179,7 +179,8 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 /*  Name Space  */
 
 type NsFilter struct {
-	Name any
+	Name     any
+	ExistSec any
 }
 
 type nsType = coreapi.Namespace
@@ -232,7 +233,7 @@ func (clr *KCluster) CreateNs(nsName string) error {
 	return err
 }
 
-func (clr *KCluster) DeleteNs(nsName string) error {
+func (clr *KCluster) DeleteNS(nsName string) error {
 	namespace := coreapi.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nsName,

@@ -17,6 +17,7 @@ limitations under the License.
 package integration
 
 import (
+	"runtime"
 	"sync"
 )
 
@@ -43,6 +44,7 @@ func GetCluster(configPath, clusterName string) *KCluster {
 		if err != nil {
 			Fatalf("Kubeclient '%s' problem: %s", k, err.Error())
 		}
+		runtime.SetFinalizer(clr, func(c *KCluster) { panic("I am finalizer") })
 		_ = clr.CreateNs(TestNS)
 		clrCache[k] = clr
 	}

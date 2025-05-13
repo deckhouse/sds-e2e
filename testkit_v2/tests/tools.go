@@ -54,7 +54,7 @@ func ensureBdConsumable(nName string, size int64, count int) ([]snc.BlockDevice,
 	}
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	for i := len(bds); i < count; i++ {
-		err := hvClr.CreateVMBD(nName, nName+"-data-"+util.RandString(4), "linstor-r1", size)
+		err := hvClr.CreateVMBD(nName, nName+"-data-"+util.RandString(4), util.HvStorageClass, size)
 		if err != nil {
 			return nil, err
 		}

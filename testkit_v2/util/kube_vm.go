@@ -68,14 +68,9 @@ func (clr *KCluster) ListVM(filters ...VmFilter) ([]vmType, error) {
 }
 
 func (clr *KCluster) CreateVM(
-	nsName string,
-	vmName string,
-	ip string,
-	cpu int,
-	ram int,
-	storageClass string,
-	image string,
-	sshPubKey string,
+	nsName, vmName, ip string,
+	cpu, ram int,
+	storageClass, image, sshPubKey string,
 	systemDriveSize int,
 ) error {
 	cvmiName := "noname"
@@ -118,9 +113,9 @@ func (clr *KCluster) CreateVM(
 	vmSystemDisk := &virt.VirtualDisk{}
 	vmdName := fmt.Sprintf("%s-system", vmName)
 	if _, err := clr.GetVD(nsName, vmdName); err != nil {
-		vmSystemDisk, err = clr.CreateVDFromCVMI(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
+		vmSystemDisk, err = clr.CreateVirtualDiskFromClusterVirtualImage(nsName, vmdName, storageClass, systemDriveSize, vmCVMI)
 		if err != nil {
-			return fmt.Errorf("CreateVDFromCVMI: %w", err)
+			return fmt.Errorf("CreateVirtualDiskFromClusterVirtualImage: %w", err)
 		}
 	}
 
@@ -244,11 +239,9 @@ func (clr *KCluster) ListIPClaim(nsName string, vmIPClaimSearch string) ([]virt.
 }
 
 func (clr *KCluster) CreateVirtualMachineIPAddress(
-	nsName string,
-	name string,
-	ip string,
+	nsName, name, ip string,
 ) (*virt.VirtualMachineIPAddress, error) {
-	vmClaim := &virt.VirtualMachineIPAddress{
+	vmAddr := &virt.VirtualMachineIPAddress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: nsName,
@@ -259,12 +252,12 @@ func (clr *KCluster) CreateVirtualMachineIPAddress(
 		},
 	}
 
-	err := clr.rtClient.Create(clr.ctx, vmClaim)
+	err := clr.rtClient.Create(clr.ctx, vmAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	return vmClaim, nil
+	return vmAddr, nil
 }
 
 /*  Virtual Disk (VD)  */
@@ -324,6 +317,11 @@ func (clr *KCluster) ListVD(filters ...VdFilter) ([]vdType, error) {
 }
 
 func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, sizeInGi int64) error {
+	var sc *string = nil
+	if storageClass != "" {
+		sc = &storageClass
+	}
+
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -332,7 +330,7 @@ func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, s
 		Spec: virt.VirtualDiskSpec{
 			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
 				Size:         resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
-				StorageClass: &storageClass,
+				StorageClass: sc,
 			},
 		},
 	}
@@ -389,7 +387,16 @@ func (clr *KCluster) DeleteVdWithCheck(filters ...VdFilter) error {
 	})
 }
 
-func (clr *KCluster) CreateVDFromCVMI(nsName string, name string, storageClass string, sizeInGi int, vmCVMI *virt.ClusterVirtualImage) (*virt.VirtualDisk, error) {
+func (clr *KCluster) CreateVirtualDiskFromClusterVirtualImage(
+	nsName, name, storageClass string,
+	sizeInGi int,
+	vmCVMI *virt.ClusterVirtualImage,
+) (*virt.VirtualDisk, error) {
+	var sc *string = nil
+	if storageClass != "" {
+		sc = &storageClass
+	}
+
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -398,7 +405,7 @@ func (clr *KCluster) CreateVDFromCVMI(nsName string, name string, storageClass s
 		Spec: virt.VirtualDiskSpec{
 			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
 				Size:         resource.NewQuantity(int64(sizeInGi)*1024*1024*1024, resource.BinarySI),
-				StorageClass: &storageClass,
+				StorageClass: sc,
 			},
 			DataSource: &virt.VirtualDiskDataSource{
 				Type: virt.DataSourceTypeObjectRef,
@@ -532,16 +539,6 @@ func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64
 	}
 
 	return nil
-}
-
-func (clr *KCluster) CreateVmbdWithCheck(vmName string, size int64) error {
-	vmdName := fmt.Sprintf("%s-data-%s", vmName, RandString(4))
-	err := clr.CreateVMBD(vmName, vmdName, "linstor-r1", size)
-	if err != nil {
-		Errorf("Create VMBD error: %s", err.Error())
-		return err
-	}
-	return clr.WaitVmbdAttached(VmBdFilter{NameSpace: TestNS, VmName: vmName})
 }
 
 func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {

@@ -31,12 +31,10 @@ const (
 	KubePath      = "../../../sds-e2e-cfg"
 	RemoteAppPath = "/home/user"
 
-	PrivKeyName      = "id_rsa_test"
-	PubKeyName       = "id_rsa_test.pub"
-	ConfigTplName    = "config.yml.tpl"
-	ConfigName       = "config.yml"
-	ResourcesTplName = "resources.yml.tpl"
-	ResourcesName    = "resources.yml"
+	PrivKeyName   = "id_rsa_test"
+	PubKeyName    = "id_rsa_test.pub"
+	ConfigName    = "config.yml"
+	ResourcesName = "resources.yml"
 
 	pvcWaitInterval       = 1
 	pvcWaitIterationCount = 20
@@ -45,22 +43,71 @@ const (
 )
 
 var (
+	SkipOptional      = false
+	startTime         = time.Now()
+	TestNS            = fmt.Sprintf("e2e-tmp-%d%d", startTime.Minute(), startTime.Second())
+	licenseKey        = os.Getenv("licensekey")
+	registryDockerCfg = "e30="
+	Parallel          = false
+	TreeMode          = false
+	KeepState         = false
+	fileLogger        *log.Logger
+
+	ConfigTplName    = "config.yml.tpl"
+	ResourcesTplName = "resources.yml.tpl"
+
+	HypervisorKubeConfig = ""
+	HvHost               = ""
+	HvSshUser            = ""
+	HvSshKey             = ""
+	HvK8sPort            = "6445"
+	HvSshClient          sshClient
+	HvStorageClass       = "linstor-r1"
+
+	NestedHost              = "127.0.0.1"
+	NestedSshUser           = "user"
+	NestedSshKey            = ""
+	NestedK8sPort           = "6445"
+	NestedClusterKubeConfig = "kube-nested.config"
+	NestedSshClient         sshClient
+
+	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
+	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
+	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
+	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
+	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
+	hvStorageClassFlag    = flag.String("hvstorageclass", HvStorageClass, "The k8s StorageClass for VM BD")
+	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
+	standFlag             = flag.String("stand", "", "Test stand name")
+	nsFlag                = flag.String("namespace", "", "Test name space")
+	reinitnsFlag          = flag.String("reinitnamespace", "", "Test name space (reinitialize if exists)")
+	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
+	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
+	configTplFlag         = flag.String("nestedclusterconfigtemplate", ConfigTplName, "Test cluster config.yml template")
+	resourcesTplFlag      = flag.String("nestedclusterresourcestemplate", ResourcesTplName, "Test cluster resources.yml template")
+	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
+	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
+	keepStateFlag         = flag.Bool("keepstate", false, "Don`t clean up after test finished")
+	logFileFlag           = flag.String("logfile", "", "Write extended logs to file")
+)
+
+var (
 	NodeRequired = map[string]NodeFilter{
-		"Ubu22": {
-			Name: "!%-master-%",
-			Os:   "%Ubuntu 22.04%",
-		},
-		"Ubu24": {
-			Name:    "!%-master-%",
-			Os:      "%Ubuntu 24%",
-			Kernel:  WhereLike{"5.15.0-122", "5.15.0-128", "5.15.0-127", "6.8.0-53"},
-			Kubelet: WhereLike{"v1.28.15"},
-		},
-		"Deb11": {
-			Name:   "!%-master-%",
-			Os:     WhereLike{"Debian 11", "Debian GNU/Linux 11"},
-			Kernel: WhereLike{"5.10.0-33-cloud-amd64", "5.10.0-19-amd64"},
-		},
+		//"Ubu22": {
+		//	Name: "!%-master-%",
+		//	Os:   "%Ubuntu 22.04%",
+		//},
+		//"Ubu24": {
+		//	Name:    "!%-master-%",
+		//	Os:      "%Ubuntu 24%",
+		//	Kernel:  WhereLike{"5.15.0-122", "5.15.0-128", "5.15.0-127", "6.8.0-53"},
+		//	Kubelet: WhereLike{"v1.28.15"},
+		//},
+		//"Deb11": {
+		//	Name:   "!%-master-%",
+		//	Os:     WhereLike{"Debian 11", "Debian GNU/Linux 11"},
+		//	Kernel: WhereLike{"5.10.0-33-cloud-amd64", "5.10.0-19-amd64"},
+		//},
 		//"Red7": {
 		//	Name: "!%-master-%",
 		//	Os:     WhereLike{"RedOS 7.3", "RED OS MUROM (7.3"},
@@ -71,14 +118,53 @@ var (
 		//	Os:     WhereLike{"RED OS 8"},
 		//	Kernel: WhereLike{"6.6.6-1.red80.x86_64"},
 		//},
-		//"Astra": {
-		//	Name: "!%-master-%",
-		//	Os:   WhereLike{"Astra Linux"},
-		//},
+		"Astra": {
+			Name: "!%-master-%",
+			Os:   WhereLike{"Astra Linux"},
+		},
 		//"Alt10": {
 		//	Name: "!%-master-%",
 		//	Os:   WhereLike{"Alt 10"},
 		//},
+	}
+
+	VmCluster = []VmConfig{
+		// Ubuntu 22 + Ubuntu 24 + Debian 11
+		//{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
+		//{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
+		//{"vm3-ub22", []string{"worker"}, "", 2, 4, 20, "Ubuntu_22"},
+		//{"vm4-ub24", []string{"worker"}, "", 2, 4, 20, "Ubuntu_24"},
+		//{"vm5-de11", []string{"worker"}, "", 2, 4, 20, "Debian_11"},
+
+		// Astra 1.7.3 flant
+		//{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
+		//{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
+		//{"vm3-as173", []string{"worker"}, "", 2, 4, 20, "Astra_173_max"},
+		//{"vm4-as173", []string{"worker"}, "", 2, 4, 20, "Astra_173_max"},
+
+		// Astra 1.7.5 flant
+		//{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
+		//{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
+		//{"vm3-as175", []string{"worker"}, "", 2, 4, 20, "Astra_1_7_flant"},
+		//{"vm4-as175", []string{"worker"}, "", 2, 4, 20, "Astra_1_7_flant"},
+
+		// Astra 1.8.1 flant
+		{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
+		{"vm2-as181", []string{"setup", "worker"}, "", 2, 6, 20, "Astra_181_flant"},
+		{"vm3-as181", []string{"worker"}, "", 2, 4, 20, "Astra_181_flant"},
+		{"vm4-as181", []string{"worker"}, "", 2, 4, 20, "Astra_181_flant"},
+
+		// Astra 1.8.1
+		//{"vm3-as18", []string{"worker"}, "", 2, 4, 20, "Astra_181_Base"},
+
+		// RedOS 8 flant
+		//{"vm1-red8", []string{"master"}, "", 4, 8, 20, "RedOS_8_flant"},
+		//{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
+		//{"vm3-red8", []string{"worker"}, "", 2, 4, 20, "RedOS_8_flant"},
+		//{"vm4-red8", []string{"worker"}, "", 2, 4, 20, "RedOS_8_flant"},
+
+		// Alt 10 flant
+		//{"vm3-al10", []string{"worker"}, "", 2, 4, 30, "Alt_10_flant"},
 	}
 
 	//DH supported versions https://deckhouse.ru/products/kubernetes-platform/documentation/v1/supported_versions.html
@@ -101,10 +187,12 @@ var (
 		"Alt_11":        "https://ftp.altlinux.ru/pub/distributions/ALTLinux/images/p11/cloud/x86_64/alt-p11-cloud-x86_64.qcow2",
 		"Alt_10_flant":  "https://static.storage-e2e.virtlab.flant.com/media/altp10.qcow2",
 		//https://download.astralinux.ru/ui/native/mg-generic/
+		"Astra_173_base":  "https://download.astralinux.ru/artifactory/mg-generic/alse/cloudinit/alse-1.7.3-base-cloudinit-mg14.0.0-amd64.qcow2",
+		"Astra_173_max":   "https://download.astralinux.ru/artifactory/mg-generic/alse/cloudinit/alse-1.7.3-max-cloudinit-mg14.0.0-amd64.qcow2",
 		"Astra_1_7_Max":   "https://download.astralinux.ru/artifactory/mg-generic/alse/cloudinit/alse-1.7-max-cloudinit-latest-amd64.qcow2",
-		"Astra_1_8_Base":  "https://download.astralinux.ru/artifactory/mg-generic/alse/cloud/alse-1.8.1-base-cloud-mg13.3.0-amd64.qcow2",
-		"Astra_1_7_flant": "https://static.storage-e2e.virtlab.flant.com/media/alse175.qcow2",
-		"Astra_1_8_flant": "https://static.storage-e2e.virtlab.flant.com/media/alse181.qcow2",
+		"Astra_181_Base":  "https://download.astralinux.ru/artifactory/mg-generic/alse/cloud/alse-1.8.1-base-cloud-mg13.3.0-amd64.qcow2",
+		"Astra_175_flant": "https://static.storage-e2e.virtlab.flant.com/media/alse175.qcow2",
+		"Astra_181_flant": "https://static.storage-e2e.virtlab.flant.com/media/alse181.qcow2",
 		//https://cloud.centos.org/centos/
 		"CentOS_9":  "https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-x86_64-9-latest.x86_64.qcow2",
 		"CentOS_10": "https://cloud.centos.org/centos/10-stream/x86_64/images/CentOS-Stream-GenericCloud-x86_64-10-latest.x86_64.qcow2",
@@ -126,62 +214,12 @@ var (
 		//https://mirrors.slackware.com/slackware/
 		"Slackware_15": "https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/slackware64-15.0-install-dvd.iso",
 	}
-
-	VmCluster = []VmConfig{
-		{"vm-ub22-1", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
-		{"vm-ub22-2", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
-		//{"vm-ub22-3", []string{"worker"}, "", 2, 4, 20, "Ubuntu_22"},
-		//{"vm-ub24-1", []string{"worker"}, "", 2, 4, 20, "Ubuntu_24"},
-		//{"vm-de11-1", []string{"worker"}, "", 2, 4, 20, "Debian_11"},
-		//{"vm-re8-1",  []string{"worker"}, "", 2, 4, 20, "RedOS_8_flant"},
-		//{"vm-as18-1", []string{"worker"}, "", 2, 4, 20, "Astra_1_8_Base"},
-		//{"vm-al10-1", []string{"worker"}, "", 2, 4, 30, "Alt_10_flant"},
-	}
-)
-
-var (
-	SkipOptional      = false
-	startTime         = time.Now()
-	TestNS            = fmt.Sprintf("te2est-%d%d", startTime.Minute(), startTime.Second())
-	licenseKey        = os.Getenv("licensekey")
-	registryDockerCfg = "e30="
-	Parallel          = false
-	TreeMode          = false
-	KeepState         = false
-	fileLogger        *log.Logger
-
-	HypervisorKubeConfig = ""
-	HvHost               = ""
-	HvSshUser            = ""
-	HvSshKey             = ""
-	HvK8sPort            = "6445"
-	HvSshClient          sshClient
-
-	NestedHost              = "127.0.0.1"
-	NestedSshUser           = "user"
-	NestedSshKey            = ""
-	NestedK8sPort           = "6445"
-	NestedClusterKubeConfig = "kube-nested.config"
-	NestedSshClient         sshClient
-
-	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
-	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
-	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
-	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
-	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
-	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
-	standFlag             = flag.String("stand", "", "Test stand name")
-	nsFlag                = flag.String("namespace", "", "Test name space")
-	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
-	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
-	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
-	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
-	keepStateFlag         = flag.Bool("keepstate", false, "Don`t clean up after test finished")
-	logFileFlag           = flag.String("logfile", "", "Write extended logs to file")
 )
 
 func envInit() {
-	if *nsFlag != "" {
+	if *reinitnsFlag != "" {
+		TestNS = *reinitnsFlag
+	} else if *nsFlag != "" {
 		TestNS = *nsFlag
 	}
 
@@ -233,6 +271,7 @@ func envInit() {
 		NestedClusterKubeConfig = filepath.Join(KubePath, *kconfigFlag)
 	}
 
+	HvStorageClass = *hvStorageClassFlag
 	KeepState = *keepStateFlag
 
 	if *logFileFlag != "" {
@@ -242,4 +281,7 @@ func envInit() {
 		}
 		fileLogger = log.New(f, "", log.LstdFlags)
 	}
+
+	ConfigTplName = *configTplFlag
+	ResourcesTplName = *resourcesTplFlag
 }

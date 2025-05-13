@@ -115,3 +115,4 @@ kind: StaticClusterConfiguration
 # StaticClusterConfiguration resource can be skipped.
 internalNetworkCIDRs:
 - 10.10.10.0/24
+- 10.211.1.0/24

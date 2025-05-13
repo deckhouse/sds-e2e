@@ -48,9 +48,9 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, "linstor-r1", vmItem.image, sshPubKeyString, vmItem.diskSize)
+		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, HvStorageClass, vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
-			Fatalf(fmt.Errorf("creating vm: %w", err).Error())
+			Fatalf("creating vm: %w", err)
 		}
 	}
 }
@@ -135,7 +135,7 @@ func installVmDh(client sshClient, masterIp string) error {
 	cmd = "sudo -i timeout 600 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
 	if out, err := client.Exec(cmd); err != nil {
 		Critf(out)
-		return fmt.Errorf("dhctl bootstrap resources error")
+		return fmt.Errorf("dhctl bootstrap resources error: %w", err)
 	}
 
 	return nil
@@ -182,8 +182,25 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 	}
 }
 
+func cleanUpNs(clr *KCluster) {
+	//unixNow := time.Now().Unix()
+	//nsExists, _ := clr.GetNs(NsFilter{Name: Cond{Contains: []string{"e2e-tmp-"}}})
+	//for _, ns := range nsExists {
+	//	if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "e2e-tmp-") {
+	//		continue
+	//	}
+	//	if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
+	//		Debugf("Dedeting NS %s", ns.Name)
+	//		if err := clr.DeleteNs(ns.Name); err != nil {
+	//			Errf("Can't delete NS %s", ns.Name)
+	//		}
+	//	}
+	//}
+}
+
 func ClusterCreate() {
 	nsName := TestNS
+	Infof("NS '%s'", nsName)
 
 	HvSshClient = GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
 	go HvSshClient.NewTunnel("127.0.0.1:"+HvK8sPort, "127.0.0.1:"+HvK8sPort)
@@ -194,12 +211,16 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	//Infof("Clean old NS")
-	// cleanUpNs(clr)
+	if *reinitnsFlag != "" {
+		Infof("Clean old NS")
+		cleanUpNs(clr)
+	} else if *nsFlag != "" {
+		Infof("Delete temporary clusters")
+		cleanUpNs(clr)
+	}
 
 	GenerateRSAKeys(NestedSshKey, filepath.Join(KubePath, PubKeyName))
 
-	Infof("NS '%s'", nsName)
 	if err := clr.CreateNs(nsName); err != nil {
 		Fatalf(err.Error())
 	}
