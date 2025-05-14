@@ -58,11 +58,11 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 	vmList, err := clr.ListVM(VmFilter{NameSpace: nsName})
 	if err != nil || len(vmList) < len(vms) {
-		Infof("Create VM (2-4m)")
+		Infof("Create VM (2-5m)")
 		vmCreate(clr, vms, nsName)
 	}
 
-	if err := RetrySec(6*60, func() error {
+	if err := RetrySec(8*60, func() error {
 		vmList, err = clr.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
 		if err != nil {
 			return err

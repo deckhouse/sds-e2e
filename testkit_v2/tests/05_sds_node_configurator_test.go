@@ -684,7 +684,7 @@ func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree st
 		pSize := lvg.Status.Nodes[0].Devices[devId].PVSize.Value()
 		path := lvg.Status.Nodes[0].Devices[devId].Path
 		sizeB := int64(sizeG * 1024 * 1024 * 1024)
-		if dSize < sizeB || dSize > sizeB+validDiff || pSize != sizeB {
+		if dSize < sizeB-validDiff || dSize > sizeB+validDiff || pSize != sizeB {
 			return fmt.Errorf("%s LVG size != %.2fG: dev %d pv %d", nName, sizeG, dSize, pSize)
 		}
 		vgSize += sizeG
