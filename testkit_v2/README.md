@@ -140,6 +140,14 @@ You can update test clusner configuration in **util/env.go**
 
 &nbsp; &nbsp; Test name space
 
+`-hvstorageclass linstor-r1`
+
+&nbsp; &nbsp; Hypervisor StorageClass name for nested cluster creation (virtual machines)
+
+`-clustertype "Ubuntu 23.4"`
+
+&nbsp; &nbsp; Set name of cluster nodes OS
+
 `-keepstate`
 
 &nbsp; &nbsp; Don`t clean up after test finished

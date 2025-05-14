@@ -76,7 +76,7 @@ var (
 	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
 	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
 	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
-	hvStorageClassFlag    = flag.String("hvstorageclass", HvStorageClass, "The k8s StorageClass for VM BD")
+	hvStorageClassFlag    = flag.String("hvstorageclass", HvStorageClass, "Hypervisor StorageClass name for nested cluster creation (virtual machines)")
 	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
 	standFlag             = flag.String("stand", "", "Test stand name")
 	nsFlag                = flag.String("namespace", "", "Test name space")
@@ -92,7 +92,7 @@ var (
 
 	NodeRequired    = map[string]NodeFilter{}
 	VmCluster       = []VmConfig{}
-	clusterTypeFlag = flag.String("clustertype", "Ubuntu 22 mini", "Type of cluster nodes OS")
+	clusterTypeFlag = flag.String("clustertype", "Ubuntu 22 mini", "Set name of cluster nodes OS")
 )
 
 type clusterType struct {
