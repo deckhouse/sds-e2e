@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 )
@@ -108,7 +109,8 @@ func mkResources() {
 }
 
 func installVmDh(client sshClient, masterIp string) error {
-	Infof("Apt update docker")
+	Infof("Docker install/update")
+	// TODO add docker check/install for other OS (Astra, RedOS, Alt, ...) with error "docker not found"
 	out := "Unable to lock directory"
 	for strings.Contains(out, "Unable to lock directory") {
 		out, _ = client.Exec("sudo apt update && sudo apt -y install docker.io")
@@ -183,19 +185,19 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 }
 
 func cleanUpNs(clr *KCluster) {
-	//unixNow := time.Now().Unix()
-	//nsExists, _ := clr.GetNs(NsFilter{Name: Cond{Contains: []string{"e2e-tmp-"}}})
-	//for _, ns := range nsExists {
-	//	if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "e2e-tmp-") {
-	//		continue
-	//	}
-	//	if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
-	//		Debugf("Dedeting NS %s", ns.Name)
-	//		if err := clr.DeleteNs(ns.Name); err != nil {
-	//			Errf("Can't delete NS %s", ns.Name)
-	//		}
-	//	}
-	//}
+	unixNow := time.Now().Unix()
+	nsExists, _ := clr.ListNs(NsFilter{Name: "%e2e-tmp-%"})
+	for _, ns := range nsExists {
+		if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "e2e-tmp-") {
+			continue
+		}
+		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
+			Debugf("Dedeting NS %s", ns.Name)
+			if err := clr.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
+				Fatalf("Can't delete NS %s: %v", ns.Name, err)
+			}
+		}
+	}
 }
 
 func ClusterCreate() {
@@ -211,11 +213,14 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	if *reinitnsFlag != "" {
-		Infof("Clean old NS")
-		cleanUpNs(clr)
-	} else if *nsFlag != "" {
-		Infof("Delete temporary clusters")
+	switch TestNSCleanUp {
+	case "reinit":
+		Debugf("Delete old NS %s", nsName)
+		// TODO add NS exists check
+		if err := clr.DeleteNsWithCheck(NsFilter{Name: nsName}); err != nil {
+			Fatalf("Can't delete NS %s: %v", nsName, err)
+		}
+	case "free tmp":
 		cleanUpNs(clr)
 	}
 

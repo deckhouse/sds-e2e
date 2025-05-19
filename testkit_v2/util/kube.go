@@ -233,11 +233,38 @@ func (clr *KCluster) CreateNs(nsName string) error {
 	return err
 }
 
-func (clr *KCluster) DeleteNS(nsName string) error {
-	namespace := coreapi.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nsName,
-		},
+func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
+	if len(filters) < 1 || filters[0].Name == "" {
+		return fmt.Errorf("Can`t delete all NameSpaces")
 	}
-	return clr.rtClient.Delete(clr.ctx, &namespace)
+
+	nsList, err := clr.ListNs(filters...)
+	if err != nil {
+		return err
+	}
+	for _, ns := range nsList {
+		if err := clr.rtClient.Delete(clr.ctx, &ns); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (clr *KCluster) DeleteNsWithCheck(filters ...NsFilter) error {
+	if err := clr.DeleteNs(filters...); err != nil {
+		return err
+	}
+	return RetrySec(20, func() error {
+		nsList, err := clr.ListNs(filters...)
+		if err != nil {
+			return err
+		}
+
+		if len(nsList) > 0 {
+			return fmt.Errorf("not deleted NS: %d (%s, ...)", len(nsList), nsList[0].Name)
+		}
+		Debugf("NS deleted")
+		return nil
+	})
 }

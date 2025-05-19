@@ -46,6 +46,7 @@ var (
 	SkipOptional      = false
 	startTime         = time.Now()
 	TestNS            = fmt.Sprintf("e2e-tmp-%d%d", startTime.Minute(), startTime.Second())
+	TestNSCleanUp     = ""
 	licenseKey        = os.Getenv("licensekey")
 	registryDockerCfg = "e30="
 	Parallel          = false
@@ -80,7 +81,8 @@ var (
 	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
 	standFlag             = flag.String("stand", "", "Test stand name")
 	nsFlag                = flag.String("namespace", "", "Test name space")
-	reinitnsFlag          = flag.String("reinitnamespace", "", "Test name space (reinitialize if exists)")
+	nsReinitFlag          = flag.String("namespacereinit", "", "Test name space (reinitialize if exists)")
+	nsCleanupFlag         = flag.String("namespacecleanup", "", "Test name space (delete after use)")
 	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
 	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
 	configTplFlag         = flag.String("nestedclusterconfigtemplate", ConfigTplName, "Test cluster config.yml template")
@@ -165,8 +167,8 @@ var clusterTypeMap = map[string]clusterType{
 		VmCluster: []VmConfig{
 			{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
 			{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
-			{"vm3-as175", []string{"worker"}, "", 2, 4, 20, "Astra_1_7_flant"},
-			{"vm4-as175", []string{"worker"}, "", 2, 4, 20, "Astra_1_7_flant"},
+			{"vm3-as175", []string{"worker"}, "", 2, 4, 20, "Astra_175_flant"},
+			{"vm4-as175", []string{"worker"}, "", 2, 4, 20, "Astra_175_flant"},
 		},
 	},
 	"Astra 1.8.1 flant": clusterType{
@@ -278,10 +280,16 @@ var Images = map[string]string{ //qcow2, vmdk, vdi, iso, raw, raw.gz, raw.xz
 }
 
 func envInit() {
-	if *reinitnsFlag != "" {
-		TestNS = *reinitnsFlag
+	if *nsReinitFlag != "" {
+		TestNS = *nsReinitFlag
+		TestNSCleanUp = "reinit"
+	} else if *nsCleanupFlag != "" {
+		TestNS = *nsCleanupFlag
+		TestNSCleanUp = "delete"
 	} else if *nsFlag != "" {
 		TestNS = *nsFlag
+	} else {
+		TestNSCleanUp = "free tmp"
 	}
 
 	if licenseKey != "" {

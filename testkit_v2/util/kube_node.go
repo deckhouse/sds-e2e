@@ -162,7 +162,7 @@ func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) erro
 	for _, r := range resp {
 		if match, _ := regexp.MatchString(r, stOut); !match {
 			Debugf("Exec %s: %s", nName, cmd)
-			Debugf("  Contains: '%s'", r)
+			Debugf("  Don`t contains: '%s'", r)
 			Debugf("  Out:\n%s", stOut)
 			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
 		}

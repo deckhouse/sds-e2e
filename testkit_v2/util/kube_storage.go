@@ -194,6 +194,7 @@ func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
 }
 
 func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
+	Debugf("Creating LVG %s (node %s, bds %v)", name, nodeName, bds)
 	lvmVolumeGroup := &snc.LVMVolumeGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
