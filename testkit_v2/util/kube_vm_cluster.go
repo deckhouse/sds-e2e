@@ -192,9 +192,9 @@ func cleanUpNs(clr *KCluster) {
 			continue
 		}
 		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
-			Debugf("Dedeting NS %s", ns.Name)
+			Debugf("Dedeting namespace %s", ns.Name)
 			if err := clr.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
-				Fatalf("Can't delete NS %s: %v", ns.Name, err)
+				Fatalf("Can't delete namespace %s: %v", ns.Name, err)
 			}
 		}
 	}
@@ -215,10 +215,10 @@ func ClusterCreate() {
 
 	switch TestNSCleanUp {
 	case "reinit":
-		Debugf("Delete old NS %s", nsName)
+		Debugf("Delete old namespace %s", nsName)
 		// TODO add NS exists check
-		if err := clr.DeleteNsWithCheck(NsFilter{Name: nsName}); err != nil {
-			Fatalf("Can't delete NS %s: %v", nsName, err)
+		if err := clr.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
+			Fatalf("Can't delete namespace %s: %v", nsName, err)
 		}
 	case "free tmp":
 		cleanUpNs(clr)

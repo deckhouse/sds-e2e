@@ -19,11 +19,11 @@ const (
 
 // Remove all deprecated resources from cluster
 func prepareClr() {
-	rmLvgBd()
+	removeTestDisks()
 }
 
 // Remove LVGs, VMBDs, VDs, BDs
-func rmLvgBd() {
+func removeTestDisks() {
 	clr := util.GetCluster("", "")
 
 	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%"})
@@ -42,7 +42,7 @@ func rmLvgBd() {
 }
 
 // Provides N devices with size M on node
-func ensureBdConsumable(nName string, size int64, count int) ([]snc.BlockDevice, error) {
+func getOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
 	clr := util.GetCluster("", "")
 	bds, _ := clr.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
 	if len(bds) >= int(count) {

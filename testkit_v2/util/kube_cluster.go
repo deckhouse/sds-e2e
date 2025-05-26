@@ -17,12 +17,11 @@ limitations under the License.
 package integration
 
 import (
-	"runtime"
 	"sync"
 )
 
 var clrCache = map[string]*KCluster{}
-var mx sync.RWMutex
+var mx = new(sync.RWMutex)
 
 func GetCluster(configPath, clusterName string) *KCluster {
 	mx.Lock()
@@ -44,7 +43,6 @@ func GetCluster(configPath, clusterName string) *KCluster {
 		if err != nil {
 			Fatalf("Kubeclient '%s' problem: %s", k, err.Error())
 		}
-		runtime.SetFinalizer(clr, func(c *KCluster) { panic("I am finalizer") })
 		_ = clr.CreateNs(TestNS)
 		clrCache[k] = clr
 	}

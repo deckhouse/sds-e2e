@@ -1,6 +1,6 @@
 module github.com/deckhouse/sds-e2e
 
-go 1.23.4
+go 1.23.5
 
 toolchain go1.24.2
 

@@ -30,7 +30,7 @@ const (
 
 func cleanup01() {
 	if !util.KeepState {
-		rmLvgBd()
+		removeTestDisks()
 	}
 }
 

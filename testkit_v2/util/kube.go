@@ -201,7 +201,7 @@ func (clr *KCluster) ListNs(filters ...NsFilter) ([]nsType, error) {
 	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
 	err := clr.rtClient.List(clr.ctx, &nsList, opts)
 	if err != nil {
-		Warnf("Can't get NSs: %s", err.Error())
+		Warnf("Can't get namespaces: %s", err.Error())
 		return nil, err
 	}
 
@@ -229,19 +229,22 @@ func (clr *KCluster) CreateNs(nsName string) error {
 		return nil
 	}
 
-	Errorf("Can't create NS %s", nsName)
+	Errorf("Can't create namespace %s", nsName)
 	return err
 }
 
 func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
-	if len(filters) < 1 || filters[0].Name == "" {
-		return fmt.Errorf("Can`t delete all NameSpaces")
-	}
-
 	nsList, err := clr.ListNs(filters...)
 	if err != nil {
 		return err
 	}
+	allNsList, err := clr.ListNs()
+	if err != nil {
+		return err
+	} else if len(nsList) == len(allNsList) {
+		return fmt.Errorf("Fatal mistake protection: can`t delete all namespaces")
+	}
+
 	for _, ns := range nsList {
 		if err := clr.rtClient.Delete(clr.ctx, &ns); err != nil {
 			return err
@@ -251,7 +254,8 @@ func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteNsWithCheck(filters ...NsFilter) error {
+// TODO add context
+func (clr *KCluster) DeleteNsAndWait(filters ...NsFilter) error {
 	if err := clr.DeleteNs(filters...); err != nil {
 		return err
 	}
@@ -262,9 +266,9 @@ func (clr *KCluster) DeleteNsWithCheck(filters ...NsFilter) error {
 		}
 
 		if len(nsList) > 0 {
-			return fmt.Errorf("not deleted NS: %d (%s, ...)", len(nsList), nsList[0].Name)
+			return fmt.Errorf("Can't delete %d namespaces: %s, ...", len(nsList), nsList[0].Name)
 		}
-		Debugf("NS deleted")
+		Debugf("Namespaces deleted")
 		return nil
 	})
 }

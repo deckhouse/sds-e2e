@@ -34,16 +34,16 @@ func TestLvgThickCreateCascade(t *testing.T) {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay", []string{
+		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
-			"VG Size\\s+2.00 GiB",
-			"Alloc PE / Size[\\s\\d]+ 0 / 0",
+			"VG Size\\s+21[45]\\d{7} B", //2.00 GiB(2147483648 B) +- 20 MiB
+			"Alloc PE / Size[\\s\\d]+ 0 / 0 B",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay", []string{
+		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
-			"PV Size\\s+2.00 GiB /",
+			"PV Size\\s+21[45]\\d{7} B  /", //2.00 GiB(2147483648 B) +- 20 MiB
 		}); err != nil {
 			t.Error(err.Error())
 		}
@@ -138,7 +138,7 @@ func TestLvgThickAddBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		bds, err := ensureBdConsumable(nName, 2, 1)
+		bds, err := getOrCreateConsumableBlockDevices(nName, 2, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -199,7 +199,7 @@ func TestLvgThickReconnectBd(t *testing.T) {
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
 		_ = clr.DeleteBd(util.BdFilter{Name: bdName})
 
-		_, _ = ensureBdConsumable(nName, 2, 1)
+		_, _ = getOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
 			_ = hvClr.AttachVmbd(nName, vmbd.Name)
@@ -236,7 +236,7 @@ func TestVgThickAddLv(t *testing.T) {
 		nName := t.Node.Name
 
 		vgName := "e2e-vg-" + util.RandString(4)
-		bds, err := ensureBdConsumable(nName, 1, 1)
+		bds, err := getOrCreateConsumableBlockDevices(nName, 1, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -293,16 +293,16 @@ func TestLvgThinCreateCascade(t *testing.T) {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay", []string{
+		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
-			"VG Size\\s+4.00 GiB",
-			"Alloc PE / Size[\\s\\d]+/ 3.3\\d GiB",
+			"VG Size\\s+4(27|28|29|30|31)\\d{7} B",         //4.00 GiB(4294967296 B) +- 20 MiB
+			"Alloc PE / Size\\s+\\d+ / 3(49|5\\d)\\d{7} B", //3.3 GiB(3543348019 B) +- 50 MiB
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay", []string{
+		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
-			"PV Size\\s+4.00 GiB /",
+			"PV Size\\s+4(27|28|29|30|31)\\d{7} B  /", //4.00 GiB(4294967296 B) +- 20 MiB
 		}); err != nil {
 			t.Error(err.Error())
 		}
@@ -568,7 +568,7 @@ func TestLvgThinAddBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		bds, err := ensureBdConsumable(nName, 1, 1)
+		bds, err := getOrCreateConsumableBlockDevices(nName, 1, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -629,7 +629,7 @@ func TestLvgThinReconnectBd(t *testing.T) {
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
 		_ = clr.DeleteBd(util.BdFilter{Name: bdName})
 
-		_, _ = ensureBdConsumable(nName, 2, 1)
+		_, _ = getOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
 			_ = hvClr.AttachVmbd(nName, vmbd.Name)
@@ -658,7 +658,7 @@ func TestLvgThinReconnectBd(t *testing.T) {
 
 func cleanup05() {
 	if !util.KeepState {
-		rmLvgBd()
+		removeTestDisks()
 	}
 }
 
@@ -744,7 +744,7 @@ func thinPoolsCheck(lvgName string, sizes ...float32) error {
 
 func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
 	clr := util.GetCluster("", "")
-	bds, err := ensureBdConsumable(nName, size, 1)
+	bds, err := getOrCreateConsumableBlockDevices(nName, size, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +761,7 @@ func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
 
 func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) {
 	clr := util.GetCluster("", "")
-	bds, err := ensureBdConsumable(nName, int64(size+0.9999), 1)
+	bds, err := getOrCreateConsumableBlockDevices(nName, int64(size+0.9999), 1)
 	if err != nil {
 		return nil, err
 	}
