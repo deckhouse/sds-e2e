@@ -369,7 +369,7 @@ func (clr *KCluster) DeleteVD(filters ...VdFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteVdWithCheck(filters ...VdFilter) error {
+func (clr *KCluster) DeleteVdAndWait(filters ...VdFilter) error {
 	if err := clr.DeleteVD(filters...); err != nil {
 		return err
 	}
@@ -435,9 +435,7 @@ type VmBdFilter struct {
 	Phase     any
 }
 
-type vmbdType = virt.VirtualMachineBlockDeviceAttachment
-
-func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
+func (f *VmBdFilter) Apply(vmbds []virt.VirtualMachineBlockDeviceAttachment) (resp []virt.VirtualMachineBlockDeviceAttachment) {
 	for _, vmbd := range vmbds {
 		if f.Name != nil && !CheckCondition(f.Name, vmbd.Name) {
 			continue
@@ -459,7 +457,7 @@ func (f *VmBdFilter) Apply(vmbds []vmbdType) (resp []vmbdType) {
 	return
 }
 
-func (clr *KCluster) ListVMBD(filters ...VmBdFilter) ([]vmbdType, error) {
+func (clr *KCluster) ListVMBD(filters ...VmBdFilter) ([]virt.VirtualMachineBlockDeviceAttachment, error) {
 	vmbdas := virt.VirtualMachineBlockDeviceAttachmentList{}
 	optsList := ctrlrtclient.ListOptions{}
 	opts := ctrlrtclient.ListOption(&optsList)
@@ -528,10 +526,10 @@ func (clr *KCluster) DetachVmbd(filters ...VmBdFilter) error {
 	return nil
 }
 
-func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClass string, size int64) error {
+func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClassName string, size int64) error {
 	nsName := TestNS
 
-	if err := clr.CreateVD(nsName, vmdName, storageClass, size); err != nil {
+	if err := clr.CreateVD(nsName, vmdName, storageClassName, size); err != nil {
 		return err
 	}
 	if err := clr.AttachVmbd(vmName, vmdName); err != nil {
@@ -557,7 +555,7 @@ func (clr *KCluster) DeleteVMBD(filters ...VmBdFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteVmbdWithCheck(filters ...VmBdFilter) error {
+func (clr *KCluster) DeleteVmbdAndWait(filters ...VmBdFilter) error {
 	if err := clr.DeleteVMBD(filters...); err != nil {
 		return err
 	}

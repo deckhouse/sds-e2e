@@ -63,7 +63,7 @@ func TestLvgThickDeleteCascadeManually(t *testing.T) {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		_ = clr.DeleteLvgWithCheck(util.LvgFilter{Name: lvg.Name})
+		_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
 
 		if err := clr.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
 			"VG Name ",
@@ -339,7 +339,7 @@ func TestLvgThinDeleteCascadeManually(t *testing.T) {
 			t.Fatal(err.Error())
 		}
 
-		_ = clr.DeleteLvgWithCheck(util.LvgFilter{Name: lvg.Name})
+		_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
 
 		if err := clr.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
 			"VG Name ",
@@ -795,7 +795,7 @@ func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) 
 		return nil, err
 	}
 
-	if err := clr.CheckLVGsReady(util.LvgFilter{Name: lvgName}); err != nil {
+	if err := clr.WaitLVGsReady(util.LvgFilter{Name: lvgName}); err != nil {
 		return nil, err
 	}
 

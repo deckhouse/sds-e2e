@@ -134,6 +134,7 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 	}, kubescheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(clr.restCfg, "POST", req.URL())
+	//NewSPDYExecutor connects to the provided server and upgrades the connection to multiplexed bidirectional streams
 	if err != nil {
 		return "", "", err
 	}

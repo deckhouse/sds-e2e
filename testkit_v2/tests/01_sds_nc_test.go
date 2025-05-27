@@ -41,7 +41,7 @@ func TestLvg(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		clr.RunTestGroupNodes(t, nil, directLVGCreate)
-		if err := clr.CheckLVGsReady(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
+		if err := clr.WaitLVGsReady(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
 			t.Fatal(err.Error())
 		}
 	})
@@ -168,11 +168,11 @@ func directLVGDelete(t *testing.T) {
 
 	if util.HypervisorKubeConfig != "" {
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		err := hypervisorClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
+		err := hypervisorClr.DeleteVmbdAndWait(util.VmBdFilter{NameSpace: util.TestNS})
 		if err != nil {
 			t.Errorf("VMBD deleting error: %s", err)
 		}
-		err = hypervisorClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
+		err = hypervisorClr.DeleteVdAndWait(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
 		if err != nil {
 			t.Errorf("VD deleting error: %s", err)
 		}

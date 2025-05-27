@@ -31,14 +31,14 @@ func removeTestDisks() {
 		nName := lvg.Spec.Local.NodeName
 		_, _, _ = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", lvg.Name})
 	}
-	_ = clr.DeleteLvgWithCheck(util.LvgFilter{Name: "%e2e-lvg-%"})
+	_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: "%e2e-lvg-%"})
 
 	if util.HypervisorKubeConfig != "" {
 		hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		_ = hvClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
-		_ = hvClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
+		_ = hvClr.DeleteVmbdAndWait(util.VmBdFilter{NameSpace: util.TestNS})
+		_ = hvClr.DeleteVdAndWait(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
 	}
-	_ = clr.DeleteBdWithCheck()
+	_ = clr.DeleteBdAndWait()
 }
 
 // Provides N devices with size M on node
