@@ -7,7 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/deckhouse/sds-node-configurator/api v0.0.0-20241211082010-e61684e9db31
 	github.com/deckhouse/sds-replicated-volume/api v0.0.0-20241206095502-b096856636cd
-	github.com/deckhouse/virtualization/api v0.0.0-20241211095216-afe682a5c78f
+	github.com/deckhouse/virtualization/api v0.15.0
 	github.com/go-logr/logr v1.4.2
 	github.com/pkg/sftp v1.13.6
 	golang.org/x/crypto v0.36.0

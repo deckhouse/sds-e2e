@@ -58,6 +58,8 @@ func RetrySec(sec int, f func() error) error {
 		}
 		time.Sleep(latency * time.Second)
 	}
+
+	return nil
 }
 
 const letters = "abcdefghijklmnopqrstuvwxyz0123456789"

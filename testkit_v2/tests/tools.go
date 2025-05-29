@@ -19,11 +19,11 @@ const (
 
 // Remove all deprecated resources from cluster
 func prepareClr() {
-	rmLvgBd()
+	removeTestDisks()
 }
 
 // Remove LVGs, VMBDs, VDs, BDs
-func rmLvgBd() {
+func removeTestDisks() {
 	clr := util.GetCluster("", "")
 
 	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: "%e2e-lvg-%"})
@@ -31,18 +31,18 @@ func rmLvgBd() {
 		nName := lvg.Spec.Local.NodeName
 		_, _, _ = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", lvg.Name})
 	}
-	_ = clr.DeleteLvgWithCheck(util.LvgFilter{Name: "%e2e-lvg-%"})
+	_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: "%e2e-lvg-%"})
 
 	if util.HypervisorKubeConfig != "" {
 		hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-		_ = hvClr.DeleteVmbdWithCheck(util.VmBdFilter{NameSpace: util.TestNS})
-		_ = hvClr.DeleteVdWithCheck(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
+		_ = hvClr.DeleteVmbdAndWait(util.VmBdFilter{NameSpace: util.TestNS})
+		_ = hvClr.DeleteVdAndWait(util.VdFilter{NameSpace: util.TestNS, Name: "!%-system%"})
 	}
-	_ = clr.DeleteBdWithCheck()
+	_ = clr.DeleteBdAndWait()
 }
 
 // Provides N devices with size M on node
-func ensureBdConsumable(nName string, size int64, count int) ([]snc.BlockDevice, error) {
+func getOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
 	clr := util.GetCluster("", "")
 	bds, _ := clr.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
 	if len(bds) >= int(count) {
@@ -54,7 +54,7 @@ func ensureBdConsumable(nName string, size int64, count int) ([]snc.BlockDevice,
 	}
 	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
 	for i := len(bds); i < count; i++ {
-		err := hvClr.CreateVMBD(nName, nName+"-data-"+util.RandString(4), "linstor-r1", size)
+		err := hvClr.CreateVMBD(nName, nName+"-data-"+util.RandString(4), util.HvStorageClass, size)
 		if err != nil {
 			return nil, err
 		}

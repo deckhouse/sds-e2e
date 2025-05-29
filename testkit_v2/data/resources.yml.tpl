@@ -63,6 +63,9 @@ metadata:
   name: sds-replicated-volume
 spec:
   enabled: true
+  settings:
+    logLevel: DEBUG
+  version: 1
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: ModulePullOverride

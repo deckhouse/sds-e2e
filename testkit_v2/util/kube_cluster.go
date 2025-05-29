@@ -21,7 +21,7 @@ import (
 )
 
 var clrCache = map[string]*KCluster{}
-var mx sync.RWMutex
+var mx = new(sync.RWMutex)
 
 func GetCluster(configPath, clusterName string) *KCluster {
 	mx.Lock()

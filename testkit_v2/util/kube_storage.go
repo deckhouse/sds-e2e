@@ -37,9 +37,7 @@ type BdFilter struct {
 	Size       float32
 }
 
-type bdType = snc.BlockDevice
-
-func (f *BdFilter) Apply(bds []bdType) (resp []bdType) {
+func (f *BdFilter) Apply(bds []snc.BlockDevice) (resp []snc.BlockDevice) {
 	for _, bd := range bds {
 		if f.Name != nil && !CheckCondition(f.Name, bd.Name) {
 			continue
@@ -63,7 +61,7 @@ func (f *BdFilter) Apply(bds []bdType) (resp []bdType) {
 	return
 }
 
-func (clr *KCluster) ListBD(filters ...BdFilter) ([]bdType, error) {
+func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
 	bdList := &snc.BlockDeviceList{}
 	err := clr.rtClient.List(clr.ctx, bdList)
 	if err != nil {
@@ -93,7 +91,7 @@ func (clr *KCluster) DeleteBd(filters ...BdFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteBdWithCheck(filters ...BdFilter) error {
+func (clr *KCluster) DeleteBdAndWait(filters ...BdFilter) error {
 	if err := clr.DeleteBd(filters...); err != nil {
 		return err
 	}
@@ -164,7 +162,7 @@ func (clr *KCluster) ListLVG(filters ...LvgFilter) ([]lvgType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
+func (clr *KCluster) WaitLVGsReady(filters ...LvgFilter) error {
 	filtersNotReady := append(filters, LvgFilter{Phase: "!Ready"})
 	if err := RetrySec(35, func() error {
 		lvgs, err := clr.ListLVG(filtersNotReady...)
@@ -194,6 +192,7 @@ func (clr *KCluster) CheckLVGsReady(filters ...LvgFilter) error {
 }
 
 func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
+	Debugf("Creating LVG %s (node %s, bds %v)", name, nodeName, bds)
 	lvmVolumeGroup := &snc.LVMVolumeGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -222,7 +221,7 @@ func (clr *KCluster) CreateLvgWithCheck(name, nodeName string, bds []string) err
 		return err
 	}
 
-	return clr.CheckLVGsReady(LvgFilter{Name: name})
+	return clr.WaitLVGsReady(LvgFilter{Name: name})
 }
 
 func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) error {
@@ -277,7 +276,7 @@ func (clr *KCluster) DeleteLVG(filters ...LvgFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteLvgWithCheck(filters ...LvgFilter) error {
+func (clr *KCluster) DeleteLvgAndWait(filters ...LvgFilter) error {
 	if err := clr.DeleteLVG(filters...); err != nil {
 		return err
 	}

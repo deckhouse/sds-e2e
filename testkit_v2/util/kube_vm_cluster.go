@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 )
@@ -48,9 +49,9 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, "linstor-r1", vmItem.image, sshPubKeyString, vmItem.diskSize)
+		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, HvStorageClass, vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
-			Fatalf(err.Error())
+			Fatalf("creating vm: %w", err)
 		}
 	}
 }
@@ -58,11 +59,11 @@ func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
 func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 	vmList, err := clr.ListVM(VmFilter{NameSpace: nsName})
 	if err != nil || len(vmList) < len(vms) {
-		Infof("Create VM (2-4m)")
+		Infof("Create VM (2-5m)")
 		vmCreate(clr, vms, nsName)
 	}
 
-	if err := RetrySec(6*60, func() error {
+	if err := RetrySec(8*60, func() error {
 		vmList, err = clr.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
 		if err != nil {
 			return err
@@ -108,7 +109,8 @@ func mkResources() {
 }
 
 func installVmDh(client sshClient, masterIp string) error {
-	Infof("Apt update docker")
+	Infof("Docker install/update")
+	// TODO add docker check/install for other OS (Astra, RedOS, Alt, ...) with error "docker not found"
 	out := "Unable to lock directory"
 	for strings.Contains(out, "Unable to lock directory") {
 		out, _ = client.Exec("sudo apt update && sudo apt -y install docker.io")
@@ -135,7 +137,7 @@ func installVmDh(client sshClient, masterIp string) error {
 	cmd = "sudo -i timeout 600 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
 	if out, err := client.Exec(cmd); err != nil {
 		Critf(out)
-		return fmt.Errorf("dhctl bootstrap resources error")
+		return fmt.Errorf("dhctl bootstrap resources error: %w", err)
 	}
 
 	return nil
@@ -182,8 +184,25 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 	}
 }
 
+func cleanUpNs(clr *KCluster) {
+	unixNow := time.Now().Unix()
+	nsExists, _ := clr.ListNs(NsFilter{Name: "%e2e-tmp-%"})
+	for _, ns := range nsExists {
+		if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "e2e-tmp-") {
+			continue
+		}
+		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
+			Debugf("Dedeting namespace %s", ns.Name)
+			if err := clr.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
+				Fatalf("Can't delete namespace %s: %v", ns.Name, err)
+			}
+		}
+	}
+}
+
 func ClusterCreate() {
 	nsName := TestNS
+	Infof("NS '%s'", nsName)
 
 	HvSshClient = GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
 	go HvSshClient.NewTunnel("127.0.0.1:"+HvK8sPort, "127.0.0.1:"+HvK8sPort)
@@ -194,12 +213,19 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	//Infof("Clean old NS")
-	// cleanUpNs(clr)
+	switch TestNSCleanUp {
+	case "reinit":
+		Debugf("Delete old namespace %s", nsName)
+		// TODO add NS exists check
+		if err := clr.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
+			Fatalf("Can't delete namespace %s: %v", nsName, err)
+		}
+	case "free tmp":
+		cleanUpNs(clr)
+	}
 
 	GenerateRSAKeys(NestedSshKey, filepath.Join(KubePath, PubKeyName))
 
-	Infof("NS '%s'", nsName)
 	if err := clr.CreateNs(nsName); err != nil {
 		Fatalf(err.Error())
 	}

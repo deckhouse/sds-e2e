@@ -134,6 +134,7 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 	}, kubescheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(clr.restCfg, "POST", req.URL())
+	//NewSPDYExecutor connects to the provided server and upgrades the connection to multiplexed bidirectional streams
 	if err != nil {
 		return "", "", err
 	}
@@ -162,7 +163,7 @@ func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) erro
 	for _, r := range resp {
 		if match, _ := regexp.MatchString(r, stOut); !match {
 			Debugf("Exec %s: %s", nName, cmd)
-			Debugf("  Contains: '%s'", r)
+			Debugf("  Don`t contains: '%s'", r)
 			Debugf("  Out:\n%s", stOut)
 			return fmt.Errorf("exec %s `%s` wrong output", nName, cmd)
 		}

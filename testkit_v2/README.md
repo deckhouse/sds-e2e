@@ -2,7 +2,7 @@
 ```bash
 git clone https://github.com/deckhouse/sds-e2e.git
 cd sds-e2e
-git checkout origin/not_mein_branch_if_required
+git checkout origin/not_main_branch_if_required
 cd testkit_v2
 ```
 
@@ -13,7 +13,6 @@ All tests runs in virtual environment
 ```bash
 # set env
 export hv_ssh_dst="<user>@<host>"
-export hv_ssh_key="<key path>"
 export licensekey="<EE deckhouse license key>"
 
 # init configs
@@ -138,7 +137,23 @@ You can update test clusner configuration in **util/env.go**
 
 `-namespace 01-01-test`
 
-&nbsp; &nbsp; Test name space
+&nbsp; &nbsp; Specify test NameSpace
+
+`-namespacereinit 01-01-test`
+
+&nbsp; &nbsp; Specify test NameSpace. Removes old with the same name
+
+`-namespacecleanup 01-01-test`
+
+&nbsp; &nbsp; Specify test NameSpace. Removes it after use (required 99_finalizer_test.go)
+
+`-hvstorageclass linstor-r1`
+
+&nbsp; &nbsp; Hypervisor StorageClass name for nested cluster creation (virtual machines)
+
+`-clustertype "Ubuntu 23.4"`
+
+&nbsp; &nbsp; Set name of cluster nodes OS
 
 `-keepstate`
 
@@ -153,7 +168,6 @@ You can update test clusner configuration in **util/env.go**
 > or script<br/>
 > ```bash
 > echo "hv_ssh_dst=\"$export hv_ssh_dst\"
-> hv_ssh_key=\"$hv_ssh_key\"
 > licensekey=\"$licensekey\"
 > 
 > go test -v -timeout 30m \$@ -debug -hypervisorkconfig kube-hypervisor.config -sshhost \$hv_ssh_dst -namespace 01-01-test
