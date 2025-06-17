@@ -7,7 +7,7 @@ clusterType: Static
 podSubnetCIDR: 10.112.0.0/16
 # Address space of the cluster's services.
 serviceSubnetCIDR: 10.225.0.0/16
-kubernetesVersion: "1.33"
+kubernetesVersion: Automatic
 # Cluster domain (used for local routing).
 clusterDomain: "cluster.local"
 ---
