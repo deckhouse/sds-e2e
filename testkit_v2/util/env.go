@@ -65,32 +65,34 @@ var (
 	HvSshClient          sshClient
 	HvStorageClass       = "linstor-r1"
 
-	NestedHost              = "127.0.0.1"
-	NestedSshUser           = "user"
-	NestedSshKey            = ""
-	NestedK8sPort           = "6445"
-	NestedClusterKubeConfig = "kube-nested.config"
-	NestedSshClient         sshClient
+	NestedHost                = "127.0.0.1"
+	NestedSshUser             = "user"
+	NestedSshKey              = ""
+	NestedK8sPort             = "6445"
+	NestedClusterKubeConfig   = "kube-nested.config"
+	NestedSshClient           sshClient
+	NestedDefaultStorageClass = "linstor-r1"
 
-	verboseFlag           = flag.Bool("verbose", false, "Output with Info messages")
-	debugFlag             = flag.Bool("debug", false, "Output with Debug messages")
-	treeFlag              = flag.Bool("tree", false, "Tests output in tree mode")
-	kconfigFlag           = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
-	hypervisorkconfigFlag = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
-	hvStorageClassFlag    = flag.String("hvstorageclass", HvStorageClass, "Hypervisor StorageClass name for nested cluster creation (virtual machines)")
-	clusterNameFlag       = flag.String("kcluster", "", "The context of cluster to use for test")
-	standFlag             = flag.String("stand", "", "Test stand name")
-	nsFlag                = flag.String("namespace", "", "Test name space")
-	nsReinitFlag          = flag.String("namespacereinit", "", "Test name space (reinitialize if exists)")
-	nsCleanupFlag         = flag.String("namespacecleanup", "", "Test name space (delete after use)")
-	sshhostFlag           = flag.String("sshhost", "127.0.0.1", "Test ssh host")
-	sshkeyFlag            = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
-	configTplFlag         = flag.String("nestedclusterconfigtemplate", ConfigTplName, "Test cluster config.yml template")
-	resourcesTplFlag      = flag.String("nestedclusterresourcestemplate", ResourcesTplName, "Test cluster resources.yml template")
-	skipOptionalFlag      = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
-	notParallelFlag       = flag.Bool("notparallel", false, "Run test groups in single mode")
-	keepStateFlag         = flag.Bool("keepstate", false, "Don`t clean up after test finished")
-	logFileFlag           = flag.String("logfile", "", "Write extended logs to file")
+	verboseFlag            = flag.Bool("verbose", false, "Output with Info messages")
+	debugFlag              = flag.Bool("debug", false, "Output with Debug messages")
+	treeFlag               = flag.Bool("tree", false, "Tests output in tree mode")
+	kconfigFlag            = flag.String("kconfig", NestedClusterKubeConfig, "The k8s config path for test")
+	hypervisorkconfigFlag  = flag.String("hypervisorkconfig", "", "The k8s config path for vm creation")
+	hvStorageClassFlag     = flag.String("hvstorageclass", HvStorageClass, "Hypervisor StorageClass name for nested cluster creation (virtual machines)")
+	nestedStorageClassFlag = flag.String("nestedstorageclass", NestedDefaultStorageClass, "Default StorageClass name for test cluster")
+	clusterNameFlag        = flag.String("kcluster", "", "The context of cluster to use for test")
+	standFlag              = flag.String("stand", "", "Test stand name")
+	nsFlag                 = flag.String("namespace", "", "Test name space")
+	nsReinitFlag           = flag.String("namespacereinit", "", "Test name space (reinitialize if exists)")
+	nsCleanupFlag          = flag.String("namespacecleanup", "", "Test name space (delete after use)")
+	sshhostFlag            = flag.String("sshhost", "127.0.0.1", "Test ssh host")
+	sshkeyFlag             = flag.String("sshkey", os.Getenv("HOME")+"/.ssh/id_rsa", "Test ssh key")
+	configTplFlag          = flag.String("nestedclusterconfigtemplate", ConfigTplName, "Test cluster config.yml template")
+	resourcesTplFlag       = flag.String("nestedclusterresourcestemplate", ResourcesTplName, "Test cluster resources.yml template")
+	skipOptionalFlag       = flag.Bool("skipoptional", false, "Skip optional tests (no required resources)")
+	notParallelFlag        = flag.Bool("notparallel", false, "Run test groups in single mode")
+	keepStateFlag          = flag.Bool("keepstate", false, "Don`t clean up after test finished")
+	logFileFlag            = flag.String("logfile", "", "Write extended logs to file")
 
 	NodeRequired    = map[string]NodeFilter{}
 	VmCluster       = []VmConfig{}
@@ -341,6 +343,7 @@ func envInit() {
 	}
 
 	HvStorageClass = *hvStorageClassFlag
+	NestedDefaultStorageClass = *nestedStorageClassFlag
 	KeepState = *keepStateFlag
 
 	if *logFileFlag != "" {

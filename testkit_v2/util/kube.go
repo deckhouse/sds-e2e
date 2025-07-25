@@ -29,6 +29,7 @@ import (
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
 
+	v1app "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -42,12 +43,12 @@ import (
 )
 
 type KCluster struct {
-	name     string
-	ctx      context.Context
-	restCfg  *rest.Config
-	rtClient ctrlrtclient.Client
-	goClient *kubernetes.Clientset
-	dyClient *dynamic.DynamicClient
+	name                    string
+	ctx                     context.Context
+	restCfg                 *rest.Config
+	controllerRuntimeClient ctrlrtclient.Client
+	goClient                *kubernetes.Clientset
+	dyClient                *dynamic.DynamicClient
 }
 
 /*  Config  */
@@ -164,16 +165,16 @@ func InitKCluster(configPath, clusterName string) (*KCluster, error) {
 		return nil, err
 	}
 
-	clr := KCluster{
-		name:     clusterName,
-		ctx:      context.Background(),
-		restCfg:  restCfg,
-		rtClient: rcl,
-		goClient: gcl,
-		dyClient: dcl,
+	cluster := KCluster{
+		name:                    clusterName,
+		ctx:                     context.Background(),
+		restCfg:                 restCfg,
+		controllerRuntimeClient: rcl,
+		goClient:                gcl,
+		dyClient:                dcl,
 	}
 
-	return &clr, nil
+	return &cluster, nil
 }
 
 /*  Name Space  */
@@ -196,10 +197,10 @@ func (f *NsFilter) Apply(nss []nsType) (resp []nsType) {
 	return
 }
 
-func (clr *KCluster) ListNs(filters ...NsFilter) ([]nsType, error) {
+func (cluster *KCluster) ListNs(filters ...NsFilter) ([]nsType, error) {
 	nsList := coreapi.NamespaceList{}
 	opts := ctrlrtclient.ListOption(&ctrlrtclient.ListOptions{})
-	err := clr.rtClient.List(clr.ctx, &nsList, opts)
+	err := cluster.controllerRuntimeClient.List(cluster.ctx, &nsList, opts)
 	if err != nil {
 		Warnf("Can't get namespaces: %s", err.Error())
 		return nil, err
@@ -217,14 +218,14 @@ func (clr *KCluster) ListNs(filters ...NsFilter) ([]nsType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) CreateNs(nsName string) error {
+func (cluster *KCluster) CreateNs(nsName string) error {
 	namespace := &coreapi.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: nsName,
 		},
 	}
 
-	err := clr.rtClient.Create(clr.ctx, namespace)
+	err := cluster.controllerRuntimeClient.Create(cluster.ctx, namespace)
 	if err == nil || apierrors.IsAlreadyExists(err) {
 		return nil
 	}
@@ -233,12 +234,12 @@ func (clr *KCluster) CreateNs(nsName string) error {
 	return err
 }
 
-func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
-	nsList, err := clr.ListNs(filters...)
+func (cluster *KCluster) DeleteNs(filters ...NsFilter) error {
+	nsList, err := cluster.ListNs(filters...)
 	if err != nil {
 		return err
 	}
-	allNsList, err := clr.ListNs()
+	allNsList, err := cluster.ListNs()
 	if err != nil {
 		return err
 	} else if len(nsList) == len(allNsList) {
@@ -246,7 +247,7 @@ func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
 	}
 
 	for _, ns := range nsList {
-		if err := clr.rtClient.Delete(clr.ctx, &ns); err != nil {
+		if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &ns); err != nil {
 			return err
 		}
 	}
@@ -255,12 +256,12 @@ func (clr *KCluster) DeleteNs(filters ...NsFilter) error {
 }
 
 // TODO add context
-func (clr *KCluster) DeleteNsAndWait(filters ...NsFilter) error {
-	if err := clr.DeleteNs(filters...); err != nil {
+func (cluster *KCluster) DeleteNsAndWait(filters ...NsFilter) error {
+	if err := cluster.DeleteNs(filters...); err != nil {
 		return err
 	}
 	return RetrySec(20, func() error {
-		nsList, err := clr.ListNs(filters...)
+		nsList, err := cluster.ListNs(filters...)
 		if err != nil {
 			return err
 		}
@@ -269,6 +270,39 @@ func (clr *KCluster) DeleteNsAndWait(filters ...NsFilter) error {
 			return fmt.Errorf("Can't delete %d namespaces: %s, ...", len(nsList), nsList[0].Name)
 		}
 		Debugf("Namespaces deleted")
+		return nil
+	})
+}
+
+func (cluster *KCluster) CheckDeploymentReady(nsName, deploymentName string) (bool, error) {
+	deployment := &v1app.Deployment{}
+	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
+		Name:      deploymentName,
+		Namespace: nsName,
+	}, deployment)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to get deployment %s in namespace %s: %w", deploymentName, nsName, err)
+	}
+
+	if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+func (cluster *KCluster) WaitUntilDeploymentReady(nsName, deploymentName string, timeoutSec int) error {
+	Debugf("Waiting for deployment %s in namespace %s to be ready for %d seconds...", deploymentName, nsName, timeoutSec)
+	return RetrySec(timeoutSec, func() error {
+		ready, err := cluster.CheckDeploymentReady(nsName, deploymentName)
+		if err != nil {
+			return err
+		}
+		if !ready {
+			return fmt.Errorf("deployment %s in namespace %s is not ready", deploymentName, nsName)
+		}
+		Debugf("Deployment %s in namespace %s is ready", deploymentName, nsName)
 		return nil
 	})
 }

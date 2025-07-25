@@ -24,9 +24,9 @@ import (
 
 /*  SSH Credentials  */
 
-func (clr *KCluster) GetSSHCredential(name string) (*SSHCredentials, error) {
+func (cluster *KCluster) GetSSHCredential(name string) (*SSHCredentials, error) {
 	sshcredential := &SSHCredentials{}
-	err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{Name: name}, sshcredential)
+	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{Name: name}, sshcredential)
 	if err != nil {
 		Debugf("Can't get SSHCredential %s: %s", name, err.Error())
 		return nil, err
@@ -34,9 +34,9 @@ func (clr *KCluster) GetSSHCredential(name string) (*SSHCredentials, error) {
 	return sshcredential, nil
 }
 
-func (clr *KCluster) ListSSHCredential() ([]SSHCredentials, error) {
+func (cluster *KCluster) ListSSHCredential() ([]SSHCredentials, error) {
 	credentials := SSHCredentialsList{}
-	err := clr.rtClient.List(clr.ctx, &credentials)
+	err := cluster.controllerRuntimeClient.List(cluster.ctx, &credentials)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (clr *KCluster) ListSSHCredential() ([]SSHCredentials, error) {
 	return credentials.Items, nil
 }
 
-func (clr *KCluster) CreateSSHCredential(name, user, privSshKey string) error {
+func (cluster *KCluster) CreateSSHCredential(name, user, privSshKey string) error {
 	sshcredential := &SSHCredentials{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -55,7 +55,7 @@ func (clr *KCluster) CreateSSHCredential(name, user, privSshKey string) error {
 		},
 	}
 
-	err := clr.rtClient.Create(clr.ctx, sshcredential)
+	err := cluster.controllerRuntimeClient.Create(cluster.ctx, sshcredential)
 	if err == nil || apierrors.IsAlreadyExists(err) {
 		return nil
 	}
@@ -63,12 +63,12 @@ func (clr *KCluster) CreateSSHCredential(name, user, privSshKey string) error {
 	return err
 }
 
-func (clr *KCluster) CreateOrUpdSSHCredential(name, user, privSshKey string) error {
-	if err := clr.CreateSSHCredential(name, user, privSshKey); err != nil {
+func (cluster *KCluster) CreateOrUpdSSHCredential(name, user, privSshKey string) error {
+	if err := cluster.CreateSSHCredential(name, user, privSshKey); err != nil {
 		return err
 	}
 
-	sshcredential, err := clr.GetSSHCredential(name)
+	sshcredential, err := cluster.GetSSHCredential(name)
 	if err != nil {
 		return err
 	}
@@ -76,18 +76,18 @@ func (clr *KCluster) CreateOrUpdSSHCredential(name, user, privSshKey string) err
 		User:          user,
 		PrivateSSHKey: privSshKey,
 	}
-	if err = clr.rtClient.Update(clr.ctx, sshcredential); err != nil {
+	if err = cluster.controllerRuntimeClient.Update(cluster.ctx, sshcredential); err != nil {
 		Warnf("Can't update SSHCredential %s: %s", name, err.Error())
 		return err
 	}
 	return nil
 }
 
-func (clr *KCluster) DeleteSSHCredential(name string) error {
+func (cluster *KCluster) DeleteSSHCredential(name string) error {
 	sshcredential := &SSHCredentials{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
-	return clr.rtClient.Delete(clr.ctx, sshcredential)
+	return cluster.controllerRuntimeClient.Delete(cluster.ctx, sshcredential)
 }

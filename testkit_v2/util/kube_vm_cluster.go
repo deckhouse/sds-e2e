@@ -45,26 +45,26 @@ type VmConfig struct {
 	image    string
 }
 
-func vmCreate(clr *KCluster, vms []VmConfig, nsName string) {
+func vmCreate(cluster *KCluster, vms []VmConfig, nsName string) {
 	sshPubKeyString := CheckAndGetSSHKeys(KubePath, PrivKeyName, PubKeyName)
 
 	for _, vmItem := range vms {
-		err := clr.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, HvStorageClass, vmItem.image, sshPubKeyString, vmItem.diskSize)
+		err := cluster.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, HvStorageClass, vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
 			Fatalf("creating vm: %w", err)
 		}
 	}
 }
 
-func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
-	vmList, err := clr.ListVM(VmFilter{NameSpace: nsName})
+func vmSync(cluster *KCluster, vms []VmConfig, nsName string) {
+	vmList, err := cluster.ListVM(VmFilter{NameSpace: nsName})
 	if err != nil || len(vmList) < len(vms) {
 		Infof("Create VM (2-5m)")
-		vmCreate(clr, vms, nsName)
+		vmCreate(cluster, vms, nsName)
 	}
 
 	if err := RetrySec(8*60, func() error {
-		vmList, err = clr.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
+		vmList, err = cluster.ListVM(VmFilter{NameSpace: nsName, Phase: string(virt.MachineRunning)})
 		if err != nil {
 			return err
 		}
@@ -184,16 +184,16 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 	}
 }
 
-func cleanUpNs(clr *KCluster) {
+func cleanUpNs(cluster *KCluster) {
 	unixNow := time.Now().Unix()
-	nsExists, _ := clr.ListNs(NsFilter{Name: "%e2e-tmp-%"})
+	nsExists, _ := cluster.ListNs(NsFilter{Name: "%e2e-tmp-%"})
 	for _, ns := range nsExists {
 		if ns.Name == TestNS || !strings.HasPrefix(ns.Name, "e2e-tmp-") {
 			continue
 		}
 		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
 			Debugf("Dedeting namespace %s", ns.Name)
-			if err := clr.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
+			if err := cluster.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
 				Fatalf("Can't delete namespace %s: %v", ns.Name, err)
 			}
 		}
@@ -207,7 +207,7 @@ func ClusterCreate() {
 	HvSshClient = GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
 	go HvSshClient.NewTunnel("127.0.0.1:"+HvK8sPort, "127.0.0.1:"+HvK8sPort)
 
-	clr, err := InitKCluster(HypervisorKubeConfig, "")
+	cluster, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
 		Critf("Kubeclient '%s' problem", HypervisorKubeConfig)
 		Fatalf(err.Error())
@@ -217,21 +217,21 @@ func ClusterCreate() {
 	case "reinit":
 		Debugf("Delete old namespace %s", nsName)
 		// TODO add NS exists check
-		if err := clr.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
+		if err := cluster.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
 			Fatalf("Can't delete namespace %s: %v", nsName, err)
 		}
 	case "free tmp":
-		cleanUpNs(clr)
+		cleanUpNs(cluster)
 	}
 
 	GenerateRSAKeys(NestedSshKey, filepath.Join(KubePath, PubKeyName))
 
-	if err := clr.CreateNs(nsName); err != nil {
+	if err := cluster.CreateNs(nsName); err != nil {
 		Fatalf(err.Error())
 	}
 
 	Infof("VM check")
-	vmSync(clr, VmCluster, nsName)
+	vmSync(cluster, VmCluster, nsName)
 
 	var vmMasters, vmWorkers []*VmConfig
 	var vmBootstrap *VmConfig
@@ -259,7 +259,7 @@ func ClusterCreate() {
 	initVmD8(vmMasters[0], vmBootstrap, NestedSshKey)
 	go NestedSshClient.NewTunnel("127.0.0.1:"+NestedK8sPort, vmMasters[0].ip+":"+NestedK8sPort)
 
-	clr, err = InitKCluster("", "")
+	cluster, err = InitKCluster("", "")
 	if err != nil {
 		Critf("Kubeclient '%s' problem", NestedClusterKubeConfig)
 		Fatalf(err.Error())
@@ -269,13 +269,13 @@ func ClusterCreate() {
 	for i, vm := range vmWorkers {
 		nodeIps[i] = vm.ip
 	}
-	if err := clr.AddStaticNodes("e2e", "user", nodeIps); err != nil {
+	if err := cluster.AddStaticNodes("e2e", "user", nodeIps); err != nil {
 		Fatalf(err.Error())
 	}
 
 	Infof("Check Cluster ready (8-10m)")
 	if err := RetrySec(12*60, func() error {
-		dsNodeConfigurator, err := clr.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
+		dsNodeConfigurator, err := cluster.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
 		if err != nil {
 			return err
 		}
