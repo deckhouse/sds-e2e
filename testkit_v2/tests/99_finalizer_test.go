@@ -12,7 +12,7 @@ func TestFinalizer(t *testing.T) {
 		if util.TestNSCleanUp == "delete" {
 			util.Debugf("Dedeting namespace %s", util.TestNS)
 			if err := clr.DeleteNs(util.NsFilter{Name: util.TestNS}); err != nil {
-				util.Errf("Can't delete namespace %s", util.TestNS)
+				util.Errorf("Can't delete namespace %s", util.TestNS)
 			}
 		}
 	})

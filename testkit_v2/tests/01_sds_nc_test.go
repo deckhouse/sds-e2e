@@ -67,7 +67,7 @@ func directLVGCreate(t *util.T) {
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
 		for i := 1; i <= bdCount; i++ {
 			vmdName := fmt.Sprintf("%s-data-%d", t.Node.Name, i)
-			err := hypervisorClr.CreateVMBD(t.Node.Name, vmdName, HvStorageClass, 6)
+			err := hypervisorClr.CreateVMBD(t.Node.Name, vmdName, util.HvStorageClass, 6)
 			if err != nil {
 				t.Fatalf("Hypervisor CreateVMBD error: %s", err.Error())
 			}
@@ -105,7 +105,7 @@ func directLVGResize(t *util.T) {
 		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
 		vmdName := fmt.Sprintf("%s-data-%d", t.Node.Name, 21)
 		util.Debugf("Add VMBD %s", vmdName)
-		_ = hypervisorClr.CreateVMBD(t.Node.Name, vmdName, HvStorageClass, 8)
+		_ = hypervisorClr.CreateVMBD(t.Node.Name, vmdName, util.HvStorageClass, 8)
 
 		_ = hypervisorClr.WaitVmbdAttached(util.VmBdFilter{NameSpace: util.TestNS, VmName: t.Node.Name})
 	}

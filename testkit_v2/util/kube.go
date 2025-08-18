@@ -39,6 +39,8 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
+
+	"github.com/deckhouse/sds-e2e/util/utiltype"
 )
 
 type KCluster struct {
@@ -89,6 +91,7 @@ func NewKubeRTClient(cfg *rest.Config) (ctrlrtclient.Client, error) {
 		coreapi.AddToScheme,
 		storapi.AddToScheme,
 		D8SchemeBuilder.AddToScheme,
+		utiltype.AddToScheme,
 	}
 
 	scheme := apiruntime.NewScheme()

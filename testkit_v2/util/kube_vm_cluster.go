@@ -69,12 +69,12 @@ func vmSync(clr *KCluster, vms []VmConfig, nsName string) {
 			return err
 		}
 		if len(vmList) < len(vms) {
-			return fmt.Errorf("VMs ready: %d of %d", len(vmList), len(vms))
+			return fmt.Errorf("Creating VMs, VMs ready: %d of %d", len(vmList), len(vms))
 		}
-		Debugf("VMs ready: %d", len(vmList))
+		Debugf("Creating VMs completed, VMs ready: %d", len(vmList))
 		return nil
 	}); err != nil {
-		Fatalf(err.Error())
+		Fatalf("Failed to create VMs: %s", err.Error())
 	}
 
 	for _, vm := range vmList {
@@ -150,7 +150,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
 		}
 
-		Infof("Setup virtual clustaer (8-12m)")
+		Infof("Setup virtual cluster (8-12m)")
 		mkConfig()
 		mkResources()
 

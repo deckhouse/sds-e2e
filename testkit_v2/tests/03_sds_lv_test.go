@@ -39,7 +39,7 @@ func testPVCCreate(t *testing.T) {
 	clr := util.GetCluster("", "")
 	_, _ = clr.CreateSC(scName)
 
-	pvc, err := clr.CreatePVC("test-pvc", scName, "1Gi")
+	pvc, err := clr.CreatePVC("test-pvc", scName, "1Gi", "")
 	if err != nil {
 		t.Fatal(err)
 	}

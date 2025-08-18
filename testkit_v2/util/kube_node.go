@@ -34,6 +34,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
+	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -431,6 +432,52 @@ func (clr *KCluster) CreatePod(nsName, pName string) error {
 	return nil
 }
 
+func (clr *KCluster) CreatePodWithPVC(nsName, podName, pvcName string) error {
+	pod := coreapi.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: nsName,
+		},
+		Spec: coreapi.PodSpec{
+			Containers: []coreapi.Container{
+				{
+					Name:  "test-container",
+					Image: "nginx",
+					VolumeMounts: []coreapi.VolumeMount{
+						{
+							Name:      "test-volume",
+							MountPath: "/data",
+						},
+					},
+				},
+			},
+			Volumes: []coreapi.Volume{
+				{
+					Name: "test-volume",
+					VolumeSource: coreapi.VolumeSource{
+						PersistentVolumeClaim: &coreapi.PersistentVolumeClaimVolumeSource{
+							ClaimName: pvcName,
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := clr.rtClient.Create(clr.ctx, &pod); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	return nil
+}
+
 func (clr *KCluster) DeletePod(nsName, pName string) error {
 	if nsName == "" {
 		nsName = TestNS
@@ -451,4 +498,31 @@ func (clr *KCluster) DeletePod(nsName, pName string) error {
 	}
 
 	return nil
+}
+
+func (clr *KCluster) WaitPodStatus(nsName, pName string) (string, error) {
+	if nsName == "" {
+		nsName = TestNS
+	}
+
+	pod := coreapi.Pod{}
+	for i := 0; i < 60; i++ { // 60 iterations * 5 seconds = 5 minutes timeout
+		err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+			Name:      pName,
+			Namespace: nsName,
+		}, &pod)
+		if err != nil {
+			Debugf("Get Pod error: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		if pod.Status.Phase == coreapi.PodRunning || pod.Status.Phase == coreapi.PodSucceeded || pod.Status.Phase == coreapi.PodFailed {
+			return string(pod.Status.Phase), nil
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	return string(pod.Status.Phase), nil
 }

@@ -17,12 +17,15 @@ limitations under the License.
 package integration
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -61,6 +64,89 @@ func (f *BdFilter) Apply(bds []snc.BlockDevice) (resp []snc.BlockDevice) {
 	return
 }
 
+func (clr *KCluster) CreatePV(name, size, scName string) (*v1.PersistentVolume, error) {
+	pv := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: v1.PersistentVolumeSpec{
+			Capacity: v1.ResourceList{
+				v1.ResourceStorage: resource.MustParse(size),
+			},
+			AccessModes: []v1.PersistentVolumeAccessMode{
+				v1.ReadWriteOnce,
+			},
+			PersistentVolumeReclaimPolicy: v1.PersistentVolumeReclaimRetain,
+			StorageClassName:              scName,
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				HostPath: &v1.HostPathVolumeSource{
+					Path: "/data",
+				},
+			},
+		},
+	}
+
+	cwt, cancel := context.WithTimeout(clr.ctx, 5*time.Second)
+	defer cancel()
+
+	err := clr.rtClient.Create(cwt, pv)
+	if err != nil {
+		return nil, err
+	}
+
+	return pv, nil
+}
+
+func (clr *KCluster) GetPVC(name string) (*v1.PersistentVolumeClaim, error) {
+	pv := &v1.PersistentVolumeClaim{}
+
+	cwt, cancel := context.WithTimeout(clr.ctx, 5*time.Second)
+	defer cancel()
+
+	err := clr.rtClient.Get(cwt, ctrlrtclient.ObjectKey{Name: name}, pv)
+	if err != nil {
+		return nil, err
+	}
+	return pv, nil
+}
+
+
+func (clr *KCluster) GetPV(name string) (*v1.PersistentVolume, error) {
+	pv := &v1.PersistentVolume{}
+
+	cwt, cancel := context.WithTimeout(clr.ctx, 5*time.Second)
+	defer cancel()
+
+	err := clr.rtClient.Get(cwt, ctrlrtclient.ObjectKey{Name: name}, pv)
+	if err != nil {
+		return nil, err
+	}
+	return pv, nil
+}
+
+func (clr *KCluster) DeletePV(name string) error {
+	pv := &v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+
+	cwt, cancel := context.WithTimeout(clr.ctx, 5*time.Second)
+	defer cancel()
+
+	err := clr.rtClient.Delete(cwt, pv)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			Debugf("PersistentVolume %s not found, skipping deletion", name)
+			return nil
+		}
+		Errorf("Can't delete PV %s: %v", name, err)
+		return err
+	}
+
+	Debugf("PersistentVolume %s deleted successfully", name)
+	return nil
+}
 func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
 	bdList := &snc.BlockDeviceList{}
 	err := clr.rtClient.List(clr.ctx, bdList)
@@ -334,6 +420,30 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 	return sc, nil
 }
 
+func (clr *KCluster) DeleteSC(name string) error {
+	sc := storapi.StorageClass{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "StorageClass",
+			APIVersion: "storage.k8s.io/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+
+	if err := clr.rtClient.Delete(clr.ctx, &sc); err != nil {
+		if apierrors.IsNotFound(err) {
+			Debugf("StorageClass %s not found, skipping deletion", name)
+			return nil
+		}
+		Errorf("Can't delete SC %s: %v", name, err)
+		return err
+	}
+
+	Debugf("StorageClass %s deleted successfully", name)
+	return nil
+}
+
 /*  Persistent Volume Claims  */
 
 func (clr *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
@@ -346,7 +456,7 @@ func (clr *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim, er
 	return pvcList.Items, nil
 }
 
-func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
+func (clr *KCluster) CreatePVC(name, scName, size, volumeName string) (*coreapi.PersistentVolumeClaim, error) {
 	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
 	sizeStorage, err := resource.ParseQuantity(size)
 	if err != nil {
@@ -373,6 +483,7 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 				Requests: resourceList,
 			},
 			VolumeMode: &volMode,
+			VolumeName: volumeName,
 		},
 	}
 
@@ -381,6 +492,31 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 		return nil, err
 	}
 	return &pvc, nil
+}
+
+func (clr *KCluster) DeletePVC(name string) error {
+	pvc := coreapi.PersistentVolumeClaim{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PersistentVolumeClaim",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: TestNS,
+		},
+	}
+
+	if err := clr.rtClient.Delete(clr.ctx, &pvc); err != nil {
+		if apierrors.IsNotFound(err) {
+			Debugf("PVC %s not found, skipping deletion", name)
+			return nil
+		}
+		Errorf("Can't delete PVC %s: %v", name, err)
+		return err
+	}
+
+	Debugf("PVC %s deleted successfully", name)
+	return nil
 }
 
 func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
@@ -405,24 +541,6 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 	}
 	return string(pvc.Status.Phase), fmt.Errorf("the waiting time %d or the pvc to be ready has expired",
 		pvcWaitInterval*pvcWaitIterationCount)
-}
-
-func (clr *KCluster) DeletePVC(name string) error {
-	pvc := coreapi.PersistentVolumeClaim{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "PersistentVolumeClaim",
-			APIVersion: "v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: TestNS,
-		},
-	}
-
-	if err := clr.rtClient.Delete(clr.ctx, &pvc); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {

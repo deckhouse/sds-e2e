@@ -19,6 +19,7 @@ package integration
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -316,7 +317,7 @@ func (clr *KCluster) ListVD(filters ...VdFilter) ([]vdType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, sizeInGi int64) error {
+func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, sizeInGi int64) (*virt.VirtualDisk, error) {
 	var sc *string = nil
 	if storageClass != "" {
 		sc = &storageClass
@@ -337,10 +338,72 @@ func (clr *KCluster) CreateVD(nsName string, name string, storageClass string, s
 
 	err := clr.rtClient.Create(clr.ctx, vmDisk)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
+		return nil, err
+	}
+
+	return vmDisk, nil
+}
+
+func (clr *KCluster) CreateVDWithInUseCondition(nsName string, name string, storageClass string, sizeInGi int64, reason string) error {
+	var sc *string = nil
+	if storageClass != "" {
+		sc = &storageClass
+	}
+
+	vmDisk := &virt.VirtualDisk{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: nsName,
+		},
+		Spec: virt.VirtualDiskSpec{
+			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
+				Size:         resource.NewQuantity(sizeInGi*1024*1024*1024, resource.BinarySI),
+				StorageClass: sc,
+			},
+		},
+		Status: virt.VirtualDiskStatus{
+			Conditions: []metav1.Condition{
+				{
+					Type:               "InUse",
+					Status:             metav1.ConditionTrue,
+					Reason:             reason,
+					Message:            "VirtualDisk is in use",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	err := clr.rtClient.Create(clr.ctx, vmDisk)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}
 
 	return nil
+}
+
+func (clr *KCluster) WaitVDStatus(nsName, vdName string) (*virt.VirtualDisk, error) {
+	vd := &virt.VirtualDisk{}
+	for i := 0; i < 60; i++ { // 60 iterations * 5 seconds = 5 minutes timeout
+		err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+			Name:      vdName,
+			Namespace: nsName,
+		}, vd)
+		if err != nil {
+			Debugf("Get VirtualDisk error: %v", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		// Check if conditions are set
+		if len(vd.Status.Conditions) > 0 {
+			return vd, nil
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	return vd, nil
 }
 
 func (clr *KCluster) UpdateVd(vd *vdType) error {
@@ -366,6 +429,28 @@ func (clr *KCluster) DeleteVD(filters ...VdFilter) error {
 		}
 	}
 
+	return nil
+}
+
+func (clr *KCluster) DeleteVDByName(nsName, vdName string) error {
+	vd := &virt.VirtualDisk{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      vdName,
+			Namespace: nsName,
+		},
+	}
+
+	err := clr.rtClient.Delete(clr.ctx, vd)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			Debugf("VirtualDisk %s not found, skipping deletion", vdName)
+			return nil
+		}
+		Errorf("Can't delete VirtualDisk %s: %v", vdName, err)
+		return err
+	}
+
+	Debugf("VirtualDisk %s deleted successfully", vdName)
 	return nil
 }
 
@@ -529,7 +614,7 @@ func (clr *KCluster) DetachVmbd(filters ...VmBdFilter) error {
 func (clr *KCluster) CreateVMBD(vmName, vmdName, storageClassName string, size int64) error {
 	nsName := TestNS
 
-	if err := clr.CreateVD(nsName, vmdName, storageClassName, size); err != nil {
+	if _, err := clr.CreateVD(nsName, vmdName, storageClassName, size); err != nil {
 		return err
 	}
 	if err := clr.AttachVmbd(vmName, vmdName); err != nil {
