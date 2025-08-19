@@ -63,17 +63,18 @@ func (cluster *KCluster) EnsureSDSReplicatedVolumeModuleEnabled(enableThinProvis
 
 	// Create or update SDS Replicated Volume module configuration
 	// This module is dependent on the SDS Node Configurator module, so it should be created after it.
-	sdsReplicatedVolumeModuleConfig := generateModuleConfig(
-		SDSReplicatedVolumeModuleName,
-		1,    // Version
-		true, // Enabled
-		map[string]any{},
-	)
+	// sdsReplicatedVolumeModuleConfig := generateModuleConfig(
+	// 	SDSReplicatedVolumeModuleName,
+	// 	1,    // Version
+	// 	true, // Enabled
+	// 	map[string]any{},
+	// )
 
-	err = cluster.EnsureModuleEnabled(sdsReplicatedVolumeModuleConfig)
-	if err != nil {
-		return err
-	}
+	// err = cluster.EnsureModuleEnabled(sdsReplicatedVolumeModuleConfig)
+	// if err != nil {
+	// 	fmt.Println("2 222")
+	// 	return err
+	// }
 
 	return nil
 }

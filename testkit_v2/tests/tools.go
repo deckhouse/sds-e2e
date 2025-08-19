@@ -42,7 +42,7 @@ func removeTestDisks() {
 }
 
 // Provides N devices with size M on node
-func getOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
+func GetOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
 	cluster := util.EnsureCluster("", "")
 	bds, _ := cluster.ListBD(util.BdFilter{Node: nName, Consumable: true, Size: float32(size)})
 	if len(bds) >= int(count) {

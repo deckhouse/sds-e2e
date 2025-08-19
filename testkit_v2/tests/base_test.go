@@ -22,7 +22,7 @@ import (
 	util "github.com/deckhouse/sds-e2e/util"
 )
 
-func DataExporterBaseTest(t *testing.T) {
+func TestDataExporterBase(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
 	// nodeConfigurator.TestPrepare

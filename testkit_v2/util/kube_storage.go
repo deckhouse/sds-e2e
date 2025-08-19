@@ -17,12 +17,14 @@ limitations under the License.
 package integration
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
+	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
-	storapi "k8s.io/api/storage/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,9 +32,9 @@ import (
 )
 
 const (
-	DefaultLVMVolumeGroupNamePrefix = "default-lvg-"
-	DefaultLVMVolumeGroupSize       = "10Gi"
-	DefaultVGNameOnTheNode          = "vg-default"
+	DefaultLVMVolumeGroupNamePrefix   = "default-lvg-"
+	DefaultLVMVolumeGroupSize         = "10Gi"
+	DefaultVGNameOnTheNode            = "vg-default"
 )
 
 /*  Block Device  */
@@ -308,17 +310,17 @@ func (cluster *KCluster) DeleteLvgAndWait(filters ...LvgFilter) error {
 
 /*  Storage Class  */
 
-func (cluster *KCluster) CreateLocalThickStorageClass(name string) (*storapi.StorageClass, error) {
+func (cluster *KCluster) CreateLocalThickStorageClass(name string) (*storagev1.StorageClass, error) {
 	lvmType := "Thick"
 	lvmVolGroups := "- name: vg-w1\n- name: vg-w2"
 
-	volBindingMode := storapi.VolumeBindingImmediate
+	volBindingMode := storagev1.VolumeBindingImmediate
 
 	reclaimPolicy := coreapi.PersistentVolumeReclaimDelete
 
 	volExpansion := true
 
-	sc := &storapi.StorageClass{
+	sc := &storagev1.StorageClass{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "StorageClass",
 			APIVersion: "storage.k8s.io/v1",
@@ -346,7 +348,7 @@ func (cluster *KCluster) CreateLocalThickStorageClass(name string) (*storapi.Sto
 	return sc, nil
 }
 
-func (cluster *KCluster) CreateDefaultStorageClass(name string) (*storapi.StorageClass, error) {
+func (cluster *KCluster) CreateDefaultStorageClass(name string) (*storagev1.StorageClass, error) {
 	enableThinProvisioning := true
 	err := cluster.EnsureSDSReplicatedVolumeModuleEnabled(enableThinProvisioning)
 	if err != nil {
@@ -358,20 +360,100 @@ func (cluster *KCluster) CreateDefaultStorageClass(name string) (*storapi.Storag
 		return nil, fmt.Errorf("failed to wait until SDS Replicated Volume module is ready: %w", err)
 	}
 
-	err = cluster.EnsureEveryNodeHasLVMVolumeGroup(DefaultLVMVolumeGroupSize)
+	lvgs, err := cluster.EnsureEveryNodeHasLVMVolumeGroup(DefaultLVMVolumeGroupSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to ensure every node has LVM Volume Group: %w", err)
 	}
 
-	// StorageClass := &storapi.StorageClass{}
-	// lvmType := "Thin"
+	storagePool, err := cluster.CreateDefaultStoragePool(NestedDefaultReplicatedStoragePoolName, lvgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed create default StoragePool: %w", err)
+	}
 
-	return nil, nil
+	replicatedStorageClass, err := cluster.CreateReplicatedStorageClass(NestedDefaultStorageClass, "None", storagePool.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed create default StoragePool: %w", err)
+	}
+
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	storageClass := &storagev1.StorageClass{}
+	err = cluster.controllerRuntimeClient.Get(cwt, ctrlrtclient.ObjectKeyFromObject(replicatedStorageClass), storageClass)
+	if err != nil {
+		return nil, fmt.Errorf("failed create default StorageClass: %w", err)
+	}
+
+	return storageClass, nil
 
 }
 
-func (cluster *KCluster) EnsureStorageClass(storageClassName string) (*storapi.StorageClass, error) {
-	storageClass := &storapi.StorageClass{}
+func (cluster *KCluster) CreateReplicatedStorageClass(drbdStorageClassName, replication, storagePoolName string) (*srv.ReplicatedStorageClass, error) {
+	rsc := &srv.ReplicatedStorageClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: drbdStorageClassName,
+		},
+		Spec: srv.ReplicatedStorageClassSpec{
+			StoragePool:   storagePoolName,
+			ReclaimPolicy: "Delete",
+			Replication:   replication,
+			VolumeAccess:  "PreferablyLocal",
+			Topology:      "Ignored",
+			Zones:         []string{},
+		},
+	}
+
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	err := cluster.controllerRuntimeClient.Create(cwt, rsc)
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return rsc, nil
+		}
+		return nil, fmt.Errorf("failed to create a replicated storage class: %w", err)
+	}
+
+	return rsc, nil
+}
+
+func (cluster *KCluster) CreateDefaultStoragePool(name string, lvmVolumeGroups []string) (*srv.ReplicatedStoragePool, error) {
+	rspLVGs := make([]srv.ReplicatedStoragePoolLVMVolumeGroups, len(lvmVolumeGroups))
+	for _, name := range lvmVolumeGroups {
+		rspLVGs = append(rspLVGs, srv.ReplicatedStoragePoolLVMVolumeGroups{
+			Name:         name,
+			ThinPoolName: "",
+		})
+	}
+
+	storagePool := &srv.ReplicatedStoragePool{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: srv.ReplicatedStoragePoolSpec{
+			LVMVolumeGroups: rspLVGs,
+			Type:            "LVM",
+		},
+		Status: srv.ReplicatedStoragePoolStatus{
+			Phase: "Updating",
+		},
+	}
+
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	err := cluster.controllerRuntimeClient.Create(cwt, storagePool)
+	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return storagePool, nil
+		}
+		return nil, fmt.Errorf("failed to create a default ReplicatedStoragePool: %s", err.Error())
+	}
+	return storagePool, nil
+}
+
+func (cluster *KCluster) EnsureStorageClass(storageClassName string) (*storagev1.StorageClass, error) {
+	storageClass := &storagev1.StorageClass{}
 
 	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{Name: storageClassName}, storageClass)
 	if err != nil {
@@ -496,16 +578,17 @@ func (cluster *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
 	return nil
 }
 
-func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize string) error {
+func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize string) ([]string, error) {
 	readyLVMVolumeGroups, err := cluster.ListLVG(LvgFilter{Phase: "Ready"})
 	if err != nil {
-		return fmt.Errorf("failed to list LVM Volume Groups: %w", err)
+		return nil, fmt.Errorf("failed to list LVM Volume Groups: %w", err)
 	}
 
 	nodes, err := cluster.ListNode()
 	if err != nil {
-		return fmt.Errorf("failed to list nodes: %w", err)
+		return nil, fmt.Errorf("failed to list nodes: %w", err)
 	}
+	createdLVGNames := make([]string, 0, len(nodes))
 	for _, node := range nodes {
 		nodeName := node.Name
 		lvgName := DefaultLVMVolumeGroupNamePrefix + nodeName
@@ -521,10 +604,21 @@ func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize str
 
 		if !lvgExists {
 			Debugf("Creating LVM Volume Group %s for node %s", lvgName, nodeName)
-			err = cluster.CreateLvgWithCheck(lvgName, nodeName, []string{})
+			bds, err := GetOrCreateConsumableBlockDevices(nodeName, 1, 1)
 			if err != nil {
-				return fmt.Errorf("failed to create LVM Volume Group %s for node %s: %w", lvgName, nodeName, err)
+				return nil, fmt.Errorf("failed to create block devices: %s", err.Error())
 			}
+
+			bdNames := make([]string, 0, len(bds))
+			for _, bd := range bds {
+				bdNames = append(bdNames, bd.Name)
+			}
+
+			err = cluster.CreateLvgWithCheck(lvgName, nodeName, bdNames)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create LVM Volume Group %s for node %s: %w", lvgName, nodeName, err)
+			}
+			createdLVGNames = append(createdLVGNames, lvgName)
 		} else {
 			Debugf("LVM Volume Group %s already exists for node %s", lvgName, nodeName)
 		}
@@ -532,5 +626,5 @@ func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize str
 
 	Debugf("All nodes have LVM Volume Groups")
 
-	return nil
+	return createdLVGNames, nil
 }

@@ -65,13 +65,14 @@ var (
 	HvSshClient          sshClient
 	HvStorageClass       = "linstor-r1"
 
-	NestedHost                = "127.0.0.1"
-	NestedSshUser             = "user"
-	NestedSshKey              = ""
-	NestedK8sPort             = "6445"
-	NestedClusterKubeConfig   = "kube-nested.config"
-	NestedSshClient           sshClient
-	NestedDefaultStorageClass = "linstor-r1"
+	NestedHost                             = "127.0.0.1"
+	NestedSshUser                          = "user"
+	NestedSshKey                           = ""
+	NestedK8sPort                          = "6445"
+	NestedClusterKubeConfig                = "kube-nested.config"
+	NestedSshClient                        sshClient
+	NestedDefaultStorageClass              = "linstor-r1"
+	NestedDefaultReplicatedStoragePoolName = "default-replicated-storage-pool-1"
 
 	verboseFlag            = flag.Bool("verbose", false, "Output with Info messages")
 	debugFlag              = flag.Bool("debug", false, "Output with Debug messages")
