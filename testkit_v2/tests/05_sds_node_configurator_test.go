@@ -138,7 +138,7 @@ func TestLvgThickAddBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		bds, err := GetOrCreateConsumableBlockDevices(nName, 2, 1)
+		bds, err := util.GetOrCreateConsumableBlockDevices(nName, 2, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -199,7 +199,7 @@ func TestLvgThickReconnectBd(t *testing.T) {
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
 		_ = cluster.DeleteBd(util.BdFilter{Name: bdName})
 
-		_, _ = GetOrCreateConsumableBlockDevices(nName, 2, 1)
+		_, _ = util.GetOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
 			_ = hvCluster.AttachVmbd(nName, vmbd.Name)
@@ -236,7 +236,7 @@ func TestVgThickAddLv(t *testing.T) {
 		nName := t.Node.Name
 
 		vgName := "e2e-vg-" + util.RandString(4)
-		bds, err := GetOrCreateConsumableBlockDevices(nName, 1, 1)
+		bds, err := util.GetOrCreateConsumableBlockDevices(nName, 1, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -568,7 +568,7 @@ func TestLvgThinAddBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		bds, err := GetOrCreateConsumableBlockDevices(nName, 1, 1)
+		bds, err := util.GetOrCreateConsumableBlockDevices(nName, 1, 1)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -629,7 +629,7 @@ func TestLvgThinReconnectBd(t *testing.T) {
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
 		_ = cluster.DeleteBd(util.BdFilter{Name: bdName})
 
-		_, _ = GetOrCreateConsumableBlockDevices(nName, 2, 1)
+		_, _ = util.GetOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
 			_ = hvCluster.AttachVmbd(nName, vmbd.Name)
@@ -744,7 +744,7 @@ func thinPoolsCheck(lvgName string, sizes ...float32) error {
 
 func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
 	cluster := util.EnsureCluster("", "")
-	bds, err := GetOrCreateConsumableBlockDevices(nName, size, 1)
+	bds, err := util.GetOrCreateConsumableBlockDevices(nName, size, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +761,7 @@ func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
 
 func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) {
 	cluster := util.EnsureCluster("", "")
-	bds, err := GetOrCreateConsumableBlockDevices(nName, int64(size+0.9999), 1)
+	bds, err := util.GetOrCreateConsumableBlockDevices(nName, int64(size+0.9999), 1)
 	if err != nil {
 		return nil, err
 	}

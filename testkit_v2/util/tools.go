@@ -75,6 +75,7 @@ func RandString(n int) string {
 	return string(b)
 }
 
+// Provides N devices with size M on node
 func GetOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
 	cluster := EnsureCluster("", "")
 	bds, _ := cluster.ListBD(BdFilter{Node: nName, Consumable: true, Size: float32(size)})
