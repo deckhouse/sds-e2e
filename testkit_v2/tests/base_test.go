@@ -42,7 +42,7 @@ func TestDataExporterBase(t *testing.T) {
 	// }
 	// randomNamespaceName := util.RandString(10)
 
-	pvc, err := cluster.CreatePVCInTestNS(dataExportPVCName, util.NestedDefaultStorageClass, "10Gi")
+	pvc, err := cluster.CreatePVCInTestNS(dataExportPVCName, util.NestedDefaultStorageClass, "1Mi")
 	if err != nil {
 		t.Fatalf("Failed to create PVC: %v", err)
 	}
