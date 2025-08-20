@@ -45,7 +45,7 @@ const (
 var (
 	SkipOptional      = false
 	startTime         = time.Now()
-	TestNS            = fmt.Sprintf("e2e-tmp-%d%d", startTime.Minute(), startTime.Second())
+	TestNS            = "test-e2e"
 	TestNSCleanUp     = ""
 	licenseKey        = os.Getenv("licensekey")
 	registryDockerCfg = "e30="

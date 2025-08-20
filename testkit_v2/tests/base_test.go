@@ -22,6 +22,12 @@ import (
 	util "github.com/deckhouse/sds-e2e/util"
 )
 
+const (
+	dataExportTypePVC = "PersistentVolumeClaim"
+	dataExportPVCName = "test-pvc"
+	dataExportName    = "test-de"
+)
+
 func TestDataExporterBase(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
@@ -36,10 +42,25 @@ func TestDataExporterBase(t *testing.T) {
 	// }
 	// randomNamespaceName := util.RandString(10)
 
-	pvc, err := cluster.CreatePVCInTestNS("test-pvc", util.NestedDefaultStorageClass, "10Gi")
+	pvc, err := cluster.CreatePVCInTestNS(dataExportPVCName, util.NestedDefaultStorageClass, "10Gi")
 	if err != nil {
 		t.Fatalf("Failed to create PVC: %v", err)
 	}
+
+	// err = cluster.CreateDummyPod("test-pod-for-data-export", "", dataExportPVCName)
+	// if err != nil {
+	// 	t.Fatalf("Failed to create dummy pod: %v", err)
+	// }
+
+	// dataExport, err := cluster.CreateDataExport(dataExportName, dataExportTypePVC, dataExportTypePVC, dataExportPVCName, util.TestNS)
+	// if err != nil {
+	// 	t.Fatalf("Failed to create dummy pod: %v", err)
+	// }
+
+	// if dataExport.Status.Url == "" {
+	// 	t.Errorf("DataExport %s URL is empty", dataExport.Name)
+	// }
+
 	// defer func() {
 	// 	if err := cluster.DeletePVCInTestNS(pvc.Name); err != nil {
 	// 		t.Fatalf("Failed to delete PVC: %v", err)
