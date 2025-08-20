@@ -30,6 +30,7 @@ import (
 	ctrlrtlog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	v1alpha1nfs "github.com/deckhouse/csi-nfs/api/v1alpha1"
+	"github.com/deckhouse/sds-e2e/util/utiltype"
 	v1app "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
@@ -93,6 +94,7 @@ func NewKubeRTClient(cfg *rest.Config) (ctrlrtclient.Client, error) {
 		D8SchemeBuilder.AddToScheme,
 		metav1.AddMetaToScheme,
 		v1alpha1nfs.AddToScheme,
+		utiltype.AddToScheme,
 	}
 
 	scheme := apiruntime.NewScheme()
