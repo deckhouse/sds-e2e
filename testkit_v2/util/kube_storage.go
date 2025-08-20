@@ -32,9 +32,9 @@ import (
 )
 
 const (
-	DefaultLVMVolumeGroupNamePrefix   = "default-lvg-"
-	DefaultLVMVolumeGroupSize         = "10Gi"
-	DefaultVGNameOnTheNode            = "vg-default"
+	DefaultLVMVolumeGroupNamePrefix = "default-lvg-"
+	DefaultLVMVolumeGroupSize       = "10Gi"
+	DefaultVGNameOnTheNode          = "vg-default"
 )
 
 /*  Block Device  */
@@ -418,7 +418,7 @@ func (cluster *KCluster) CreateReplicatedStorageClass(drbdStorageClassName, repl
 }
 
 func (cluster *KCluster) CreateDefaultStoragePool(name string, lvmVolumeGroups []string) (*srv.ReplicatedStoragePool, error) {
-	rspLVGs := make([]srv.ReplicatedStoragePoolLVMVolumeGroups, len(lvmVolumeGroups))
+	rspLVGs := make([]srv.ReplicatedStoragePoolLVMVolumeGroups, 0, len(lvmVolumeGroups))
 	for _, name := range lvmVolumeGroups {
 		rspLVGs = append(rspLVGs, srv.ReplicatedStoragePoolLVMVolumeGroups{
 			Name:         name,
@@ -521,6 +521,9 @@ func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.
 
 	err = cluster.controllerRuntimeClient.Create(cluster.ctx, &pvc)
 	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return &pvc, nil
+		}
 		return nil, err
 	}
 	return &pvc, nil
@@ -529,6 +532,7 @@ func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.
 func (cluster *KCluster) WaitPVCStatus(name string) (string, error) {
 	pvc := coreapi.PersistentVolumeClaim{}
 	for i := 0; i < pvcWaitIterationCount; i++ {
+		Debugf("Waiting PVC %s to become BOUND. Attempt %d of %d", name, i+1, pvcWaitIterationCount)
 		err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
 			Namespace: TestNS,
@@ -604,7 +608,7 @@ func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize str
 
 		if !lvgExists {
 			Debugf("Creating LVM Volume Group %s for node %s", lvgName, nodeName)
-			bds, err := GetOrCreateConsumableBlockDevices(nodeName, 1, 1)
+			bds, err := GetOrCreateConsumableBlockDevices(nodeName, 5, 1)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create block devices: %s", err.Error())
 			}

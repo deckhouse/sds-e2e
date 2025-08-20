@@ -23,9 +23,11 @@ import (
 )
 
 const (
-	dataExportTypePVC = "PersistentVolumeClaim"
-	dataExportPVCName = "test-pvc"
-	dataExportName    = "test-de"
+	persistentVolumeClaimKind = "PersistentVolumeClaim"
+	dataExportPVCName         = "test-pvc"
+	dataExportName            = "test-de"
+	dataExportPodName         = "test-pod-for-data-export"
+	testNameSpace             = "test-e2e"
 )
 
 func TestDataExporterBase(t *testing.T) {
@@ -47,19 +49,36 @@ func TestDataExporterBase(t *testing.T) {
 		t.Fatalf("Failed to create PVC: %v", err)
 	}
 
-	// err = cluster.CreateDummyPod("test-pod-for-data-export", "", dataExportPVCName)
-	// if err != nil {
-	// 	t.Fatalf("Failed to create dummy pod: %v", err)
-	// }
+	err = cluster.CreateDummyPod(dataExportPodName, testNameSpace, dataExportPVCName)
+	if err != nil {
+		t.Fatalf("Failed to create dummy pod: %v", err)
+	}
 
-	// dataExport, err := cluster.CreateDataExport(dataExportName, dataExportTypePVC, dataExportTypePVC, dataExportPVCName, util.TestNS)
-	// if err != nil {
-	// 	t.Fatalf("Failed to create dummy pod: %v", err)
-	// }
+	_, err = cluster.WaitPVCStatus(dataExportPVCName)
+	if err != nil {
+		t.Fatalf("Failed to wait pvc to become bound: %v", err)
+	}
 
-	// if dataExport.Status.Url == "" {
-	// 	t.Errorf("DataExport %s URL is empty", dataExport.Name)
-	// }
+	err = cluster.DeletePod(util.TestNS, dataExportPodName)
+	if err != nil {
+		t.Fatalf("Failed to delete test pod: %v", err)
+	}
+
+	_, err = cluster.CreateDataExport(dataExportName, persistentVolumeClaimKind, dataExportPVCName, util.TestNS, "1h")
+	if err != nil {
+		t.Fatalf("Failed to create data export: %v", err)
+	}
+
+	
+
+	dataExport, err := cluster.GetDataExport(dataExportName, util.TestNS)
+	if err != nil {
+		t.Fatalf("Failed to get data export: %v", err)
+	}
+
+	if dataExport.Status.Url == "" {
+		t.Errorf("DataExport %s URL is empty", dataExport.Name)
+	}
 
 	// defer func() {
 	// 	if err := cluster.DeletePVCInTestNS(pvc.Name); err != nil {

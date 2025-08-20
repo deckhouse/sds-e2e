@@ -117,3 +117,20 @@ metadata:
 spec:
   enabled: true
   version: 1
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: snapshot-controller
+spec:
+  enabled: true
+  version: 1
+---
+apiVersion: deckhouse.io/v1alpha2
+kind: ModulePullOverride
+metadata:
+  name: snapshot-controller
+spec:
+  imageTag: main
+  rollback: false
+  scanInterval: 15s

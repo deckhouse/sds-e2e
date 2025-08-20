@@ -527,6 +527,7 @@ func (cluster *KCluster) DetachVmbd(filters ...VmBdFilter) error {
 }
 
 func (cluster *KCluster) CreateVMBD(vmName, vmdName, storageClassName string, size int64) error {
+	fmt.Printf("Creating a BD...\n")
 	nsName := TestNS
 
 	if err := cluster.CreateVD(nsName, vmdName, storageClassName, size); err != nil {

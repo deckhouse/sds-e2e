@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, exportKindName, namespace, ttl string) (*utiltype.DataExport, error) {
@@ -51,9 +52,24 @@ func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, export
 
 	err := cluster.controllerRuntimeClient.Create(cwt, dataExport)
 	if err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return dataExport, nil
+		}
 		return nil, err
 	}
 
+	return dataExport, nil
+}
+
+func (cluster *KCluster) GetDataExport(name, namespace string) (*utiltype.DataExport, error) {
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	dataExport := &utiltype.DataExport{}
+	err := cluster.controllerRuntimeClient.Get(cwt, client.ObjectKey{Namespace: namespace, Name: name}, dataExport)
+	if err != nil {
+		return nil, err
+	}
 	return dataExport, nil
 }
 
