@@ -25,6 +25,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	WaitIterationCountDataExport = 30
+	WaitIterationCountPVC        = 5
 )
 
 func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, exportKindName, namespace, ttl string) (*utiltype.DataExport, error) {
@@ -89,6 +95,37 @@ func (cluster *KCluster) DeleteDataExport(name, namespace string) error {
 		return err
 	}
 	return nil
+}
+
+func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, error) {
+	dataExport := &utiltype.DataExport{}
+	for i := 0; i < WaitIterationCountDataExport; i++ {
+		Infof("Waiting for the DataExport url to be ready. Attempt %d of %d", i+1, WaitIterationCountDataExport)
+
+		err := clr.controllerRuntimeClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+			Name:      name,
+			Namespace: TestNS,
+		}, dataExport)
+		if err != nil {
+			Debugf("Failed to get DataExport: %s", err.Error())
+			time.Sleep(WaitIterationCountPVC * time.Second)
+			continue
+		}
+
+		for _, cond := range dataExport.Status.Conditions {
+			if cond.Type != "Ready" {
+				continue
+			}
+			if cond.Status == "True" {
+				return dataExport, nil
+			}
+		}
+
+		Infof("DataExport URL not ready. Trying again...")
+		time.Sleep(WaitIterationCountPVC * time.Second)
+	}
+
+	return dataExport, nil
 }
 
 func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) error {

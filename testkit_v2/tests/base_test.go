@@ -69,15 +69,13 @@ func TestDataExporterBase(t *testing.T) {
 		t.Fatalf("Failed to create data export: %v", err)
 	}
 
-	
-
-	dataExport, err := cluster.GetDataExport(dataExportName, util.TestNS)
+	dataExport, err := cluster.WaitDataExportURLReady(dataExportName)
 	if err != nil {
-		t.Fatalf("Failed to get data export: %v", err)
+		t.Fatalf("Failed to await data export to become ready: %v", err)
 	}
 
 	if dataExport.Status.Url == "" {
-		t.Errorf("DataExport %s URL is empty", dataExport.Name)
+		t.Errorf("DataExport %s url is empty", dataExport.Name)
 	}
 
 	// defer func() {
