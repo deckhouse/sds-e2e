@@ -100,7 +100,7 @@ func (cluster *KCluster) DeleteDataExport(name, namespace string) error {
 func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, error) {
 	dataExport := &utiltype.DataExport{}
 	for i := 0; i < WaitIterationCountDataExport; i++ {
-		Infof("Waiting for the DataExport url to be ready. Attempt %d of %d", i+1, WaitIterationCountDataExport)
+		Infof("Waiting DataExport to become Ready. Attempt %d of %d", i+1, WaitIterationCountDataExport)
 
 		err := clr.controllerRuntimeClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
@@ -121,7 +121,7 @@ func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, 
 			}
 		}
 
-		Infof("DataExport URL not ready. Trying again...")
+		Infof("DataExport URL is not ready. Trying again...")
 		time.Sleep(WaitIterationCountPVC * time.Second)
 	}
 
