@@ -100,3 +100,20 @@ spec:
     repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
     scheme: HTTPS
   releaseChannel: ""
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModulePullOverride
+metadata:
+  name: storage-volume-data-manager
+spec:
+  imageTag: main
+  scanInterval: 15s
+  source: deckhouse
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: storage-volume-data-manager
+spec:
+  enabled: true
+  version: 1
