@@ -121,7 +121,6 @@ func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, 
 			}
 		}
 
-		Infof("DataExport URL is not ready. Trying again...")
 		time.Sleep(WaitIterationCountPVC * time.Second)
 	}
 

@@ -532,7 +532,7 @@ func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.
 func (cluster *KCluster) WaitPVCStatus(name string) (string, error) {
 	pvc := coreapi.PersistentVolumeClaim{}
 	for i := 0; i < pvcWaitIterationCount; i++ {
-		Debugf("Waiting PVC %s to become BOUND. Attempt %d of %d", name, i+1, pvcWaitIterationCount)
+		Infof("Waiting PVC %s to become BOUND. Attempt %d of %d", name, i+1, pvcWaitIterationCount)
 		err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
 			Namespace: TestNS,

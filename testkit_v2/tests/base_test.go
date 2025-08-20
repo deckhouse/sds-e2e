@@ -30,7 +30,15 @@ const (
 	testNameSpace             = "test-e2e"
 )
 
+func cleanUpBase() {
+	cluster := util.EnsureCluster("", "")
+	_ = cluster.DeletePVC(dataExportPVCName)
+	_ = cluster.DeleteDataExport(dataExportName, util.TestNS)
+}
+
 func TestDataExporterBase(t *testing.T) {
+	t.Cleanup(cleanUpBase)
+	
 	cluster := util.EnsureCluster("", "")
 
 	// nodeConfigurator.TestPrepare
