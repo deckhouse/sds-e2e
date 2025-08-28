@@ -316,7 +316,7 @@ func (cluster *KCluster) ListVD(filters ...VdFilter) ([]vdType, error) {
 	return resp, nil
 }
 
-func (cluster *KCluster) CreateVD(nsName string, name string, storageClass string, sizeInGi int64) error {
+func (cluster *KCluster) CreateVD(name, namespace, storageClass string, sizeInGi int64) error {
 	var sc *string = nil
 	if storageClass != "" {
 		sc = &storageClass
@@ -325,7 +325,7 @@ func (cluster *KCluster) CreateVD(nsName string, name string, storageClass strin
 	vmDisk := &virt.VirtualDisk{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: nsName,
+			Namespace: namespace,
 		},
 		Spec: virt.VirtualDiskSpec{
 			PersistentVolumeClaim: virt.VirtualDiskPersistentVolumeClaim{
@@ -527,13 +527,14 @@ func (cluster *KCluster) DetachVmbd(filters ...VmBdFilter) error {
 }
 
 func (cluster *KCluster) CreateVMBD(vmName, vmdName, storageClassName string, size int64) error {
-	fmt.Printf("Creating a BD...\n")
 	nsName := TestNS
 
 	if err := cluster.CreateVD(nsName, vmdName, storageClassName, size); err != nil {
+		fmt.Println("err 1")
 		return err
 	}
 	if err := cluster.AttachVmbd(vmName, vmdName); err != nil {
+		fmt.Println("err 2")
 		return err
 	}
 

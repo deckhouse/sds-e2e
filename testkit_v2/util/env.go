@@ -36,7 +36,7 @@ const (
 	ConfigName    = "config.yml"
 	ResourcesName = "resources.yml"
 
-	pvcWaitInterval       = 1
+	pvcWaitInterval       = 5
 	pvcWaitIterationCount = 20
 	nsCleanUpSeconds      = 30 * 60
 	retries               = 100

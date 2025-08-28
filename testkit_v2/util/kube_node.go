@@ -431,9 +431,9 @@ func (cluster *KCluster) CreatePod(nsName, pName string) error {
 	return nil
 }
 
-func (cluster *KCluster) DeletePod(nsName, pName string) error {
-	if nsName == "" {
-		nsName = TestNS
+func (cluster *KCluster) DeletePod(podName, nameSpace string) error {
+	if nameSpace == "" {
+		nameSpace = TestNS
 	}
 
 	pod := coreapi.Pod{
@@ -442,8 +442,8 @@ func (cluster *KCluster) DeletePod(nsName, pName string) error {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pName,
-			Namespace: nsName,
+			Name:      podName,
+			Namespace: nameSpace,
 		},
 	}
 	if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &pod); err != nil {

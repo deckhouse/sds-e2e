@@ -33,7 +33,7 @@ const (
 	WaitIterationCountPVC        = 5
 )
 
-func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, exportKindName, namespace, ttl string) (*utiltype.DataExport, error) {
+func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, exportKindName, namespace, ttl string, isPublish bool) (*utiltype.DataExport, error) {
 	dataExport := &utiltype.DataExport{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "DataExport",
@@ -45,7 +45,7 @@ func (cluster *KCluster) CreateDataExport(dataExportName, exportKindType, export
 		},
 		Spec: utiltype.DataexportSpec{
 			Ttl:     ttl,
-			Publish: true,
+			Publish: isPublish,
 			TargetRef: utiltype.TargetRefSpec{
 				Kind: exportKindType,
 				Name: exportKindName,
@@ -100,7 +100,7 @@ func (cluster *KCluster) DeleteDataExport(name, namespace string) error {
 func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, error) {
 	dataExport := &utiltype.DataExport{}
 	for i := 0; i < WaitIterationCountDataExport; i++ {
-		Infof("Waiting DataExport to become Ready. Attempt %d of %d", i+1, WaitIterationCountDataExport)
+		Infof("Waiting DataExport to become READY. Attempt %d of %d", i+1, WaitIterationCountDataExport)
 
 		err := clr.controllerRuntimeClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
@@ -149,7 +149,7 @@ func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) erro
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      "storage",
-							MountPath: "/data",
+							MountPath: "/",
 						},
 					},
 				},

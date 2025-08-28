@@ -24,6 +24,7 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	srv "github.com/deckhouse/sds-replicated-volume/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -484,7 +485,6 @@ func (cluster *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim
 }
 
 func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
-
 	_, err := cluster.EnsureStorageClass(scName)
 	if err != nil {
 		return nil, err
@@ -608,7 +608,7 @@ func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize str
 
 		if !lvgExists {
 			Debugf("Creating LVM Volume Group %s for node %s", lvgName, nodeName)
-			bds, err := GetOrCreateConsumableBlockDevices(nodeName, 5, 1)
+			bds, err := GetOrCreateConsumableBlockDevices(nodeName, 60, 1)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create block devices: %s", err.Error())
 			}
@@ -631,4 +631,32 @@ func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize str
 	Debugf("All nodes have LVM Volume Groups")
 
 	return createdLVGNames, nil
+}
+
+func (cluster *KCluster) GetPVC(name, nameSpace string) (*v1.PersistentVolumeClaim, error) {
+	pvc := &v1.PersistentVolumeClaim{}
+
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	err := cluster.controllerRuntimeClient.Get(cwt, ctrlrtclient.ObjectKey{Name: name, Namespace: nameSpace}, pvc)
+	if err != nil {
+		return pvc, err
+	}
+
+	return pvc, nil
+}
+
+func (cluster *KCluster) GetPV(name, nameSpace string) (*v1.PersistentVolume, error) {
+	pv := &v1.PersistentVolume{}
+
+	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
+	defer cancel()
+
+	err := cluster.controllerRuntimeClient.Get(cwt, ctrlrtclient.ObjectKey{Name: name, Namespace: nameSpace}, pv)
+	if err != nil {
+		return pv, err
+	}
+
+	return pv, nil
 }
