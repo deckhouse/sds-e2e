@@ -529,7 +529,7 @@ func (cluster *KCluster) DetachVmbd(filters ...VmBdFilter) error {
 func (cluster *KCluster) CreateVMBD(vmName, vmdName, storageClassName string, size int64) error {
 	nsName := TestNS
 
-	if err := cluster.CreateVD(nsName, vmdName, storageClassName, size); err != nil {
+	if err := cluster.CreateVD(vmdName, nsName, storageClassName, size); err != nil {
 		fmt.Println("err 1")
 		return err
 	}

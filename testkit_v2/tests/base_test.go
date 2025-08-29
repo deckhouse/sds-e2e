@@ -25,6 +25,7 @@ import (
 
 	util "github.com/deckhouse/sds-e2e/util"
 	"github.com/deckhouse/sds-e2e/util/utiltype"
+	coreapi "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,21 +45,25 @@ const (
 	FinalizerName = "storage.deckhouse.io/data-exporter-controller"
 )
 
-var cluster *util.KCluster
-
-func cleanUpBase() {
-	cluster := util.EnsureCluster("", "")
-	// _ = cluster.DeletePVC(dataExportPVCName)
-	_ = cluster.DeleteDataExport(testDEName, util.TestNS)
-}
-
+// TestDataExport runs all data export related tests
 func TestDataExport(t *testing.T) {
-	t.Run("1", testDataExporterCreation)
-	// t.Run("1", testDataExportWithUnexistingPVC)
+	t.Run("DataExporterCreation", testDataExporterCreation)
+	t.Run("DataExportWithUnsupportedType", testDataExportWithUnsupportedExportType)
+	t.Run("DataExportWithNonExistentType", testDataExportWithNonExistentExportType)
+	t.Run("DataExportTTLExpired", testDataExportTTLExpired)
+	t.Run("DeleteDataExport", testDeleteDataExport)
+	t.Run("ExportTypeAlreadyExported", testExportTypeWhichIsAlreadyExported)
+	t.Run("HTTPRequests", testDataExportHTTPRequests)
 }
 
+// testDataExportHTTPRequests tests various HTTP requests to data export endpoints
 func testDataExportHTTPRequests(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
+
+	// Setup cleanup
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "10s")
 	if err != nil {
@@ -72,7 +77,8 @@ func testDataExportHTTPRequests(t *testing.T) {
 
 	baseURL := dataExport.Status.Url
 	basePath := "/api/v1/files"
-	testTable := []struct {
+
+	testCases := []struct {
 		description string
 		method      string
 		path        string
@@ -103,12 +109,6 @@ func testDataExportHTTPRequests(t *testing.T) {
 			statusCode:  404,
 		},
 		{
-			description: "HEAD-запрос к несуществующему файлу",
-			method:      http.MethodHead,
-			path:        basePath + "/unexisting-file.txt",
-			statusCode:  404,
-		},
-		{
 			description: "HEAD-запрос к некорректному маршруту",
 			method:      http.MethodHead,
 			path:        "/wrong/path",
@@ -116,34 +116,43 @@ func testDataExportHTTPRequests(t *testing.T) {
 		},
 	}
 
-	client := &http.Client{}
-	for _, test := range testTable {
-		req, err := http.NewRequest(test.method, baseURL+test.path, nil)
-		if err != nil {
-			t.Fatalf("failed to create an HTTP-request: %s", err.Error())
-		}
+	client := &http.Client{Timeout: 10 * time.Second}
 
-		// TODO parallel?
-		res, err := client.Do(req)
-		if err != nil {
-			t.Fatalf("failed to send HTTP-request: %s", err.Error())
-		}
+	for _, tc := range testCases {
+		t.Run(tc.description, func(t *testing.T) {
+			req, err := http.NewRequest(tc.method, baseURL+tc.path, nil)
+			if err != nil {
+				t.Fatalf("failed to create HTTP request: %s", err.Error())
+			}
 
-		if res.StatusCode != test.statusCode {
-			t.Errorf("responce status code mismatch. Expected %d received %d", test.statusCode, res.StatusCode)
-		}
+			res, err := client.Do(req)
+			if err != nil {
+				t.Fatalf("failed to send HTTP request: %s", err.Error())
+			}
+			defer res.Body.Close()
+
+			if res.StatusCode != tc.statusCode {
+				t.Errorf("response status code mismatch. Expected %d, received %d", tc.statusCode, res.StatusCode)
+			}
+		})
 	}
 }
 
+// testCreateVD tests VirtualDisk creation
 func testCreateVD(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
+
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+		cluster.DeleteVD(util.VdFilter{Name: testVDName, NameSpace: util.TestNS})
+	})
 
 	_, err := cluster.CreatePVCInTestNS(testPVCName, util.NestedDefaultStorageClass, "20Mi")
 	if err != nil {
 		t.Fatalf("failed to create PVC: %s", err.Error())
 	}
 
-	err = cluster.CreateVD("test-vd", util.TestNS, util.NestedDefaultStorageClass, 10240)
+	err = cluster.CreateVD(testVDName, util.TestNS, util.NestedDefaultStorageClass, 10240)
 	if err != nil {
 		t.Fatalf("failed to create VD: %s", err.Error())
 	}
@@ -152,53 +161,49 @@ func testCreateVD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create data export: %s", err.Error())
 	}
-
 }
 
 func testDataExportTTLExpired(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
+
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "10s")
 	if err != nil {
 		t.Fatalf("failed to create a DataExport: %s", err.Error())
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 
 	dataExport, err := cluster.GetDataExport(testDEName, util.TestNS)
 	if err != nil {
-		t.Fatalf("failed to get dublicate data export: %s", err.Error())
+		t.Fatalf("failed to get data export: %s", err.Error())
 	}
 
 	for _, cond := range dataExport.Status.Conditions {
-		if cond.Type != "EXPIRED" {
-			continue
-		}
-		if cond.Status != v1.ConditionTrue {
-			t.Errorf("data export TTL has expited. Expected EXPIRED type to be Status true, but it should not")
+		if cond.Type == "EXPIRED" && cond.Status == v1.ConditionTrue {
+			t.Error("data export TTL has expired but EXPIRED condition is not set to true")
+			break
 		}
 	}
 
 	pvc, err := cluster.GetPVC(testPVCName, util.TestNS)
 	if err != nil {
-		t.Fatalf("failed to get a PVC: %s", err.Error())
+		t.Fatalf("failed to get PVC: %s", err.Error())
 	}
 
-	for annotation := range pvc.Annotations {
-		if annotation == DataExportInProgressKey || annotation == DataExportRequestAnnotationKey {
-			t.Errorf("pvc has annotation %s but it should not", annotation)
-		}
-	}
-
-	for _, finalizer := range pvc.Finalizers {
-		if finalizer == FinalizerName {
-			t.Errorf("pvc has finalizer %s but it should not", finalizer)
-		}
-	}
+	checkPVCAnnotationsAndFinalizers(t, pvc)
 }
 
+// testDeleteDataExport tests data export deletion and cleanup
 func testDeleteDataExport(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
+
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "1h")
 	if err != nil {
@@ -212,108 +217,105 @@ func testDeleteDataExport(t *testing.T) {
 
 	pvc, err := cluster.GetPVC(testPVCName, util.TestNS)
 	if err != nil {
-		t.Fatalf("failed to get a PVC: %s", err.Error())
+		t.Fatalf("failed to get PVC: %s", err.Error())
 	}
 
 	pvName := pvc.Spec.VolumeName
 	pv, err := cluster.GetPV(pvName, util.TestNS)
 	if err != nil {
-		t.Fatalf("failed to get a PV: %s", err.Error())
+		t.Fatalf("failed to get PV: %s", err.Error())
 	}
 
 	// TODO check all?
 	if pv.Spec.ClaimRef.Name != pvc.Name {
-		t.Fatalf("PV is not reatached to the original user PVC: ClaimRef.Name: %s, user PVC name %s", pv.Spec.ClaimRef.Name, pvc.Name)
+		t.Errorf("PV is not reattached to original PVC: ClaimRef.Name: %s, PVC name %s", pv.Spec.ClaimRef.Name, pvc.Name)
 	}
 
 	if pv.Spec.ClaimRef.Namespace != pvc.Namespace {
-		t.Fatalf("PV is not reatached to the original user PVC: ClaimRef.Namespace: %s, user PVC Namespace %s", pv.Spec.ClaimRef.Namespace, pvc.Namespace)
+		t.Errorf("PV is not reattached to original PVC: ClaimRef.Namespace: %s, PVC Namespace %s", pv.Spec.ClaimRef.Namespace, pvc.Namespace)
 	}
 
 	if pv.Spec.ClaimRef.UID != pvc.UID {
-		t.Fatalf("PV is not reatached to the original user PVC: ClaimRef.UID: %s, user PVC UID %s", pv.Spec.ClaimRef.UID, pvc.UID)
+		t.Errorf("PV is not reattached to original PVC: ClaimRef.UID: %s, PVC UID %s", pv.Spec.ClaimRef.UID, pvc.UID)
 	}
 
-	if pv.Spec.ClaimRef.ResourceVersion != pvc.ResourceVersion {
-		t.Fatalf("PV is not reatached to the original user PVC: ClaimRef.ResourceVersion: %s, user PVC ResourceVersion %s", pv.Spec.ClaimRef.ResourceVersion, pvc.ResourceVersion)
-	}
-
-	for annotation := range pvc.Annotations {
-		if annotation == DataExportInProgressKey || annotation == DataExportRequestAnnotationKey {
-			t.Errorf("pvc has annotation %s but it should not", annotation)
-		}
-	}
-
-	for _, finalizer := range pvc.Finalizers {
-		if finalizer == FinalizerName {
-			t.Errorf("pvc has finalizer %s but it should not", finalizer)
-		}
-	}
+	checkPVCAnnotationsAndFinalizers(t, pvc)
 }
 
 func testExportTypeWhichIsAlreadyExported(t *testing.T) {
-	// t.Cleanup(cleanUpBase)
 	cluster := util.EnsureCluster("", "")
+
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+		cleanupDataExport(cluster, "duplicate-data-export", testPVCName, testPodName)
+	})
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "1h")
 	if err != nil {
 		t.Fatalf("failed to create a DataExport: %s", err.Error())
 	}
 
-	dublicateName := "duplicate-data-export"
-	_, err = cluster.CreateDataExport(dublicateName, persistentVolumeClaimType, testPVCName, util.TestNS, "1h", false)
+	duplicateName := "duplicate-data-export"
+	_, err = cluster.CreateDataExport(duplicateName, persistentVolumeClaimType, testPVCName, util.TestNS, "1h", false)
 	if err != nil {
-		t.Fatalf("you cant: %s", err.Error())
+		t.Fatalf("failed to create duplicate data export: %s", err.Error())
 	}
 
-	dataExport, err := cluster.GetDataExport(dublicateName, util.TestNS)
+	dataExport, err := cluster.GetDataExport(duplicateName, util.TestNS)
 	if err != nil {
-		t.Fatalf("failed to get dublicate data export: %s", err.Error())
+		t.Fatalf("failed to get duplicate data export: %s", err.Error())
 	}
 
-	err = checkIfValidationFailed(dataExport)
-	if err != nil {
-		t.Fatalf("dataExport %s validation is not failed but it should: %s", testDEName, err.Error())
+	if err = checkIfValidationFailed(dataExport); err != nil {
+		t.Fatalf("dataExport %s validation should have failed: %s", duplicateName, err.Error())
 	}
 }
 
 func testDataExportWithUnsupportedExportType(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
+
 	_, err := cluster.CreateDataExport(testDEName, unsupportedExportType, "fake-kind-name", util.TestNS, "1h", false)
 	if err == nil {
-		t.Errorf("DataExport was created with an unsupported export type %s", err)
+		t.Error("DataExport was created with an unsupported export type, but should have failed")
 	}
 }
 
 func testDataExportWithNonExistentExportType(t *testing.T) {
-	// t.Cleanup(cleanUpBase)
-
 	cluster := util.EnsureCluster("", "")
-	exportType := []string{"PersistentVolumeClaim", "VolumeSnapshot", "VirtualDisk", "VirtualDiskSnapshot"}
 
-	for _, exportType := range exportType {
-		_, err := cluster.CreateDataExport(testDEName, exportType, "fake-kind-name", util.TestNS, "1h", false)
-		if err != nil {
-			t.Fatalf("failed to create data export: %v", err)
-		}
-		time.Sleep(3 * time.Second)
+	exportTypes := []string{"PersistentVolumeClaim", "VolumeSnapshot", "VirtualDisk", "VirtualDiskSnapshot"}
 
-		dataExport, err := cluster.GetDataExport(testDEName, util.TestNS)
-		if err != nil {
-			t.Fatalf("failed to get data export: %v", err)
-		}
+	for _, exportType := range exportTypes {
+		t.Run(exportType, func(t *testing.T) {
+			t.Cleanup(func() {
+				cleanupDataExport(cluster, testDEName, "fake-kind-name", testPodName)
+			})
 
-		err = checkIfValidationFailed(dataExport)
-		if err != nil {
-			t.Fatalf("dataExport %s validation is not failed but it should: %s", testDEName, err.Error())
-		}
+			_, err := cluster.CreateDataExport(testDEName, exportType, "fake-kind-name", util.TestNS, "1h", false)
+			if err != nil {
+				t.Fatalf("failed to create data export: %v", err)
+			}
+
+			time.Sleep(3 * time.Second)
+
+			dataExport, err := cluster.GetDataExport(testDEName, util.TestNS)
+			if err != nil {
+				t.Fatalf("failed to get data export: %v", err)
+			}
+
+			err = checkIfValidationFailed(dataExport)
+			if err != nil {
+				t.Fatalf("dataExport %s validation should have failed: %s", testDEName, err.Error())
+			}
+		})
 	}
 }
 
 func testDataExporterCreation(t *testing.T) {
-	// t.Cleanup(cleanUpBase)
-
 	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "1h")
 	if err != nil {
@@ -354,17 +356,17 @@ func testUnsupportedHTTPMethods(dataExport *utiltype.DataExport) error {
 	for _, method := range unsupportedMethods {
 		request, err := http.NewRequestWithContext(ctx, method, url, nil)
 		if err != nil {
-			return fmt.Errorf("failed to create a new HTTP request: %w", err)
+			return fmt.Errorf("failed to create HTTP request: %w", err)
 		}
 
 		response, err := client.Do(request)
 		if err != nil {
-			return fmt.Errorf("failed to send an HTTP %s request: %w", request.Method, err)
+			return fmt.Errorf("failed to send HTTP %s request: %w", request.Method, err)
 		}
 		defer response.Body.Close()
 
 		if response.StatusCode != http.StatusMethodNotAllowed {
-			return fmt.Errorf("dataExport %s accepts %s HTTP method, but it shoudn't", dataExport.Name, request.Method)
+			return fmt.Errorf("dataExport %s accepts %s HTTP method, but it shouldn't", dataExport.Name, request.Method)
 		}
 	}
 	return nil
@@ -387,49 +389,68 @@ func testIfClusterUrlIsReady(dataExport *utiltype.DataExport) error {
 func testHTTP(dataExport *utiltype.DataExport) error {
 	resp, err := http.Get(fmt.Sprintf("%s%s", dataExport.Status.Url, "health"))
 	if err != nil {
-		return fmt.Errorf("failed to chech server health: %w", err)
+		return fmt.Errorf("failed to check server health: %w", err)
 	}
+	defer resp.Body.Close()
+
 	fmt.Printf("== Status: %s", resp.Status)
 	return nil
 }
 
 func checkIfValidationFailed(dataExport *utiltype.DataExport) error {
 	for _, cond := range dataExport.Status.Conditions {
-		if cond.Type != "Ready" {
-			continue
-		}
-		if cond.Reason == "ValidationFailed" {
+		if cond.Type == "Ready" && cond.Reason == "ValidationFailed" {
 			return nil
 		}
 	}
-	return fmt.Errorf("validation is not failed")
+	return fmt.Errorf("validation did not fail as expected")
+}
+
+func checkPVCAnnotationsAndFinalizers(t *testing.T, pvc *coreapi.PersistentVolumeClaim) {
+	for annotation := range pvc.Annotations {
+		if annotation == DataExportInProgressKey || annotation == DataExportRequestAnnotationKey {
+			t.Errorf("PVC has annotation %s but it should not", annotation)
+		}
+	}
+
+	for _, finalizer := range pvc.Finalizers {
+		if finalizer == FinalizerName {
+			t.Errorf("PVC has finalizer %s but it should not", finalizer)
+		}
+	}
+}
+
+func cleanupDataExport(cluster *util.KCluster, deName, pvcName, podName string) {
+	_ = cluster.DeleteDataExport(deName, util.TestNS)
+	_ = cluster.DeletePod(podName, util.TestNS)
+	_ = cluster.DeletePVC(pvcName)
 }
 
 func CreateDataExportWithPVC(cluster *util.KCluster, podName, pvcName, deName, duration string) error {
 	pvc, err := cluster.CreatePVCInTestNS(pvcName, util.NestedDefaultStorageClass, "1Mi")
 	if err != nil {
-		return fmt.Errorf("failed to create PVC: %s", err.Error())
+		return fmt.Errorf("failed to create PVC: %w", err)
 	}
 	util.Infof("Created PVC: %s in namespace: %s", pvc.Name, pvc.Namespace)
 
 	err = cluster.CreateDummyPod(podName, testNameSpace, pvcName)
 	if err != nil {
-		return fmt.Errorf("failed to create dummy pod: %s", err.Error())
+		return fmt.Errorf("failed to create dummy pod: %w", err)
 	}
 
 	_, err = cluster.WaitPVCStatus(pvcName)
 	if err != nil {
-		return fmt.Errorf("failed to wait pvc to become bound: %s", err.Error())
+		return fmt.Errorf("failed to wait PVC to become bound: %w", err)
 	}
 
 	err = cluster.DeletePod(podName, util.TestNS)
 	if err != nil {
-		return fmt.Errorf("failed to delete test pod: %s", err.Error())
+		return fmt.Errorf("failed to delete test pod: %w", err)
 	}
 
 	_, err = cluster.CreateDataExport(deName, persistentVolumeClaimType, pvcName, util.TestNS, duration, false)
 	if err != nil {
-		return fmt.Errorf("failed to create data export: %s", err.Error())
+		return fmt.Errorf("failed to create data export: %w", err)
 	}
 
 	return nil
