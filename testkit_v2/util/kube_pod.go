@@ -37,7 +37,7 @@ func (cluster *KCluster) WaitPodDeletion(name, namespace string) error {
 	for range podWaitIterationCount {
 		сtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		
+
 		err := cluster.controllerRuntimeClient.Get(сtx, client.ObjectKey{Name: name, Namespace: namespace}, pod)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -49,4 +49,35 @@ func (cluster *KCluster) WaitPodDeletion(name, namespace string) error {
 	}
 
 	return fmt.Errorf("failed to await pod %s deletion: pod still exists", name)
+}
+
+// WaitPodReady waits until Pod is Running and Ready condition is True
+func (cluster *KCluster) WaitPodReady(name, namespace string) error {
+	pod := &v1.Pod{}
+
+	for range podWaitIterationCount {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		err := cluster.controllerRuntimeClient.Get(ctx, client.ObjectKey{Name: name, Namespace: namespace}, pod)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				time.Sleep(podWaitInterval * time.Second)
+				continue
+			}
+			return fmt.Errorf("failed to get Pod %s: %w", name, err)
+		}
+
+		if pod.Status.Phase == v1.PodRunning {
+			for _, c := range pod.Status.Conditions {
+				if c.Type == v1.PodReady && c.Status == v1.ConditionTrue {
+					return nil
+				}
+			}
+		}
+
+		time.Sleep(podWaitInterval * time.Second)
+	}
+
+	return fmt.Errorf("failed to await pod %s readiness", name)
 }

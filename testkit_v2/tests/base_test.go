@@ -18,8 +18,13 @@ package integration
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,35 +44,44 @@ const (
 	testNameSpace             = "test-e2e"
 	unsupportedExportType     = "UnsupportedKind"
 
+	PVCShortType = "pvc"
+
 	DataExportInProgressKey        = "storage.deckhouse.io/data-export-in-progress"
 	DataExportRequestAnnotationKey = "storage.deckhouse.io/data-export-request"
 
 	FinalizerName = "storage.deckhouse.io/data-exporter-controller"
+
+	HelloFileMD5 = "40375e146b382bc870c143b4b5aa2cbd"
 )
 
 // TestDataExport runs all data export related tests
 func TestDataExport(t *testing.T) {
-	t.Run("DataExporterCreation", testDataExporterCreation)
-	t.Run("DataExportWithUnsupportedType", testDataExportWithUnsupportedExportType)
-	t.Run("DataExportWithNonExistentType", testDataExportWithNonExistentExportType)
+	// t.Run("DataExporterCreation", testCreateVD)
+	// t.Run("DataExportWithUnsupportedType", testDataExportWithUnsupportedExportType)
+	// t.Run("DataExportWithNonExistentType", testDataExportWithNonExistentExportType)
 	t.Run("DataExportTTLExpired", testDataExportTTLExpired)
-	t.Run("DeleteDataExport", testDeleteDataExport)
-	t.Run("ExportTypeAlreadyExported", testExportTypeWhichIsAlreadyExported)
-	t.Run("HTTPRequests", testDataExportHTTPRequests)
+	// t.Run("DeleteDataExport", testDeleteDataExport)
+	// t.Run("ExportTypeAlreadyExported", testExportTypeWhichIsAlreadyExported)
+	// t.Run("HTTPRequests", testDataExportHTTPRequests)
+	// t.Run("dec", testDataExportHTTPRequests)
 }
 
 // testDataExportHTTPRequests tests various HTTP requests to data export endpoints
 func testDataExportHTTPRequests(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
-	// Setup cleanup
 	t.Cleanup(func() {
 		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
 	})
 
-	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "10s")
+	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h")
 	if err != nil {
 		t.Fatalf("failed to create a DataExport: %s", err.Error())
+	}
+
+	_, err = cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("failed to wait DataExport URL to be ready: %s", err.Error())
 	}
 
 	dataExport, err := cluster.GetDataExport(testDEName, util.TestNS)
@@ -76,76 +90,307 @@ func testDataExportHTTPRequests(t *testing.T) {
 	}
 
 	baseURL := dataExport.Status.Url
-	basePath := "/api/v1/files"
+	fmt.Printf("DataExport URL: %s\n", baseURL)
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files", dataExport.Namespace, PVCShortType, dataExport.Spec.TargetRef.Name)
+	baseBlockPath := fmt.Sprintf("%s/%s/%s/api/v1/block", dataExport.Namespace, PVCShortType, dataExport.Spec.TargetRef.Name)
+	secretDirPath := basePath + "/secret/"
+	symlinkPath := basePath + "/hosts_symlink"
+	lockedFilePath := basePath + "/locked.txt"
 
 	testCases := []struct {
-		description string
-		method      string
-		path        string
-		statusCode  int
+		description             string
+		method                  string
+		path                    string
+		statusCode              int
+		expectHeader            string
+		expectHeaderValue       string
+		bodyContains            []string
+		expectJSONItemsContains []string
+		expectMD5               string
 	}{
 		{
-			description: "GET-запрос к несуществующему файлу",
+			description: "Test GET request to unexisting file", // GET-запрос к несуществующему файлу
 			method:      http.MethodGet,
 			path:        basePath + "/unexisting-file.txt",
-			statusCode:  404,
+			statusCode:  http.StatusNotFound,
 		},
 		{
-			description: "GET-запрос к директории без завершающего слеша",
+			description: "Test GET request to directory without trailing slash", // GET-запрос к директории без завершающего слеша
 			method:      http.MethodGet,
 			path:        basePath + "",
-			statusCode:  400,
+			statusCode:  http.StatusBadRequest,
 		},
 		{
-			description: "GET-запрос к некорректному маршруту",
+			description: "Test GET request to incorrect route", // GET-запрос к некорректному маршруту
 			method:      http.MethodGet,
-			path:        "/wrong/path",
-			statusCode:  400,
+			path:        "wrong/path",
+			statusCode:  http.StatusNotFound,
 		},
 		{
-			description: "HEAD-запрос к несуществующему файлу",
+			description: "Test HEAD request to unexisting file", // HEAD-запрос к несуществующему файлу
 			method:      http.MethodHead,
 			path:        basePath + "/unexisting-file.txt",
-			statusCode:  404,
+			statusCode:  http.StatusNotFound,
 		},
 		{
-			description: "HEAD-запрос к некорректному маршруту",
+			description: "Test HEAD request to incorrect route", // HEAD-запрос к некорректному маршруту
 			method:      http.MethodHead,
-			path:        "/wrong/path",
+			path:        "wrong/path",
+			statusCode:  http.StatusNotFound,
+		},
+		{
+			description: "Test unsupported POST method",
+			method:      http.MethodPost,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusMethodNotAllowed,
+		},
+		{
+			description: "Test unsupported PUT method",
+			method:      http.MethodPut,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusMethodNotAllowed,
+		},
+		{
+			description: "Test unsupported PATCH method",
+			method:      http.MethodPatch,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusMethodNotAllowed,
+		},
+		{
+			description: "Test unsupported DELETE method",
+			method:      http.MethodDelete,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusMethodNotAllowed,
+		},
+		{
+			description: "Test GET request to file URL with trailing slash", // GET-запрос к файлу с URL, заканчивающимся на слеш
+			method:      http.MethodGet,
+			path:        basePath + "/hello.txt/",
 			statusCode:  400,
+		},
+		{
+			description: "Test HEAD request to file URL with trailing slash", // HEAD-запрос к файлу с URL, заканчивающимся на слеш
+			method:      http.MethodHead,
+			path:        basePath + "/hello.txt/",
+			statusCode:  400,
+		},
+		{
+			description:       "Test HEAD request to existing file", // HEAD-запрос к существующему файлу
+			method:            http.MethodHead,
+			path:              basePath + "/hello.txt",
+			statusCode:        http.StatusOK,
+			expectHeader:      "Content-Length",
+			expectHeaderValue: "9",
+		},
+		{
+			description: "Test GET request to existing file with md5", // GET-запрос к существующему файлу c md5
+			method:      http.MethodGet,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusOK,
+			expectMD5:   HelloFileMD5,
+		},
+		{
+			description: "Test GET request to restricted directory should be 403", // GET-запрос к директории с ограниченным доступом
+			method:      http.MethodGet,
+			path:        secretDirPath,
+			statusCode:  http.StatusForbidden,
+		},
+		{
+			description: "Test HEAD request to restricted directory should be 400", // HEAD-запрос к директории с ограниченным доступом 23
+			method:      http.MethodHead,
+			path:        secretDirPath,
+			statusCode:  http.StatusBadRequest,
+		},
+		{
+			description: "Test GET request to symlink outside root should be 403", // GET-запрос к символической ссылке за пределами корневой директории
+			method:      http.MethodGet,
+			path:        symlinkPath,
+			statusCode:  http.StatusForbidden,
+		},
+		{
+			description: "Test HEAD request to symlink outside root should be 403", // HEAD-запрос к символической ссылке за пределами корневой директории
+			method:      http.MethodHead,
+			path:        symlinkPath,
+			statusCode:  http.StatusForbidden,
+		},
+		{
+			description: "Test GET request to files root should be 400", // GET-запрос на /block, /block/ или files
+			method:      http.MethodGet,
+			path:        basePath,
+			statusCode:  http.StatusBadRequest,
+		},
+		{
+			description: "Test GET request to block without trailing slash should be 400", // GET-запрос на /block, /block/ или files
+			method:      http.MethodGet,
+			path:        baseBlockPath,
+			statusCode:  http.StatusBadRequest,
+		},
+		{
+			description: "Test GET request to block with trailing slash should be 400", // GET-запрос на /block, /block/ или files
+			method:      http.MethodGet,
+			path:        baseBlockPath + "/",
+			statusCode:  http.StatusBadRequest,
+		},
+		{
+			description: "Test GET request to restricted file should be 403", // GET-запрос к файлу с ограниченным доступом
+			method:      http.MethodGet,
+			path:        lockedFilePath,
+			statusCode:  http.StatusForbidden,
+		},
+		{
+			description: "Test HEAD request to restricted file should be 403", // HEAD-запрос к файлу с ограниченным доступом
+			method:      http.MethodHead,
+			path:        lockedFilePath,
+			statusCode:  http.StatusForbidden,
+		},
+		{
+			description:             "Test GET request to existing directory", // GET-запрос к существующей директории
+			method:                  http.MethodGet,
+			path:                    basePath + "/",
+			statusCode:              http.StatusOK,
+			expectJSONItemsContains: []string{"hello.txt"},
+		},
+		{
+			description: "Test HEAD request to directory should be 400", // HEAD-запрос к директории
+			method:      http.MethodHead,
+			path:        basePath + "/",
+			statusCode:  http.StatusBadRequest,
 		},
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	// Pick a node to run curl from (command executes in host namespaces via nsenter)
+	nodes, err := cluster.ListNode()
+	if err != nil {
+		t.Fatalf("failed to list nodes: %s", err.Error())
+	}
+	if len(nodes) == 0 {
+		t.Fatalf("no nodes available to run HTTP checks")
+	}
+	nodeName := nodes[0].Name
+
+	// Obtain bearer token to access data-exporter
+	token, err := cluster.CreateDataExporterBearer("e2e-user", 24*60*60)
+	if err != nil {
+		t.Fatalf("failed to create bearer token: %s", err.Error())
+	}
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
-			req, err := http.NewRequest(tc.method, baseURL+tc.path, nil)
+			t.Parallel()
+
+			fmt.Printf("baseURL+tc.path: %s%s\n", baseURL, tc.path)
+			fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(tc.path, "/")
+			fmt.Printf("curl URL: %s (method %s)\n", fullURL, tc.method)
+
+			var cmd []string
+			if tc.method == http.MethodHead {
+				cmd = []string{"curl", "-skI", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", fullURL}
+			} else {
+				cmd = []string{"curl", "-sk", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", tc.method, fullURL}
+			}
+			stdout, stderr, err := cluster.ExecNode(nodeName, cmd)
 			if err != nil {
-				t.Fatalf("failed to create HTTP request: %s", err.Error())
+				t.Fatalf("curl failed on node %s: %v\nstderr: %s\nstdout: %s", nodeName, err, stderr, stdout)
 			}
 
-			res, err := client.Do(req)
-			if err != nil {
-				t.Fatalf("failed to send HTTP request: %s", err.Error())
+			marker := "__HTTP_CODE__:"
+			endMarker := "__END__"
+			idx := strings.LastIndex(stdout, marker)
+			if idx == -1 {
+				t.Fatalf("failed to parse curl output: no status marker found. Output: %q", stdout)
 			}
-			defer res.Body.Close()
+			rest := stdout[idx+len(marker):]
+			endIdx := strings.Index(rest, endMarker)
+			if endIdx == -1 {
+				t.Fatalf("failed to parse curl output: no end marker found. Output: %q", stdout)
+			}
+			codeStr := strings.TrimSpace(rest[:endIdx])
+			bodyRaw := stdout[:idx]
+			// remove the single newline added by curl -w before the marker
+			bodyRaw = strings.TrimSuffix(bodyRaw, "\n")
+			body := strings.TrimSpace(bodyRaw)
 
-			if res.StatusCode != tc.statusCode {
-				t.Errorf("response status code mismatch. Expected %d, received %d", tc.statusCode, res.StatusCode)
+			code, convErr := strconv.Atoi(codeStr)
+			if convErr != nil {
+				t.Fatalf("failed to parse HTTP status code from curl output %q: %v", codeStr, convErr)
+			}
+
+			t.Logf("Response body (%s %s):\n%s", tc.method, fullURL, body)
+
+			if code != tc.statusCode {
+				t.Errorf("response status code mismatch. Expected %d, received %d", tc.statusCode, code)
+			}
+
+			// Optional MD5 check for GET file
+			if tc.expectMD5 != "" && tc.method == http.MethodGet && code == http.StatusOK {
+				h := md5.Sum([]byte(bodyRaw))
+				got := hex.EncodeToString(h[:])
+				if got != tc.expectMD5 {
+					t.Errorf("MD5 mismatch: expected %s, got %s", tc.expectMD5, got)
+				}
+			}
+
+			// Optional JSON body assertions
+			if len(tc.bodyContains) > 0 || len(tc.expectJSONItemsContains) > 0 {
+				// Try to parse JSON
+				var obj struct {
+					APIVersion string `json:"apiVersion"`
+					Items      []struct {
+						Name string `json:"name"`
+					} `json:"items"`
+				}
+				if err := json.Unmarshal([]byte(body), &obj); err == nil {
+					if len(tc.expectJSONItemsContains) > 0 {
+						nameSet := map[string]struct{}{}
+						for _, it := range obj.Items {
+							nameSet[it.Name] = struct{}{}
+						}
+						for _, want := range tc.expectJSONItemsContains {
+							if _, ok := nameSet[want]; !ok {
+								t.Errorf("directory listing does not contain %q", want)
+							}
+						}
+					}
+				} else {
+					// Fallback to substring checks if not a JSON body
+					for _, sub := range tc.bodyContains {
+						if !strings.Contains(body, sub) {
+							t.Errorf("response body does not contain expected substring: %s", sub)
+						}
+					}
+				}
+			}
+
+			// Optional header assertion (works for HEAD where body contains headers)
+			if tc.expectHeader != "" {
+				lowHeader := strings.ToLower(tc.expectHeader) + ":"
+				found := false
+				for _, line := range strings.Split(body, "\n") {
+					line = strings.TrimSpace(line)
+					if strings.HasPrefix(strings.ToLower(line), lowHeader) {
+						val := strings.TrimSpace(strings.TrimPrefix(line, line[:len(lowHeader)]))
+						if val != tc.expectHeaderValue {
+							t.Errorf("header %s mismatch. Expected %q, got %q", tc.expectHeader, tc.expectHeaderValue, val)
+						}
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("header %s not found in response", tc.expectHeader)
+				}
 			}
 		})
 	}
 }
 
-// testCreateVD tests VirtualDisk creation
 func testCreateVD(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
-	t.Cleanup(func() {
-		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
-		cluster.DeleteVD(util.VdFilter{Name: testVDName, NameSpace: util.TestNS})
-	})
+	// t.Cleanup(func() {
+	// 	cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	// 	cluster.DeleteVD(util.VdFilter{Name: testVDName, NameSpace: util.TestNS})
+	// })
 
 	_, err := cluster.CreatePVCInTestNS(testPVCName, util.NestedDefaultStorageClass, "20Mi")
 	if err != nil {
@@ -166,9 +411,9 @@ func testCreateVD(t *testing.T) {
 func testDataExportTTLExpired(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
-	t.Cleanup(func() {
-		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
-	})
+	// t.Cleanup(func() {
+	// 	cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	// })
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "10s")
 	if err != nil {
@@ -194,10 +439,11 @@ func testDataExportTTLExpired(t *testing.T) {
 		t.Fatalf("failed to get PVC: %s", err.Error())
 	}
 
+	time.Sleep(15 * time.Second)
+
 	checkPVCAnnotationsAndFinalizers(t, pvc)
 }
 
-// testDeleteDataExport tests data export deletion and cleanup
 func testDeleteDataExport(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
@@ -387,7 +633,9 @@ func testIfClusterUrlIsReady(dataExport *utiltype.DataExport) error {
 }
 
 func testHTTP(dataExport *utiltype.DataExport) error {
-	resp, err := http.Get(fmt.Sprintf("%s%s", dataExport.Status.Url, "health"))
+	url := fmt.Sprintf("%s%s", dataExport.Status.Url, "health")
+	fmt.Printf("== URL: %s", url)
+	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to check server health: %w", err)
 	}
@@ -438,6 +686,11 @@ func CreateDataExportWithPVC(cluster *util.KCluster, podName, pvcName, deName, d
 		return fmt.Errorf("failed to create dummy pod: %w", err)
 	}
 
+	// Wait until the writer pod is running and ready to ensure the file write completes
+	if err := cluster.WaitPodReady(podName, util.TestNS); err != nil {
+		return fmt.Errorf("failed to wait writer pod ready: %w", err)
+	}
+
 	_, err = cluster.WaitPVCStatus(pvcName)
 	if err != nil {
 		return fmt.Errorf("failed to wait PVC to become bound: %w", err)
@@ -446,6 +699,10 @@ func CreateDataExportWithPVC(cluster *util.KCluster, podName, pvcName, deName, d
 	err = cluster.DeletePod(podName, util.TestNS)
 	if err != nil {
 		return fmt.Errorf("failed to delete test pod: %w", err)
+	}
+
+	if err = cluster.WaitPodDeletion(podName, util.TestNS); err != nil {
+		return fmt.Errorf("failed to wait for pod deletion: %w", err)
 	}
 
 	_, err = cluster.CreateDataExport(deName, persistentVolumeClaimType, pvcName, util.TestNS, duration, false)

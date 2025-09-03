@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	logr "github.com/go-logr/logr"
+	authv1 "k8s.io/api/authentication/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
@@ -33,6 +34,7 @@ import (
 	"github.com/deckhouse/sds-e2e/util/utiltype"
 	v1app "k8s.io/api/apps/v1"
 	coreapi "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	storapi "k8s.io/api/storage/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -134,6 +136,35 @@ func NewKubeDyClient(cfg *rest.Config) (*dynamic.DynamicClient, error) {
 	}
 
 	return cl, nil
+}
+
+// CreateDataExporterBearer creates a ServiceAccount and ClusterRoleBinding, then issues a token
+// for use as Bearer in HTTP requests. Token TTL is in seconds.
+func (cluster *KCluster) CreateDataExporterBearer(userName string, ttlSeconds int64) (string, error) {
+	ns := "test-e2e"
+
+	sa := &coreapi.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: userName, Namespace: ns}}
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", fmt.Errorf("create SA: %w", err)
+	}
+
+	crbName := "data-exporter-binding-" + userName
+	crb := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: crbName},
+		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "cluster-admin"},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: userName, Namespace: ns}},
+	}
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, crb); err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", fmt.Errorf("create CRB: %w", err)
+	}
+
+	exp := ttlSeconds
+	tr := &authv1.TokenRequest{Spec: authv1.TokenRequestSpec{ExpirationSeconds: &exp}}
+	tok, err := cluster.goClient.CoreV1().ServiceAccounts(ns).CreateToken(cluster.ctx, userName, tr, metav1.CreateOptions{})
+	if err != nil {
+		return "", fmt.Errorf("create token: %w", err)
+	}
+	return tok.Status.Token, nil
 }
 
 /*  Kuber Cluster object  */

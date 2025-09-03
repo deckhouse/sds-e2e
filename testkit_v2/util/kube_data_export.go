@@ -144,12 +144,13 @@ func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) erro
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:  "main-container",
-					Image: "nginx:latest",
+					Name:    "writer",
+					Image:   "busybox:1.36",
+					Command: []string{"sh", "-c", "printf 'Hello d8!' > /data/hello.txt && printf 'deny' > /data/locked.txt && chmod 000 /data/locked.txt && mkdir -p /data/secret && chmod 000 /data/secret && ln -sf /etc/hosts /data/hosts_symlink && sleep 3600"},
 					VolumeMounts: []v1.VolumeMount{
 						{
 							Name:      "storage",
-							MountPath: "/",
+							MountPath: "/data",
 						},
 					},
 				},

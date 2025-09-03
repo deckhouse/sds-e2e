@@ -398,7 +398,7 @@ func (cluster *KCluster) CreateReplicatedStorageClass(drbdStorageClassName, repl
 			StoragePool:   storagePoolName,
 			ReclaimPolicy: "Delete",
 			Replication:   replication,
-			VolumeAccess:  "PreferablyLocal",
+			VolumeAccess:  "Any",
 			Topology:      "Ignored",
 			Zones:         []string{},
 		},
