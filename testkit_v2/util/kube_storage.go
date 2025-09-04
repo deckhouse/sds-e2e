@@ -639,7 +639,7 @@ func (cluster *KCluster) GetPVC(name, nameSpace string) (*v1.PersistentVolumeCla
 	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
 	defer cancel()
 
-	err := cluster.controllerRuntimeClient.Get(cwt, ctrlrtclient.ObjectKey{Name: name, Namespace: nameSpace}, pvc)
+	pvc, err := cluster.goClient.CoreV1().PersistentVolumeClaims(nameSpace).Get(cwt, name, metav1.GetOptions{})
 	if err != nil {
 		return pvc, err
 	}

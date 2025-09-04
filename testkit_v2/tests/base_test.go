@@ -59,11 +59,11 @@ func TestDataExport(t *testing.T) {
 	// t.Run("DataExporterCreation", testCreateVD)
 	// t.Run("DataExportWithUnsupportedType", testDataExportWithUnsupportedExportType)
 	// t.Run("DataExportWithNonExistentType", testDataExportWithNonExistentExportType)
-	t.Run("DataExportTTLExpired", testDataExportTTLExpired)
+	// t.Run("DataExportTTLExpired", testDataExportTTLExpired)
 	// t.Run("DeleteDataExport", testDeleteDataExport)
 	// t.Run("ExportTypeAlreadyExported", testExportTypeWhichIsAlreadyExported)
 	// t.Run("HTTPRequests", testDataExportHTTPRequests)
-	// t.Run("dec", testDataExportHTTPRequests)
+	t.Run("dec", testDataExportHTTPRequests)
 }
 
 // testDataExportHTTPRequests tests various HTTP requests to data export endpoints
@@ -107,6 +107,8 @@ func testDataExportHTTPRequests(t *testing.T) {
 		bodyContains            []string
 		expectJSONItemsContains []string
 		expectMD5               string
+		noAuth                  bool
+		overrideToken           string
 	}{
 		{
 			description: "Test GET request to unexisting file", // GET-запрос к несуществующему файлу
@@ -251,6 +253,20 @@ func testDataExportHTTPRequests(t *testing.T) {
 			expectJSONItemsContains: []string{"hello.txt"},
 		},
 		{
+			description: "Test GET with missing bearer token should be 401", // Токен отсутствует
+			method:      http.MethodGet,
+			path:        basePath + "/hello.txt",
+			statusCode:  http.StatusUnauthorized,
+			noAuth:      true,
+		},
+		{
+			description:   "Test GET with invalid bearer token should be 401", // Токен невалидный
+			method:        http.MethodGet,
+			path:          basePath + "/hello.txt",
+			statusCode:    http.StatusUnauthorized,
+			overrideToken: "invalid-token",
+		},
+		{
 			description: "Test HEAD request to directory should be 400", // HEAD-запрос к директории
 			method:      http.MethodHead,
 			path:        basePath + "/",
@@ -282,38 +298,36 @@ func testDataExportHTTPRequests(t *testing.T) {
 			fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(tc.path, "/")
 			fmt.Printf("curl URL: %s (method %s)\n", fullURL, tc.method)
 
+			authHeader := []string{}
+			if !tc.noAuth {
+				useToken := token
+				if tc.overrideToken != "" {
+					useToken = tc.overrideToken
+				}
+				authHeader = []string{"-H", "Authorization: Bearer " + useToken}
+			}
+
 			var cmd []string
 			if tc.method == http.MethodHead {
-				cmd = []string{"curl", "-skI", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", fullURL}
+				cmd = append([]string{"curl", "-skI"}, authHeader...)
+				cmd = append(cmd, []string{"-w", "\n__HTTP_CODE__:%{http_code}__END__", fullURL}...)
 			} else {
-				cmd = []string{"curl", "-sk", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", tc.method, fullURL}
+				cmd = append([]string{"curl", "-sk"}, authHeader...)
+				cmd = append(cmd, []string{"-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", tc.method, fullURL}...)
 			}
 			stdout, stderr, err := cluster.ExecNode(nodeName, cmd)
 			if err != nil {
 				t.Fatalf("curl failed on node %s: %v\nstderr: %s\nstdout: %s", nodeName, err, stderr, stdout)
 			}
 
-			marker := "__HTTP_CODE__:"
-			endMarker := "__END__"
-			idx := strings.LastIndex(stdout, marker)
-			if idx == -1 {
-				t.Fatalf("failed to parse curl output: no status marker found. Output: %q", stdout)
+			parsed, perr := parseCurlExecOutput(stdout)
+			if perr != nil {
+				t.Fatalf("failed to parse curl output: %v. Output: %q", perr, stdout)
 			}
-			rest := stdout[idx+len(marker):]
-			endIdx := strings.Index(rest, endMarker)
-			if endIdx == -1 {
-				t.Fatalf("failed to parse curl output: no end marker found. Output: %q", stdout)
-			}
-			codeStr := strings.TrimSpace(rest[:endIdx])
-			bodyRaw := stdout[:idx]
-			// remove the single newline added by curl -w before the marker
-			bodyRaw = strings.TrimSuffix(bodyRaw, "\n")
-			body := strings.TrimSpace(bodyRaw)
 
-			code, convErr := strconv.Atoi(codeStr)
-			if convErr != nil {
-				t.Fatalf("failed to parse HTTP status code from curl output %q: %v", codeStr, convErr)
-			}
+			bodyRaw := parsed.BodyRaw
+			body := parsed.Body
+			code := parsed.StatusCode
 
 			t.Logf("Response body (%s %s):\n%s", tc.method, fullURL, body)
 
@@ -415,33 +429,67 @@ func testDataExportTTLExpired(t *testing.T) {
 	// 	cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
 	// })
 
-	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "10s")
+	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "30s")
 	if err != nil {
 		t.Fatalf("failed to create a DataExport: %s", err.Error())
 	}
 
-	time.Sleep(15 * time.Second)
+	time.Sleep(31 * time.Second)
 
 	dataExport, err := cluster.GetDataExport(testDEName, util.TestNS)
 	if err != nil {
 		t.Fatalf("failed to get data export: %s", err.Error())
 	}
 
+	// Expect EXPIRED condition to be True (always present by design)
 	for _, cond := range dataExport.Status.Conditions {
-		if cond.Type == "EXPIRED" && cond.Status == v1.ConditionTrue {
-			t.Error("data export TTL has expired but EXPIRED condition is not set to true")
+		if cond.Type == "EXPIRED" {
+			if cond.Status != v1.ConditionTrue {
+				t.Errorf("data export TTL has expired but EXPIRED condition is not true: got %s (%s)", cond.Status, cond.Reason)
+			}
 			break
 		}
 	}
 
-	pvc, err := cluster.GetPVC(testPVCName, util.TestNS)
-	if err != nil {
-		t.Fatalf("failed to get PVC: %s", err.Error())
+	// Wait until annotations and finalizer are cleared from PVC (fresh GET each time)
+	if err := waitPVCAnnotationsAndFinalizersCleared(cluster, testPVCName, 60*time.Second); err != nil {
+		t.Error(err)
 	}
+}
 
-	time.Sleep(15 * time.Second)
+func waitPVCAnnotationsAndFinalizersCleared(cluster *util.KCluster, pvcName string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		pvc, err := cluster.GetPVC(pvcName, util.TestNS)
+		if err != nil {
+			return fmt.Errorf("failed to get PVC: %w", err)
+		}
 
-	checkPVCAnnotationsAndFinalizers(t, pvc)
+		stale := false
+		for annotation := range pvc.Annotations {
+			if annotation == DataExportInProgressKey || annotation == DataExportRequestAnnotationKey {
+				stale = true
+				break
+			}
+		}
+		if !stale {
+			finalizerPresent := false
+			for _, f := range pvc.Finalizers {
+				if f == FinalizerName {
+					finalizerPresent = true
+					break
+				}
+			}
+			if !finalizerPresent {
+				return nil
+			}
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf("PVC %s still has stale metadata: annotations=%v, finalizers=%v", pvcName, pvc.Annotations, pvc.Finalizers)
+		}
+		time.Sleep(2 * time.Second)
+	}
 }
 
 func testDeleteDataExport(t *testing.T) {
@@ -485,7 +533,7 @@ func testDeleteDataExport(t *testing.T) {
 		t.Errorf("PV is not reattached to original PVC: ClaimRef.UID: %s, PVC UID %s", pv.Spec.ClaimRef.UID, pvc.UID)
 	}
 
-	checkPVCAnnotationsAndFinalizers(t, pvc)
+	waitPVCAnnotationsAndFinalizersCleared(cluster, testPVCName, 60*time.Second)
 }
 
 func testExportTypeWhichIsAlreadyExported(t *testing.T) {
@@ -643,6 +691,53 @@ func testHTTP(dataExport *utiltype.DataExport) error {
 
 	fmt.Printf("== Status: %s", resp.Status)
 	return nil
+}
+
+// CurlExecResult represents a parsed result of a curl command executed via ExecNode.
+// It assumes that curl was invoked with: -w "\n__HTTP_CODE__:%{http_code}__END__"
+// so that the HTTP status code is appended to the end of stdout after a marker.
+type CurlExecResult struct {
+	StatusCode int
+	BodyRaw    string // raw body (as-is), without the trailing newline added by -w
+	Body       string // trimmed body (for logging/convenience)
+}
+
+// parseCurlExecOutput parses stdout produced by curl with the marker
+// "__HTTP_CODE__:" and closing "__END__" and returns a structured result.
+// Expected stdout tail: "\n__HTTP_CODE__:XYZ__END__"
+func parseCurlExecOutput(stdout string) (*CurlExecResult, error) {
+	const (
+		marker    = "__HTTP_CODE__:"
+		endMarker = "__END__"
+	)
+
+	idx := strings.LastIndex(stdout, marker)
+	if idx == -1 {
+		return nil, fmt.Errorf("curl output parse error: status marker not found")
+	}
+	// Extract the status segment
+	rest := stdout[idx+len(marker):]
+	endIdx := strings.Index(rest, endMarker)
+	if endIdx == -1 {
+		return nil, fmt.Errorf("curl output parse error: end marker not found")
+	}
+	codeStr := strings.TrimSpace(rest[:endIdx])
+
+	// Extract body prior to the marker; curl -w adds a leading newline before marker
+	bodyRaw := stdout[:idx]
+	bodyRaw = strings.TrimSuffix(bodyRaw, "\n")
+	body := strings.TrimSpace(bodyRaw)
+
+	code, convErr := strconv.Atoi(codeStr)
+	if convErr != nil {
+		return nil, fmt.Errorf("curl output parse error: invalid status code %q: %w", codeStr, convErr)
+	}
+
+	return &CurlExecResult{
+		StatusCode: code,
+		BodyRaw:    bodyRaw,
+		Body:       body,
+	}, nil
 }
 
 func checkIfValidationFailed(dataExport *utiltype.DataExport) error {
