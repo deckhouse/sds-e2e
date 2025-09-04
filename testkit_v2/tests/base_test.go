@@ -52,6 +52,7 @@ const (
 	FinalizerName = "storage.deckhouse.io/data-exporter-controller"
 
 	HelloFileMD5 = "40375e146b382bc870c143b4b5aa2cbd"
+	tokenTTL     = 24 * 60 * 60
 )
 
 // TestDataExport runs all data export related tests
@@ -63,16 +64,468 @@ func TestDataExport(t *testing.T) {
 	// t.Run("DeleteDataExport", testDeleteDataExport)
 	// t.Run("ExportTypeAlreadyExported", testExportTypeWhichIsAlreadyExported)
 	// t.Run("HTTPRequests", testDataExportHTTPRequests)
-	t.Run("dec", testDataExportHTTPRequests)
+	t.Run("dec", testDataExportAuth)
+}
+
+// testDataExportRoutingValidation: базовая маршрутизация и валидация путей
+func testDataExportRoutingValidation(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	dataExport, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	baseURL := dataExport.Status.Url
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files", dataExport.Namespace, PVCShortType, dataExport.Spec.TargetRef.Name)
+	baseBlockPath := fmt.Sprintf("%s/%s/%s/api/v1/block", dataExport.Namespace, PVCShortType, dataExport.Spec.TargetRef.Name)
+
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, tokenTTL)
+	if err != nil {
+		t.Fatalf("Failed to create auth token: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		path     string
+		expected int
+	}{
+		{
+			name:     "GET incorrect route should be 404",
+			path:     baseURL + "wrong/path",
+			expected: http.StatusNotFound,
+		},
+		{
+			name:     "GET /files should be 400",
+			path:     baseURL + basePath,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "GET /block should be 400",
+			path:     baseURL + baseBlockPath,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "GET /block/ should be 400",
+			path:     baseURL + baseBlockPath + "/",
+			expected: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-sk", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", http.MethodGet, tt.path}
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("Failed to parse curl output: %v", err)
+			}
+
+			if res.StatusCode != tt.expected {
+				t.Errorf("Expected status %d, got %d", tt.expected, res.StatusCode)
+			}
+		})
+	}
+}
+
+// testDataExportAuth: аутентификация
+func testDataExportAuth(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	de, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files/hello.txt", de.Namespace, PVCShortType, de.Spec.TargetRef.Name)
+	url := de.Status.Url + basePath
+
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	tests := []struct {
+		name     string
+		token    string
+		expected int
+	}{
+		{
+			name:     "GET request with missing bearer should return 401",
+			token:    "",
+			expected: http.StatusUnauthorized,
+		},
+		{
+			name:     "GET request with invalid bearer should return 401",
+			token:    "invalid-token",
+			expected: http.StatusUnauthorized,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-sk", "-H", "Authorization: Bearer " + tt.token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", http.MethodGet, url}
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("Failed to parse curl output: %v", err)
+			}
+
+			if res.StatusCode != tt.expected {
+				t.Errorf("Expected status %d, got %d", tt.expected, res.StatusCode)
+			}
+		})
+	}
+}
+
+// testDataExportFilesContent: файлы (контент)
+func testDataExportFilesContent(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	// Создание DataExport
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	// Ожидание готовности URL
+	de, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	// Подготовка базового пути
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files/hello.txt", de.Namespace, PVCShortType, de.Spec.TargetRef.Name)
+	url := de.Status.Url + basePath
+
+	// Получение первого узла
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	// Создание токена
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, 24*60*60)
+	if err != nil {
+		t.Fatalf("Failed to create auth token: %v", err)
+	}
+
+	// Тестовые случаи
+	tests := []struct {
+		name               string
+		extectedStatusCode int
+		expectMD5          string
+	}{
+		{
+			name:               "GET existing file with md5",
+			extectedStatusCode: http.StatusOK,
+			expectMD5:          HelloFileMD5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-sk", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", http.MethodGet, url}
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("error parsing curl exec output: %v", err)
+			}
+
+			if res.StatusCode != tt.extectedStatusCode {
+				t.Errorf("Expected status %d, got %d", tt.extectedStatusCode, res.StatusCode)
+			}
+
+			hash := md5.Sum([]byte(res.Body))
+			if gotMD5 := hex.EncodeToString(hash[:]); gotMD5 != tt.expectMD5 {
+				t.Errorf("MD5 mismatch: expected %s, got %s", tt.expectMD5, gotMD5)
+			}
+		})
+	}
+}
+
+// testDataExportFilesHeaders: файлы (метаданные/заголовки)
+func testDataExportFilesHeaders(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	de, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files/hello.txt", de.Namespace, PVCShortType, de.Spec.TargetRef.Name)
+	url := de.Status.Url + basePath
+
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, 24*60*60)
+	if err != nil {
+		t.Fatalf("Failed to create auth token: %v", err)
+	}
+
+	tests := []struct {
+		name              string
+		expectedStatus    int
+		expectedHeader    string
+		expectedHeaderVal string
+	}{
+		{
+			name:              "HEAD existing file returns Content-Length",
+			expectedStatus:    http.StatusOK,
+			expectedHeader:    "Content-Length",
+			expectedHeaderVal: "9",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-skI", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", url}
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("Failed to parse curl output: %v", err)
+			}
+
+			if res.StatusCode != tt.expectedStatus {
+				t.Errorf("Expected status %d, got %d", tt.expectedStatus, res.StatusCode)
+			}
+
+			val, found := findHeader(res.Headers, tt.expectedHeader)
+			if !found {
+				t.Errorf("Header %s not found", tt.expectedHeader)
+			} else if val != tt.expectedHeaderVal {
+				t.Errorf("%s mismatch: expected %s, got %s", tt.expectedHeader, tt.expectedHeaderVal, val)
+			}
+		})
+	}
+}
+
+// testDataExportDirectoriesGroup: директории
+func testDataExportDirectoriesGroup(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	de, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files/", de.Namespace, PVCShortType, de.Spec.TargetRef.Name)
+	url := de.Status.Url + basePath
+
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, 24*60*60)
+	if err != nil {
+		t.Fatalf("Failed to create auth token: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		method   string
+		expected int
+		checkDir bool
+	}{
+		{
+			name:     "GET directory lists hello.txt",
+			method:   http.MethodGet,
+			expected: http.StatusOK,
+			checkDir: true,
+		},
+		{
+			name:     "HEAD directory returns 400",
+			method:   http.MethodHead,
+			expected: http.StatusBadRequest,
+			checkDir: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-sk"}
+			if tt.method == http.MethodHead {
+				args = append(args, "-I")
+			} else {
+				args = append(args, "-X", tt.method)
+			}
+			args = append(args, "-H", "Authorization: Bearer "+token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", url)
+
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("Failed to parse curl output: %v", err)
+			}
+
+			if res.StatusCode != tt.expected {
+				t.Errorf("Expected status %d, got %d", tt.expected, res.StatusCode)
+			}
+
+			if tt.checkDir {
+				var obj struct {
+					Items []struct {
+						Name string `json:"name"`
+					} `json:"items"`
+				}
+				if err := json.Unmarshal([]byte(res.Body), &obj); err != nil {
+					t.Fatalf("Failed to parse JSON: %v", err)
+				}
+				if len(obj.Items) != 1 || obj.Items[0].Name != "hello.txt" {
+					t.Errorf("Expected directory listing with one file 'hello.txt', got %v", obj.Items)
+				}
+			}
+		})
+	}
+}
+
+// testDataExportMethodNotAllowedGroup: недопустимые методы
+func testDataExportMethodNotAllowedGroup(t *testing.T) {
+	cluster := util.EnsureCluster("", "")
+	t.Cleanup(func() {
+		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	})
+
+	if err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h"); err != nil {
+		t.Fatalf("Failed to create DataExport: %v", err)
+	}
+
+	de, err := cluster.WaitDataExportURLReady(testDEName)
+	if err != nil {
+		t.Fatalf("Failed waiting for DataExport URL: %v", err)
+	}
+
+	basePath := fmt.Sprintf("%s/%s/%s/api/v1/files/hello.txt", de.Namespace, PVCShortType, de.Spec.TargetRef.Name)
+	url := de.Status.Url + basePath
+
+	nodes, err := cluster.ListNode()
+	if err != nil || len(nodes) == 0 {
+		t.Fatalf("Failed to list nodes: %v", err)
+	}
+	nodeName := nodes[0].Name
+
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, 24*60*60)
+	if err != nil {
+		t.Fatalf("Failed to create auth token: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		method   string
+		expected int
+	}{
+		{
+			name:     "POST should be 405",
+			method:   http.MethodPost,
+			expected: http.StatusMethodNotAllowed,
+		},
+		{
+			name:     "PUT should be 405",
+			method:   http.MethodPut,
+			expected: http.StatusMethodNotAllowed,
+		},
+		{
+			name:     "PATCH should be 405",
+			method:   http.MethodPatch,
+			expected: http.StatusMethodNotAllowed,
+		},
+		{
+			name:     "DELETE should be 405",
+			method:   http.MethodDelete,
+			expected: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := []string{"curl", "-sk", "-H", "Authorization: Bearer " + token, "-w", "\n__HTTP_CODE__:%{http_code}__END__", "-X", tt.method, url}
+			stdout, stderr, err := cluster.ExecNode(nodeName, args)
+			if err != nil {
+				t.Fatalf("Curl failed: %v, stderr: %s, stdout: %s", err, stderr, stdout)
+			}
+
+			res, err := parseCurlExecOutput(stdout)
+			if err != nil {
+				t.Fatalf("Failed to parse curl output: %v", err)
+			}
+
+			if res.StatusCode != tt.expected {
+				t.Errorf("Expected status %d, got %d", tt.expected, res.StatusCode)
+			}
+		})
+	}
 }
 
 // testDataExportHTTPRequests tests various HTTP requests to data export endpoints
 func testDataExportHTTPRequests(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
-	t.Cleanup(func() {
-		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
-	})
+	// t.Cleanup(func() {
+	// 	cleanupDataExport(cluster, testDEName, testPVCName, testPodName)
+	// })
 
 	err := CreateDataExportWithPVC(cluster, testPodName, testPVCName, testDEName, "2h")
 	if err != nil {
@@ -285,7 +738,7 @@ func testDataExportHTTPRequests(t *testing.T) {
 	nodeName := nodes[0].Name
 
 	// Obtain bearer token to access data-exporter
-	token, err := cluster.CreateDataExporterBearer("e2e-user", 24*60*60)
+	token, err := cluster.CreateAuthToken("e2e-user", util.TestNS, 24*60*60)
 	if err != nil {
 		t.Fatalf("failed to create bearer token: %s", err.Error())
 	}
@@ -295,7 +748,7 @@ func testDataExportHTTPRequests(t *testing.T) {
 			t.Parallel()
 
 			fmt.Printf("baseURL+tc.path: %s%s\n", baseURL, tc.path)
-			fullURL := strings.TrimRight(baseURL, "/") + "/" + strings.TrimLeft(tc.path, "/")
+			fullURL := baseURL + tc.path
 			fmt.Printf("curl URL: %s (method %s)\n", fullURL, tc.method)
 
 			authHeader := []string{}
@@ -700,6 +1153,7 @@ type CurlExecResult struct {
 	StatusCode int
 	BodyRaw    string // raw body (as-is), without the trailing newline added by -w
 	Body       string // trimmed body (for logging/convenience)
+	Headers    string // raw headers (as-is), without the trailing newline added by -w
 }
 
 // parseCurlExecOutput parses stdout produced by curl with the marker
@@ -715,7 +1169,7 @@ func parseCurlExecOutput(stdout string) (*CurlExecResult, error) {
 	if idx == -1 {
 		return nil, fmt.Errorf("curl output parse error: status marker not found")
 	}
-	// Extract the status segment
+
 	rest := stdout[idx+len(marker):]
 	endIdx := strings.Index(rest, endMarker)
 	if endIdx == -1 {
@@ -723,7 +1177,6 @@ func parseCurlExecOutput(stdout string) (*CurlExecResult, error) {
 	}
 	codeStr := strings.TrimSpace(rest[:endIdx])
 
-	// Extract body prior to the marker; curl -w adds a leading newline before marker
 	bodyRaw := stdout[:idx]
 	bodyRaw = strings.TrimSuffix(bodyRaw, "\n")
 	body := strings.TrimSpace(bodyRaw)
@@ -737,7 +1190,18 @@ func parseCurlExecOutput(stdout string) (*CurlExecResult, error) {
 		StatusCode: code,
 		BodyRaw:    bodyRaw,
 		Body:       body,
+		Headers:    bodyRaw,
 	}, nil
+}
+
+func findHeader(headers, headerName string) (string, bool) {
+	for _, line := range strings.Split(headers, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(line), strings.ToLower(headerName)+":") {
+			return strings.TrimSpace(line[len(headerName)+1:]), true
+		}
+	}
+	return "", false
 }
 
 func checkIfValidationFailed(dataExport *utiltype.DataExport) error {

@@ -138,33 +138,51 @@ func NewKubeDyClient(cfg *rest.Config) (*dynamic.DynamicClient, error) {
 	return cl, nil
 }
 
-// CreateDataExporterBearer creates a ServiceAccount and ClusterRoleBinding, then issues a token
+// CreateAuthToken creates a ServiceAccount and ClusterRoleBinding, then issues a token
 // for use as Bearer in HTTP requests. Token TTL is in seconds.
-func (cluster *KCluster) CreateDataExporterBearer(userName string, ttlSeconds int64) (string, error) {
-	ns := "test-e2e"
-
-	sa := &coreapi.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: userName, Namespace: ns}}
+func (cluster *KCluster) CreateAuthToken(userName, namespace string, ttlSeconds int64) (string, error) {
+	sa := &coreapi.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userName,
+			Namespace: namespace,
+		},
+	}
 	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, sa); err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", fmt.Errorf("create SA: %w", err)
+		return "", fmt.Errorf("error creating ServiceAccount: %w", err)
 	}
 
-	crbName := "data-exporter-binding-" + userName
-	crb := &rbacv1.ClusterRoleBinding{
-		ObjectMeta: metav1.ObjectMeta{Name: crbName},
-		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: "cluster-admin"},
-		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Name: userName, Namespace: ns}},
+	clusterRoleBindingName := userName + "-role-binding"
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterRoleBindingName,
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "cluster-admin",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind: "ServiceAccount",
+				Name: userName,
+				Namespace: namespace,
+			},
+		},
 	}
-	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, crb); err != nil && !apierrors.IsAlreadyExists(err) {
-		return "", fmt.Errorf("create CRB: %w", err)
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, clusterRoleBinding); err != nil && !apierrors.IsAlreadyExists(err) {
+		return "", fmt.Errorf("error creating ClusterRoleBinding: %w", err)
 	}
 
-	exp := ttlSeconds
-	tr := &authv1.TokenRequest{Spec: authv1.TokenRequestSpec{ExpirationSeconds: &exp}}
-	tok, err := cluster.goClient.CoreV1().ServiceAccounts(ns).CreateToken(cluster.ctx, userName, tr, metav1.CreateOptions{})
+	tokenRequest := &authv1.TokenRequest{
+		Spec: authv1.TokenRequestSpec{
+			ExpirationSeconds: &ttlSeconds,
+		},
+	}
+	token, err := cluster.goClient.CoreV1().ServiceAccounts(namespace).CreateToken(cluster.ctx, userName, tokenRequest, metav1.CreateOptions{})
 	if err != nil {
-		return "", fmt.Errorf("create token: %w", err)
+		return "", fmt.Errorf("error creating token: %w", err)
 	}
-	return tok.Status.Token, nil
+	return token.Status.Token, nil
 }
 
 /*  Kuber Cluster object  */
