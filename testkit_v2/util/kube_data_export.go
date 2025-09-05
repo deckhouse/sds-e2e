@@ -146,13 +146,11 @@ func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) erro
 				{
 					Name:    "writer",
 					Image:   "busybox:1.36",
-					Command: []string{"sh", "-c", "printf 'Hello d8!' > /data/hello.txt && printf 'deny' > /data/locked.txt && chmod 000 /data/locked.txt && mkdir -p /data/secret && chmod 000 /data/secret && ln -sf /etc/hosts /data/hosts_symlink && sleep 3600"},
-					VolumeMounts: []v1.VolumeMount{
-						{
-							Name:      "storage",
-							MountPath: "/data",
-						},
-					},
+					Command: []string{"sh", "-c", "dd if=/dev/zero of=/dev/block-volume bs=1M count=1; sleep 3600"},
+					VolumeDevices: []v1.VolumeDevice{{
+						Name:       "storage",
+						DevicePath: "/dev/block-volume",
+					}},
 				},
 			},
 			Volumes: []v1.Volume{

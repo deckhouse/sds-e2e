@@ -9,7 +9,7 @@ import (
 )
 
 // TestStorageVolumeDataManagerBlock covers block-device HTTP API basic flows
-func TestStorageVolumeDataManagerBlock(t *testing.T) {
+func TestStorageVolumeDataManagerBlockk(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 	t.Cleanup(func() {
 		cleanupDataExport(cluster, testDEName, testPVCName, testPodName)

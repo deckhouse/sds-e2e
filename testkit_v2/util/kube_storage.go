@@ -496,7 +496,7 @@ func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.
 		return nil, err
 	}
 	resourceList[coreapi.ResourceStorage] = sizeStorage
-	volMode := coreapi.PersistentVolumeFilesystem
+	volMode := coreapi.PersistentVolumeBlock
 
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
