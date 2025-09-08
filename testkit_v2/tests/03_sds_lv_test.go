@@ -39,7 +39,7 @@ func testPVCCreate(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 	_, _ = cluster.CreateLocalThickStorageClass(scName)
 
-	pvc, err := cluster.CreatePVCInTestNS("test-pvc", scName, "1Gi")
+	pvc, err := cluster.CreatePVCInTestNS("test-pvc", scName, "1Gi", false)
 	if err != nil {
 		t.Fatal(err)
 	}

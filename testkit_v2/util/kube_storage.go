@@ -484,7 +484,7 @@ func (cluster *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim
 	return pvcList.Items, nil
 }
 
-func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
+func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string, useBlock bool) (*coreapi.PersistentVolumeClaim, error) {
 	_, err := cluster.EnsureStorageClass(scName)
 	if err != nil {
 		return nil, err
@@ -496,7 +496,10 @@ func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.
 		return nil, err
 	}
 	resourceList[coreapi.ResourceStorage] = sizeStorage
-	volMode := coreapi.PersistentVolumeBlock
+	volMode := coreapi.PersistentVolumeFilesystem
+	if useBlock {
+		volMode = coreapi.PersistentVolumeBlock
+	}
 
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{

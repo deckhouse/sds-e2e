@@ -127,7 +127,7 @@ func (clr *KCluster) WaitDataExportURLReady(name string) (*utiltype.DataExport, 
 	return dataExport, nil
 }
 
-func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) error {
+func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string, useBlock bool) error {
 	if namespace == "" {
 		namespace = TestNS
 	}
@@ -142,17 +142,7 @@ func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) erro
 			Namespace: namespace,
 		},
 		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:    "writer",
-					Image:   "busybox:1.36",
-					Command: []string{"sh", "-c", "dd if=/dev/zero of=/dev/block-volume bs=1M count=1; sleep 3600"},
-					VolumeDevices: []v1.VolumeDevice{{
-						Name:       "storage",
-						DevicePath: "/dev/block-volume",
-					}},
-				},
-			},
+			Containers: []v1.Container{},
 			Volumes: []v1.Volume{
 				{
 					Name: "storage",
@@ -165,6 +155,26 @@ func (cluster *KCluster) CreateDummyPod(podName, namespace, pvcName string) erro
 			},
 		},
 	}
+
+	// Build container explicitly without anonymous functions
+	container := v1.Container{
+		Name:  "writer",
+		Image: "busybox:1.36",
+	}
+	if useBlock {
+		container.Command = []string{"sh", "-c", "dd if=/dev/zero of=/dev/block-volume bs=1M count=1; sleep 3600"}
+		container.VolumeDevices = []v1.VolumeDevice{{
+			Name:       "storage",
+			DevicePath: "/dev/block-volume",
+		}}
+	} else {
+		container.Command = []string{"sh", "-c", "printf 'Hello d8!' > /data/hello.txt && printf 'deny' > /data/locked.txt && chmod 000 /data/locked.txt && mkdir -p /data/secret && chmod 000 /data/secret && ln -sf /etc/hosts /data/hosts_symlink && sleep 3600"}
+		container.VolumeMounts = []v1.VolumeMount{{
+			Name:      "storage",
+			MountPath: "/data",
+		}}
+	}
+	pod.Spec.Containers = []v1.Container{container}
 
 	cwt, cancel := context.WithTimeout(cluster.ctx, 5*time.Second)
 	defer cancel()
