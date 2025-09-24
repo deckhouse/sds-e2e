@@ -1,0 +1,352 @@
+name: CI - Main Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'testkit_v2/**'
+      - 'images/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'testkit_v2/**'
+      - 'images/**'
+  schedule:
+    - cron: '0 2 * * 1'  # Еженедельные полные тесты в понедельник в 2:00 UTC
+  workflow_dispatch:
+    inputs:
+      module:
+        description: 'Модуль для тестирования'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sds-replicated-volume
+          - sds-node-configurator
+          - data-export
+      environment:
+        description: 'Тестовая среда'
+        required: true
+        default: 'bare-metal'
+        type: choice
+        options:
+          - bare-metal
+          - hypervisor
+          - local
+      test_type:
+        description: 'Тип тестов'
+        required: true
+        default: 'smoke'
+        type: choice
+        options:
+          - smoke
+          - integration
+          - full
+
+env:
+  GO_VERSION: '1.22'
+  TEST_TIMEOUT: '30m'
+  PARALLEL_JOBS: 4
+
+jobs:
+  # Проверка кода и линтинг
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: |
+          cd testkit_v2
+          go mod download
+
+      - name: Run go vet
+        run: |
+          cd testkit_v2
+          go vet ./...
+
+      - name: Run go fmt check
+        run: |
+          cd testkit_v2
+          if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+            echo "The following files are not formatted:"
+            gofmt -s -l .
+            exit 1
+          fi
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: testkit_v2
+          args: --timeout=5m
+
+  # Быстрые smoke тесты на GitHub-hosted runners
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: code-quality
+    if: github.event_name == 'push' || github.event.inputs.test_type == 'smoke'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [sds-replicated-volume, sds-node-configurator, data-export]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Run smoke tests
+        run: |
+          cd testkit_v2
+          go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+        env:
+          MODULE_UNDER_TEST: ${{ matrix.module }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: smoke-test-results-${{ matrix.module }}
+          path: testkit_v2/test-results/
+          retention-days: 7
+
+  # Интеграционные тесты на bare metal
+  integration-tests-bare-metal:
+    name: Integration Tests (Bare Metal)
+    runs-on: [self-hosted, bare-metal]
+    needs: code-quality
+    if: github.event_name == 'push' || github.event.inputs.environment == 'bare-metal'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [sds-replicated-volume, sds-node-configurator, data-export]
+        test_type: [integration, full]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup test environment
+        run: |
+          cd testkit_v2
+          mkdir -p ../../sds-e2e-cfg
+          echo "${{ secrets.KUBECONFIG_BARE_METAL }}" | base64 -d > ../../sds-e2e-cfg/kube-bare-metal.config
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+
+      - name: Run integration tests
+        run: |
+          cd testkit_v2
+          go test -v -timeout ${{ env.TEST_TIMEOUT }} ./tests/... \
+            -stand metal \
+            -verbose \
+            -debug \
+            -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+            -sshhost ${{ secrets.SSH_HOST }} \
+            -sshkey ../../sds-e2e-cfg/id_rsa_test \
+            -namespace test-e2e-${{ github.run_id }}-${{ matrix.module }} \
+            -run "Test.*${{ matrix.module }}.*"
+        env:
+          MODULE_UNDER_TEST: ${{ matrix.module }}
+          TEST_TYPE: ${{ matrix.test_type }}
+          LICENSE_KEY: ${{ secrets.DECKHOUSE_LICENSE }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-results-bare-metal-${{ matrix.module }}-${{ matrix.test_type }}
+          path: testkit_v2/test-results/
+          retention-days: 30
+
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          cd testkit_v2
+          # Cleanup namespace and resources
+          kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace test-e2e-${{ github.run_id }}-${{ matrix.module }} --ignore-not-found=true
+
+  # Интеграционные тесты на hypervisor
+  integration-tests-hypervisor:
+    name: Integration Tests (Hypervisor)
+    runs-on: [self-hosted, hypervisor]
+    needs: code-quality
+    if: github.event_name == 'push' || github.event.inputs.environment == 'hypervisor'
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [sds-replicated-volume, sds-node-configurator]
+        test_type: [integration, full]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup test environment
+        run: |
+          cd testkit_v2
+          mkdir -p ../../sds-e2e-cfg
+          echo "${{ secrets.KUBECONFIG_HYPERVISOR }}" | base64 -d > ../../sds-e2e-cfg/kube-hypervisor.config
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+
+      - name: Run hypervisor tests
+        run: |
+          cd testkit_v2
+          go test -v -timeout 60m ./tests/... \
+            -stand metal \
+            -verbose \
+            -debug \
+            -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+            -sshhost ${{ secrets.SSH_HOST }} \
+            -sshkey ../../sds-e2e-cfg/id_rsa_test \
+            -namespace test-e2e-${{ github.run_id }}-${{ matrix.module }} \
+            -run "Test.*${{ matrix.module }}.*"
+        env:
+          MODULE_UNDER_TEST: ${{ matrix.module }}
+          TEST_TYPE: ${{ matrix.test_type }}
+          LICENSE_KEY: ${{ secrets.DECKHOUSE_LICENSE }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-results-hypervisor-${{ matrix.module }}-${{ matrix.test_type }}
+          path: testkit_v2/test-results/
+          retention-days: 30
+
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          cd testkit_v2
+          # Cleanup virtual machines and resources
+          kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace test-e2e-${{ github.run_id }}-${{ matrix.module }} --ignore-not-found=true
+
+  # Сборка и публикация результатов
+  collect-results:
+    name: Collect Results
+    runs-on: ubuntu-latest
+    needs: [smoke-tests, integration-tests-bare-metal, integration-tests-hypervisor]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Generate test report
+        run: |
+          mkdir -p test-report
+          echo "# Test Results Summary" > test-report/README.md
+          echo "Generated at: $(date)" >> test-report/README.md
+          echo "" >> test-report/README.md
+          
+          # Count test results
+          find . -name "*.xml" -o -name "*.json" | wc -l > test-report/test-count.txt
+          
+          # Create summary
+          echo "## Test Summary" >> test-report/README.md
+          echo "- Total test artifacts: $(cat test-report/test-count.txt)" >> test-report/README.md
+          echo "- Smoke tests: $(find . -name "*smoke*" | wc -l)" >> test-report/README.md
+          echo "- Integration tests: $(find . -name "*integration*" | wc -l)" >> test-report/README.md
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report-summary
+          path: test-report/
+          retention-days: 90
+
+  # Уведомления
+  notify:
+    name: Notify Results
+    runs-on: ubuntu-latest
+    needs: [collect-results]
+    if: always() && (github.event_name == 'push' || github.event_name == 'pull_request')
+    steps:
+      - name: Notify Slack
+        if: failure() && secrets.SLACK_WEBHOOK
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#ci-alerts'
+          text: |
+            CI Pipeline failed for ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            Commit: ${{ github.sha }}
+            Workflow: ${{ github.workflow }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Notify on success
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          channel: '#ci-success'
+          text: |
+            CI Pipeline completed successfully for ${{ github.repository }}
+            Branch: ${{ github.ref }}
+            Commit: ${{ github.sha }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

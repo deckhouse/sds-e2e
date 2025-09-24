@@ -1,0 +1,373 @@
+# GitLab CI конфигурация для e2e тестирования модулей Deckhouse
+# Основной пайплайн с поддержкой кроссплатформенности
+
+stages:
+  - code-quality
+  - smoke-tests
+  - integration-tests
+  - reporting
+  - cleanup
+
+variables:
+  GIT_STRATEGY: clone
+  GIT_DEPTH: 0
+  GO_VERSION: "1.22"
+  TEST_TIMEOUT: "30m"
+  PARALLEL_JOBS: 4
+
+# Кэширование для ускорения сборки
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .cache/go-build/
+    - go/pkg/mod/
+
+# =============================================================================
+# CODE QUALITY
+# =============================================================================
+
+code_quality:
+  stage: code-quality
+  image: golang:1.22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - cd testkit_v2
+    - go mod download
+    - go vet ./...
+    - |
+      if [ "$(gofmt -s -l . | wc -l)" -gt 0 ]; then
+        echo "The following files are not formatted:"
+        gofmt -s -l .
+        exit 1
+      fi
+    - golangci-lint run --timeout=5m
+  artifacts:
+    reports:
+      junit: test-results/code-quality.xml
+    expire_in: 1 week
+
+# =============================================================================
+# SMOKE TESTS
+# =============================================================================
+
+smoke_tests:
+  stage: smoke-tests
+  image: golang:1.22
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  parallel:
+    matrix:
+      - MODULE: ["sds-replicated-volume", "sds-node-configurator", "data-export"]
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+  artifacts:
+    reports:
+      junit: test-results/smoke-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 week
+
+# =============================================================================
+# INTEGRATION TESTS - BARE METAL
+# =============================================================================
+
+integration_tests_bare_metal:
+  stage: integration-tests
+  image: golang:1.22
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  parallel:
+    matrix:
+      - MODULE: ["sds-replicated-volume", "sds-node-configurator", "data-export"]
+      - TEST_TYPE: ["integration", "full"]
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-${MODULE}"
+  before_script:
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  script:
+    - cd testkit_v2
+    - |
+      if [ "$MODULE" = "sds-replicated-volume" ]; then
+        go test -v -timeout 30m ./tests/... \
+          -stand metal \
+          -verbose \
+          -debug \
+          -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+          -sshhost $SSH_HOST \
+          -sshkey ../../sds-e2e-cfg/id_rsa_test \
+          -namespace $TEST_NAMESPACE \
+          -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+      elif [ "$MODULE" = "sds-node-configurator" ]; then
+        go test -v -timeout 30m ./tests/01_sds_nc_test.go \
+          -stand metal \
+          -verbose \
+          -debug \
+          -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+          -sshhost $SSH_HOST \
+          -sshkey ../../sds-e2e-cfg/id_rsa_test \
+          -namespace $TEST_NAMESPACE \
+          -run "TestLvg"
+      elif [ "$MODULE" = "data-export" ]; then
+        go test -v -timeout 30m ./tests/base_test.go \
+          -stand metal \
+          -verbose \
+          -debug \
+          -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+          -sshhost $SSH_HOST \
+          -sshkey ../../sds-e2e-cfg/id_rsa_test \
+          -namespace $TEST_NAMESPACE \
+          -run "TestDataExport/routing|TestDataExport/auth"
+      fi
+  after_script:
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+  artifacts:
+    reports:
+      junit: test-results/integration-bare-metal-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 month
+  timeout: 1h
+
+# =============================================================================
+# INTEGRATION TESTS - HYPERVISOR
+# =============================================================================
+
+integration_tests_hypervisor:
+  stage: integration-tests
+  image: golang:1.22
+  tags:
+    - hypervisor
+    - k8s-cluster
+    - virtualization
+    - nested-vm
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+  parallel:
+    matrix:
+      - MODULE: ["sds-replicated-volume", "sds-node-configurator"]
+      - TEST_TYPE: ["integration", "full"]
+  variables:
+    TEST_ENVIRONMENT: "hypervisor"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-${MODULE}"
+  before_script:
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  script:
+    - cd testkit_v2
+    - |
+      if [ "$MODULE" = "sds-replicated-volume" ]; then
+        go test -v -timeout 60m ./tests/... \
+          -stand metal \
+          -verbose \
+          -debug \
+          -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+          -sshhost $SSH_HOST \
+          -sshkey ../../sds-e2e-cfg/id_rsa_test \
+          -namespace $TEST_NAMESPACE \
+          -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+      elif [ "$MODULE" = "sds-node-configurator" ]; then
+        go test -v -timeout 60m ./tests/01_sds_nc_test.go \
+          -stand metal \
+          -verbose \
+          -debug \
+          -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+          -sshhost $SSH_HOST \
+          -sshkey ../../sds-e2e-cfg/id_rsa_test \
+          -namespace $TEST_NAMESPACE \
+          -run "TestLvg"
+      fi
+  after_script:
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+  artifacts:
+    reports:
+      junit: test-results/integration-hypervisor-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 month
+  timeout: 2h
+
+# =============================================================================
+# MANUAL TESTS
+# =============================================================================
+
+manual_tests:
+  stage: integration-tests
+  image: golang:1.22
+  tags:
+    - bare-metal
+    - k8s-cluster
+  when: manual
+  variables:
+    MODULE_UNDER_TEST: "all"
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_TYPE: "full"
+    TEST_NAMESPACE: "test-e2e-manual-${CI_PIPELINE_ID}"
+  before_script:
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/... \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE
+  after_script:
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+  artifacts:
+    reports:
+      junit: test-results/manual-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 month
+  timeout: 2h
+
+# =============================================================================
+# REPORTING
+# =============================================================================
+
+generate_report:
+  stage: reporting
+  image: alpine:latest
+  needs:
+    - job: smoke_tests
+      artifacts: true
+    - job: integration_tests_bare_metal
+      artifacts: true
+    - job: integration_tests_hypervisor
+      artifacts: true
+  script:
+    - apk add --no-cache jq
+    - mkdir -p test-report
+    - |
+      echo "# Test Results Summary" > test-report/README.md
+      echo "Generated at: $(date)" >> test-report/README.md
+      echo "" >> test-report/README.md
+      echo "## Pipeline Information" >> test-report/README.md
+      echo "- Pipeline ID: $CI_PIPELINE_ID" >> test-report/README.md
+      echo "- Commit: $CI_COMMIT_SHA" >> test-report/README.md
+      echo "- Branch: $CI_COMMIT_REF_NAME" >> test-report/README.md
+      echo "- Triggered by: $CI_PIPELINE_SOURCE" >> test-report/README.md
+      echo "" >> test-report/README.md
+      
+      # Count test results
+      TOTAL_TESTS=$(find . -name "*.xml" -type f | wc -l)
+      echo "## Test Summary" >> test-report/README.md
+      echo "- Total test artifacts: $TOTAL_TESTS" >> test-report/README.md
+      echo "- Smoke tests: $(find . -name "*smoke*" | wc -l)" >> test-report/README.md
+      echo "- Integration tests: $(find . -name "*integration*" | wc -l)" >> test-report/README.md
+      
+      # Create JSON summary
+      cat > test-report/summary.json << EOF
+      {
+        "pipeline_id": "$CI_PIPELINE_ID",
+        "commit_sha": "$CI_COMMIT_SHA",
+        "branch": "$CI_COMMIT_REF_NAME",
+        "triggered_by": "$CI_PIPELINE_SOURCE",
+        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+        "total_artifacts": $TOTAL_TESTS,
+        "smoke_tests": $(find . -name "*smoke*" | wc -l),
+        "integration_tests": $(find . -name "*integration*" | wc -l)
+      }
+      EOF
+  artifacts:
+    paths:
+      - test-report/
+    expire_in: 3 months
+
+# =============================================================================
+# NOTIFICATIONS
+# =============================================================================
+
+notify_slack:
+  stage: reporting
+  image: alpine:latest
+  needs:
+    - job: generate_report
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - apk add --no-cache curl jq
+    - |
+      if [ -n "$SLACK_WEBHOOK" ]; then
+        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"
+          COLOR="danger"
+        fi
+        
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"$STATUS: CI Pipeline for $CI_PROJECT_NAME\",
+            \"attachments\": [
+              {
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {
+                    \"title\": \"Pipeline\",
+                    \"value\": \"$CI_PIPELINE_ID\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Branch\",
+                    \"value\": \"$CI_COMMIT_REF_NAME\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Commit\",
+                    \"value\": \"$CI_COMMIT_SHA\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Triggered by\",
+                    \"value\": \"$CI_PIPELINE_SOURCE\",
+                    \"short\": true
+                  }
+                ]
+              }
+            ]
+          }" \
+          $SLACK_WEBHOOK
+      fi
+  when: always
+
+# =============================================================================
+# CLEANUP
+# =============================================================================
+
+cleanup:
+  stage: cleanup
+  image: alpine:latest
+  script:
+    - echo "Cleaning up temporary files and resources"
+    - rm -rf ../../sds-e2e-cfg/ || true
+  when: always
+  allow_failure: true

@@ -1,0 +1,230 @@
+name: Cleanup Test Environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: 'Test environment (bare-metal, hypervisor, local)'
+      namespace:
+        required: true
+        type: string
+        description: 'Test namespace to cleanup'
+      force_cleanup:
+        required: false
+        type: boolean
+        description: 'Force cleanup even if tests are still running'
+        default: false
+    secrets:
+      KUBECONFIG_BARE_METAL:
+        required: false
+      KUBECONFIG_HYPERVISOR:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
+      SSH_HOST:
+        required: false
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  cleanup-environment:
+    name: Cleanup Test Environment
+    runs-on: ${{ inputs.environment == 'local' && 'ubuntu-latest' || format('[{0}, {1}]', 'self-hosted', inputs.environment) }}
+    timeout-minutes: 15
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup environment
+        if: inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          mkdir -p ../../sds-e2e-cfg
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            echo "${{ secrets.KUBECONFIG_BARE_METAL }}" | base64 -d > ../../sds-e2e-cfg/kube-bare-metal.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            echo "${{ secrets.KUBECONFIG_HYPERVISOR }}" | base64 -d > ../../sds-e2e-cfg/kube-hypervisor.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+
+      - name: Check namespace status
+        if: inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          if kubectl --kubeconfig $KUBECONFIG_FILE get namespace ${{ inputs.namespace }} > /dev/null 2>&1; then
+            echo "namespace_exists=true" >> $GITHUB_ENV
+            echo "Namespace ${{ inputs.namespace }} exists"
+          else
+            echo "namespace_exists=false" >> $GITHUB_ENV
+            echo "Namespace ${{ inputs.namespace }} does not exist"
+          fi
+
+      - name: Force delete stuck resources
+        if: inputs.force_cleanup == true && inputs.environment != 'local' && env.namespace_exists == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "Force cleaning up stuck resources in namespace ${{ inputs.namespace }}"
+          
+          # Удаляем finalizers с застрявших ресурсов
+          kubectl --kubeconfig $KUBECONFIG_FILE patch pvc -n ${{ inputs.namespace }} --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+          kubectl --kubeconfig $KUBECONFIG_FILE patch pv --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+          kubectl --kubeconfig $KUBECONFIG_FILE patch lvg -n ${{ inputs.namespace }} --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+          kubectl --kubeconfig $KUBECONFIG_FILE patch lv -n ${{ inputs.namespace }} --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+          
+          # Удаляем застрявшие поды
+          kubectl --kubeconfig $KUBECONFIG_FILE delete pods -n ${{ inputs.namespace }} --force --grace-period=0 --all || true
+
+      - name: Cleanup hypervisor resources
+        if: inputs.environment == 'hypervisor' && env.namespace_exists == 'true'
+        run: |
+          cd testkit_v2
+          KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          
+          echo "Cleaning up hypervisor resources in namespace ${{ inputs.namespace }}"
+          
+          # Удаляем виртуальные машины
+          kubectl --kubeconfig $KUBECONFIG_FILE delete vm -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем виртуальные диски
+          kubectl --kubeconfig $KUBECONFIG_FILE delete vd -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем виртуальные блочные устройства
+          kubectl --kubeconfig $KUBECONFIG_FILE delete vmbd -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Ждем завершения удаления VM
+          kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete vm --all -n ${{ inputs.namespace }} --timeout=300s || true
+
+      - name: Cleanup storage resources
+        if: inputs.environment != 'local' && env.namespace_exists == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "Cleaning up storage resources in namespace ${{ inputs.namespace }}"
+          
+          # Удаляем PVC
+          kubectl --kubeconfig $KUBECONFIG_FILE delete pvc -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем LVM Volume Groups
+          kubectl --kubeconfig $KUBECONFIG_FILE delete lvg -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем LVM Logical Volumes
+          kubectl --kubeconfig $KUBECONFIG_FILE delete lv -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем Data Exports
+          kubectl --kubeconfig $KUBECONFIG_FILE delete dataexport -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Ждем завершения удаления PVC
+          kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete pvc --all -n ${{ inputs.namespace }} --timeout=300s || true
+
+      - name: Cleanup test pods and services
+        if: inputs.environment != 'local' && env.namespace_exists == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "Cleaning up test pods and services in namespace ${{ inputs.namespace }}"
+          
+          # Удаляем все поды
+          kubectl --kubeconfig $KUBECONFIG_FILE delete pods -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем все сервисы
+          kubectl --kubeconfig $KUBECONFIG_FILE delete services -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем все deployments
+          kubectl --kubeconfig $KUBECONFIG_FILE delete deployments -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Удаляем все statefulsets
+          kubectl --kubeconfig $KUBECONFIG_FILE delete statefulsets -n ${{ inputs.namespace }} --all --ignore-not-found=true || true
+          
+          # Ждем завершения удаления подов
+          kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete pods --all -n ${{ inputs.namespace }} --timeout=300s || true
+
+      - name: Delete namespace
+        if: inputs.environment != 'local' && env.namespace_exists == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "Deleting namespace ${{ inputs.namespace }}"
+          
+          # Удаляем namespace
+          kubectl --kubeconfig $KUBECONFIG_FILE delete namespace ${{ inputs.namespace }} --ignore-not-found=true || true
+          
+          # Ждем завершения удаления namespace
+          kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete namespace ${{ inputs.namespace }} --timeout=300s || true
+
+      - name: Cleanup local files
+        if: always()
+        run: |
+          cd testkit_v2
+          
+          # Удаляем временные файлы конфигурации
+          rm -rf ../../sds-e2e-cfg/ || true
+          
+          # Очищаем кэш Go
+          go clean -cache || true
+          
+          echo "Local cleanup completed"
+
+      - name: Verify cleanup
+        if: inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Проверяем, что namespace удален
+          if kubectl --kubeconfig $KUBECONFIG_FILE get namespace ${{ inputs.namespace }} > /dev/null 2>&1; then
+            echo "WARNING: Namespace ${{ inputs.namespace }} still exists"
+            exit 1
+          else
+            echo "SUCCESS: Namespace ${{ inputs.namespace }} has been cleaned up"
+          fi

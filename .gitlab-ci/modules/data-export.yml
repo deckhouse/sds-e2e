@@ -1,0 +1,219 @@
+# GitLab CI конфигурация для тестирования data-export модуля
+
+.data_export_template: &data_export_template
+  image: golang:1.22
+  variables:
+    MODULE_NAME: "data-export"
+  before_script:
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+    - echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  after_script:
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+  artifacts:
+    reports:
+      junit: test-results/data-export-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 month
+
+# Smoke тесты для data-export
+data_export_smoke:
+  <<: *data_export_template
+  stage: smoke-tests
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Базовые тесты data-export
+data_export_basic:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 30m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/routing|TestDataExport/auth"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Тесты контента data-export
+data_export_content:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export-content"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 45m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/files_content|TestDataExport/files_headers"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Продвинутые тесты data-export
+data_export_advanced:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export-advanced"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/directories|TestDataExport/methods_not_allowed|TestDataExport/block_mode"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 2h
+
+# TTL тесты data-export
+data_export_ttl:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export-ttl"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 45m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/ttl_expired"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Валидационные тесты data-export
+data_export_validation:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export-validation"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 30m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/export_type_already_exported|TestDataExport/unsupported_export_type|TestDataExport/nonexistent_export_type"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Hypervisor тесты data-export
+data_export_hypervisor:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - hypervisor
+    - k8s-cluster
+    - virtualization
+    - nested-vm
+  variables:
+    TEST_ENVIRONMENT: "hypervisor"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-data-export"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestDataExport/routing|TestDataExport/auth|TestDataExport/files_content"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 2h
+
+# Ручные тесты для data-export
+data_export_manual:
+  <<: *data_export_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-manual-${CI_PIPELINE_ID}-data-export"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/base_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE
+  when: manual
+  timeout: 2h

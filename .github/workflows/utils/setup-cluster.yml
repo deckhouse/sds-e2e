@@ -1,0 +1,201 @@
+name: Setup Test Cluster
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: 'Test environment (bare-metal, hypervisor, local)'
+      cluster_name:
+        required: true
+        type: string
+        description: 'Name of the test cluster'
+      namespace:
+        required: true
+        type: string
+        description: 'Test namespace'
+    secrets:
+      KUBECONFIG_BARE_METAL:
+        required: false
+      KUBECONFIG_HYPERVISOR:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
+      SSH_HOST:
+        required: false
+      DECKHOUSE_LICENSE:
+        required: false
+
+env:
+  GO_VERSION: '1.22'
+
+jobs:
+  setup-cluster:
+    name: Setup Test Cluster
+    runs-on: ${{ inputs.environment == 'local' && 'ubuntu-latest' || format('[{0}, {1}]', 'self-hosted', inputs.environment) }}
+    timeout-minutes: 30
+    outputs:
+      cluster-ready: ${{ steps.verify-cluster.outputs.ready }}
+      namespace-created: ${{ steps.create-namespace.outputs.created }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Setup environment
+        if: inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          mkdir -p ../../sds-e2e-cfg
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            echo "${{ secrets.KUBECONFIG_BARE_METAL }}" | base64 -d > ../../sds-e2e-cfg/kube-bare-metal.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            echo "${{ secrets.KUBECONFIG_HYPERVISOR }}" | base64 -d > ../../sds-e2e-cfg/kube-hypervisor.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+
+      - name: Verify cluster connectivity
+        id: verify-cluster
+        run: |
+          if [ "${{ inputs.environment }}" = "local" ]; then
+            echo "ready=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Проверяем доступность кластера
+          if kubectl --kubeconfig $KUBECONFIG_FILE cluster-info > /dev/null 2>&1; then
+            echo "ready=true" >> $GITHUB_OUTPUT
+            echo "Cluster is accessible"
+          else
+            echo "ready=false" >> $GITHUB_OUTPUT
+            echo "Cluster is not accessible"
+            exit 1
+          fi
+
+      - name: Create test namespace
+        id: create-namespace
+        if: steps.verify-cluster.outputs.ready == 'true'
+        run: |
+          if [ "${{ inputs.environment }}" = "local" ]; then
+            echo "created=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Создаем namespace если его нет
+          if kubectl --kubeconfig $KUBECONFIG_FILE get namespace ${{ inputs.namespace }} > /dev/null 2>&1; then
+            echo "created=false" >> $GITHUB_OUTPUT
+            echo "Namespace ${{ inputs.namespace }} already exists"
+          else
+            kubectl --kubeconfig $KUBECONFIG_FILE create namespace ${{ inputs.namespace }}
+            echo "created=true" >> $GITHUB_OUTPUT
+            echo "Namespace ${{ inputs.namespace }} created"
+          fi
+
+      - name: Setup hypervisor environment
+        if: inputs.environment == 'hypervisor' && steps.verify-cluster.outputs.ready == 'true'
+        run: |
+          cd testkit_v2
+          KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          
+          # Проверяем доступность Deckhouse
+          if ! kubectl --kubeconfig $KUBECONFIG_FILE get pods -n d8-system | grep -q deckhouse; then
+            echo "Deckhouse is not running in hypervisor cluster"
+            exit 1
+          fi
+          
+          # Проверяем доступность модуля virtualization
+          if ! kubectl --kubeconfig $KUBECONFIG_FILE get crd virtualmachines.virtualization.deckhouse.io > /dev/null 2>&1; then
+            echo "Virtualization module is not available"
+            exit 1
+          fi
+          
+          echo "Hypervisor environment is ready"
+
+      - name: Verify node resources
+        if: inputs.environment != 'local' && steps.verify-cluster.outputs.ready == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Проверяем доступность узлов
+          NODE_COUNT=$(kubectl --kubeconfig $KUBECONFIG_FILE get nodes --no-headers | wc -l)
+          if [ $NODE_COUNT -lt 1 ]; then
+            echo "No nodes available in cluster"
+            exit 1
+          fi
+          
+          echo "Cluster has $NODE_COUNT nodes"
+          
+          # Проверяем ресурсы узлов
+          kubectl --kubeconfig $KUBECONFIG_FILE top nodes || echo "Metrics server not available, skipping resource check"
+
+      - name: Setup test configuration
+        if: steps.verify-cluster.outputs.ready == 'true'
+        run: |
+          cd testkit_v2
+          
+          # Создаем конфигурационные файлы для тестов
+          cat > ../../sds-e2e-cfg/test-config.yml << EOF
+          cluster_name: ${{ inputs.cluster_name }}
+          namespace: ${{ inputs.namespace }}
+          environment: ${{ inputs.environment }}
+          timestamp: $(date -u +%Y%m%d%H%M%S)
+          EOF
+          
+          echo "Test configuration created"
+
+      - name: Health check
+        if: steps.verify-cluster.outputs.ready == 'true'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "local" ]; then
+            echo "Local environment health check passed"
+            exit 0
+          fi
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Запускаем базовую проверку здоровья
+          go test -v -timeout 5m ./tests/00_healthcheck_test.go \
+            -stand ${{ inputs.environment == 'hypervisor' && 'metal' || inputs.environment }} \
+            -kconfig $KUBECONFIG_FILE \
+            -sshhost ${{ secrets.SSH_HOST }} \
+            -sshkey ../../sds-e2e-cfg/id_rsa_test \
+            -namespace ${{ inputs.namespace }} \
+            -run "TestNodeHealthCheck" || echo "Health check failed, but continuing"

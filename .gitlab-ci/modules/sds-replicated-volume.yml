@@ -1,0 +1,165 @@
+# GitLab CI конфигурация для тестирования sds-replicated-volume модуля
+
+.sds_replicated_volume_template: &sds_replicated_volume_template
+  image: golang:1.22
+  variables:
+    MODULE_NAME: "sds-replicated-volume"
+  before_script:
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+    - echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  after_script:
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+    - kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+  artifacts:
+    reports:
+      junit: test-results/sds-replicated-volume-*.xml
+    paths:
+      - test-results/
+    expire_in: 1 month
+
+# Smoke тесты для sds-replicated-volume
+sds_replicated_volume_smoke:
+  <<: *sds_replicated_volume_template
+  stage: smoke-tests
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Интеграционные тесты на bare metal
+sds_replicated_volume_bare_metal:
+  <<: *sds_replicated_volume_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-sds-rv"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 30m ./tests/... \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Интеграционные тесты на hypervisor
+sds_replicated_volume_hypervisor:
+  <<: *sds_replicated_volume_template
+  stage: integration-tests
+  tags:
+    - hypervisor
+    - k8s-cluster
+    - virtualization
+    - nested-vm
+  variables:
+    TEST_ENVIRONMENT: "hypervisor"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-sds-rv"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/... \
+      -stand metal \
+      -verbose \
+      -debug \
+      -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 2h
+
+# LVM специфичные тесты
+sds_replicated_volume_lvm:
+  <<: *sds_replicated_volume_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-sds-rv-lvm"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 45m ./tests/03_sds_lv_test.go \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "TestLVG"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Linstor специфичные тесты
+sds_replicated_volume_linstor:
+  <<: *sds_replicated_volume_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-sds-rv-linstor"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 45m ./tests/... \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE \
+      -run "Test.*Linstor.*|Test.*Replicated.*"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  timeout: 1h
+
+# Ручные тесты для sds-replicated-volume
+sds_replicated_volume_manual:
+  <<: *sds_replicated_volume_template
+  stage: integration-tests
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    TEST_NAMESPACE: "test-e2e-manual-${CI_PIPELINE_ID}-sds-rv"
+  script:
+    - cd testkit_v2
+    - go test -v -timeout 60m ./tests/... \
+      -stand metal \
+      -verbose \
+      -debug \
+      -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+      -sshhost $SSH_HOST \
+      -sshkey ../../sds-e2e-cfg/id_rsa_test \
+      -namespace $TEST_NAMESPACE
+  when: manual
+  timeout: 2h

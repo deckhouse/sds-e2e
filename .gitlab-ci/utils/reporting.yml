@@ -1,0 +1,331 @@
+# GitLab CI утилиты для отчетности и уведомлений
+
+.reporting_template: &reporting_template
+  image: alpine:latest
+  stage: reporting
+  before_script:
+    - apk add --no-cache jq curl
+  script:
+    - mkdir -p test-report
+    - |
+      echo "# Test Results Summary" > test-report/README.md
+      echo "Generated at: $(date)" >> test-report/README.md
+      echo "" >> test-report/README.md
+      echo "## Pipeline Information" >> test-report/README.md
+      echo "- Pipeline ID: $CI_PIPELINE_ID" >> test-report/README.md
+      echo "- Commit: $CI_COMMIT_SHA" >> test-report/README.md
+      echo "- Branch: $CI_COMMIT_REF_NAME" >> test-report/README.md
+      echo "- Triggered by: $CI_PIPELINE_SOURCE" >> test-report/README.md
+      echo "" >> test-report/README.md
+      
+      # Count test results
+      TOTAL_TESTS=$(find . -name "*.xml" -type f | wc -l)
+      echo "## Test Summary" >> test-report/README.md
+      echo "- Total test artifacts: $TOTAL_TESTS" >> test-report/README.md
+      echo "- Smoke tests: $(find . -name "*smoke*" | wc -l)" >> test-report/README.md
+      echo "- Integration tests: $(find . -name "*integration*" | wc -l)" >> test-report/README.md
+      
+      # Create JSON summary
+      cat > test-report/summary.json << EOF
+      {
+        "pipeline_id": "$CI_PIPELINE_ID",
+        "commit_sha": "$CI_COMMIT_SHA",
+        "branch": "$CI_COMMIT_REF_NAME",
+        "triggered_by": "$CI_PIPELINE_SOURCE",
+        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+        "total_artifacts": $TOTAL_TESTS,
+        "smoke_tests": $(find . -name "*smoke*" | wc -l),
+        "integration_tests": $(find . -name "*integration*" | wc -l),
+        "module": "$MODULE_NAME",
+        "environment": "$TEST_ENVIRONMENT",
+        "test_type": "$TEST_TYPE"
+      }
+      EOF
+  artifacts:
+    paths:
+      - test-report/
+    expire_in: 3 months
+
+# Генерация отчета для конкретного модуля
+generate_module_report:
+  <<: *reporting_template
+  needs:
+    - job: smoke_tests
+      artifacts: true
+    - job: integration_tests_bare_metal
+      artifacts: true
+    - job: integration_tests_hypervisor
+      artifacts: true
+  variables:
+    MODULE_NAME: "all"
+    TEST_ENVIRONMENT: "mixed"
+    TEST_TYPE: "all"
+  script:
+    - apk add --no-cache jq curl
+    - mkdir -p test-report
+    - |
+      echo "# Test Results Summary" > test-report/README.md
+      echo "Generated at: $(date)" >> test-report/README.md
+      echo "" >> test-report/README.md
+      echo "## Pipeline Information" >> test-report/README.md
+      echo "- Pipeline ID: $CI_PIPELINE_ID" >> test-report/README.md
+      echo "- Commit: $CI_COMMIT_SHA" >> test-report/README.md
+      echo "- Branch: $CI_COMMIT_REF_NAME" >> test-report/README.md
+      echo "- Triggered by: $CI_PIPELINE_SOURCE" >> test-report/README.md
+      echo "" >> test-report/README.md
+      
+      # Count test results
+      TOTAL_TESTS=$(find . -name "*.xml" -type f | wc -l)
+      echo "## Test Summary" >> test-report/README.md
+      echo "- Total test artifacts: $TOTAL_TESTS" >> test-report/README.md
+      echo "- Smoke tests: $(find . -name "*smoke*" | wc -l)" >> test-report/README.md
+      echo "- Integration tests: $(find . -name "*integration*" | wc -l)" >> test-report/README.md
+      
+      # Create JSON summary
+      cat > test-report/summary.json << EOF
+      {
+        "pipeline_id": "$CI_PIPELINE_ID",
+        "commit_sha": "$CI_COMMIT_SHA",
+        "branch": "$CI_COMMIT_REF_NAME",
+        "triggered_by": "$CI_PIPELINE_SOURCE",
+        "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+        "total_artifacts": $TOTAL_TESTS,
+        "smoke_tests": $(find . -name "*smoke*" | wc -l),
+        "integration_tests": $(find . -name "*integration*" | wc -l)
+      }
+      EOF
+
+# Уведомления в Slack
+notify_slack:
+  image: alpine:latest
+  stage: reporting
+  needs:
+    - job: generate_module_report
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - apk add --no-cache curl jq
+    - |
+      if [ -n "$SLACK_WEBHOOK" ]; then
+        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="good"
+        else
+          STATUS="❌ FAILED"
+          COLOR="danger"
+        fi
+        
+        # Парсим результаты тестов если доступны
+        if [ -f test-report/summary.json ]; then
+          TOTAL_TESTS=$(jq -r '.total_artifacts' test-report/summary.json)
+          SMOKE_TESTS=$(jq -r '.smoke_tests' test-report/summary.json)
+          INTEGRATION_TESTS=$(jq -r '.integration_tests' test-report/summary.json)
+          
+          TEST_INFO="
+          • Total Tests: $TOTAL_TESTS
+          • Smoke Tests: $SMOKE_TESTS
+          • Integration Tests: $INTEGRATION_TESTS"
+        else
+          TEST_INFO="
+          • Test results not available"
+        fi
+        
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"$STATUS: CI Pipeline for $CI_PROJECT_NAME\",
+            \"attachments\": [
+              {
+                \"color\": \"$COLOR\",
+                \"fields\": [
+                  {
+                    \"title\": \"Pipeline\",
+                    \"value\": \"$CI_PIPELINE_ID\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Branch\",
+                    \"value\": \"$CI_COMMIT_REF_NAME\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Commit\",
+                    \"value\": \"$CI_COMMIT_SHA\",
+                    \"short\": true
+                  },
+                  {
+                    \"title\": \"Triggered by\",
+                    \"value\": \"$CI_PIPELINE_SOURCE\",
+                    \"short\": true
+                  }
+                ],
+                \"text\": \"$TEST_INFO\"
+              }
+            ]
+          }" \
+          $SLACK_WEBHOOK
+      else
+        echo "SLACK_WEBHOOK not configured, skipping notification"
+      fi
+  when: always
+
+# Уведомления в Teams
+notify_teams:
+  image: alpine:latest
+  stage: reporting
+  needs:
+    - job: generate_module_report
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - apk add --no-cache curl jq
+    - |
+      if [ -n "$TEAMS_WEBHOOK" ]; then
+        if [ "$CI_PIPELINE_STATUS" = "success" ]; then
+          STATUS="✅ SUCCESS"
+          COLOR="00ff00"
+        else
+          STATUS="❌ FAILED"
+          COLOR="ff0000"
+        fi
+        
+        # Парсим результаты тестов если доступны
+        if [ -f test-report/summary.json ]; then
+          TOTAL_TESTS=$(jq -r '.total_artifacts' test-report/summary.json)
+          SMOKE_TESTS=$(jq -r '.smoke_tests' test-report/summary.json)
+          INTEGRATION_TESTS=$(jq -r '.integration_tests' test-report/summary.json)
+          
+          TEST_INFO="
+          • Total Tests: $TOTAL_TESTS
+          • Smoke Tests: $SMOKE_TESTS
+          • Integration Tests: $INTEGRATION_TESTS"
+        else
+          TEST_INFO="
+          • Test results not available"
+        fi
+        
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"@type\": \"MessageCard\",
+            \"@context\": \"http://schema.org/extensions\",
+            \"themeColor\": \"$COLOR\",
+            \"summary\": \"$STATUS: CI Pipeline for $CI_PROJECT_NAME\",
+            \"sections\": [
+              {
+                \"activityTitle\": \"$STATUS: CI Pipeline for $CI_PROJECT_NAME\",
+                \"activitySubtitle\": \"Pipeline ID: $CI_PIPELINE_ID\",
+                \"facts\": [
+                  {
+                    \"name\": \"Branch\",
+                    \"value\": \"$CI_COMMIT_REF_NAME\"
+                  },
+                  {
+                    \"name\": \"Commit\",
+                    \"value\": \"$CI_COMMIT_SHA\"
+                  },
+                  {
+                    \"name\": \"Triggered by\",
+                    \"value\": \"$CI_PIPELINE_SOURCE\"
+                  }
+                ],
+                \"text\": \"$TEST_INFO\"
+              }
+            ]
+          }" \
+          $TEAMS_WEBHOOK
+      else
+        echo "TEAMS_WEBHOOK not configured, skipping notification"
+      fi
+  when: always
+
+# Создание GitHub Issues для критических сбоев
+create_github_issue:
+  image: alpine:latest
+  stage: reporting
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/ && $CI_PIPELINE_STATUS == "failed"
+  script:
+    - apk add --no-cache curl jq
+    - |
+      if [ -n "$GITHUB_TOKEN" ]; then
+        # Создаем issue только если это критический сбой
+        if [ "$CI_PIPELINE_STATUS" = "failed" ]; then
+          TITLE="CI Pipeline Failed: $CI_PROJECT_NAME - $CI_COMMIT_REF_NAME"
+          BODY="## Pipeline Information
+          
+          - **Pipeline ID**: $CI_PIPELINE_ID
+          - **Commit**: $CI_COMMIT_SHA
+          - **Branch**: $CI_COMMIT_REF_NAME
+          - **Triggered by**: $CI_PIPELINE_SOURCE
+          - **Failed at**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          
+          ## Pipeline URL
+          $CI_PIPELINE_URL
+          
+          ## Next Steps
+          - [ ] Investigate the failure
+          - [ ] Check logs and artifacts
+          - [ ] Fix the issue
+          - [ ] Re-run the pipeline
+          
+          ## Labels
+          - ci-failure
+          - priority-high"
+          
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{
+              \"title\": \"$TITLE\",
+              \"body\": \"$BODY\",
+              \"labels\": [\"ci-failure\", \"priority-high\"]
+            }" \
+            "https://api.github.com/repos/$CI_PROJECT_PATH/issues"
+        fi
+      else
+        echo "GITHUB_TOKEN not configured, skipping issue creation"
+      fi
+  when: on_failure
+
+# Еженедельный отчет
+weekly_report:
+  image: alpine:latest
+  stage: reporting
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - apk add --no-cache curl jq
+    - |
+      if [ -n "$SLACK_WEBHOOK" ]; then
+        # Собираем статистику за неделю (примерная реализация)
+        WEEKLY_STATS="
+        ## Weekly CI Report
+        
+        • Total Pipelines: $(echo "placeholder - would need to query GitLab API")
+        • Success Rate: $(echo "placeholder - would need to calculate")
+        • Average Duration: $(echo "placeholder - would need to calculate")
+        • Failed Tests: $(echo "placeholder - would need to count")
+        
+        ## Top Issues
+        • Most common failures: $(echo "placeholder - would need to analyze logs")
+        • Performance trends: $(echo "placeholder - would need to track metrics")
+        "
+        
+        curl -X POST -H 'Content-type: application/json' \
+          --data "{
+            \"text\": \"📊 Weekly CI Report for $CI_PROJECT_NAME\",
+            \"attachments\": [
+              {
+                \"color\": \"#36a64f\",
+                \"text\": \"$WEEKLY_STATS\"
+              }
+            ]
+          }" \
+          $SLACK_WEBHOOK
+      else
+        echo "SLACK_WEBHOOK not configured, skipping weekly report"
+      fi
+  when: on_success

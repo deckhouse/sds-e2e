@@ -1,0 +1,285 @@
+name: Test Reporting
+
+on:
+  workflow_call:
+    inputs:
+      test_results_path:
+        required: true
+        type: string
+        description: 'Path to test results directory'
+      module_name:
+        required: true
+        type: string
+        description: 'Name of the tested module'
+      environment:
+        required: true
+        type: string
+        description: 'Test environment'
+      test_type:
+        required: true
+        type: string
+        description: 'Type of tests run'
+      workflow_run_id:
+        required: true
+        type: string
+        description: 'GitHub workflow run ID'
+    secrets:
+      SLACK_WEBHOOK:
+        required: false
+
+env:
+  REPORT_DIR: test-reports
+
+jobs:
+  generate-report:
+    name: Generate Test Report
+    runs-on: ubuntu-latest
+    outputs:
+      report-generated: ${{ steps.generate-report.outputs.success }}
+      test-summary: ${{ steps.parse-results.outputs.summary }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create report directory
+        run: |
+          mkdir -p ${{ env.REPORT_DIR }}
+
+      - name: Download test artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ${{ env.REPORT_DIR }}
+
+      - name: Parse test results
+        id: parse-results
+        run: |
+          cd ${{ env.REPORT_DIR }}
+          
+          # Инициализируем переменные
+          TOTAL_TESTS=0
+          PASSED_TESTS=0
+          FAILED_TESTS=0
+          SKIPPED_TESTS=0
+          TEST_DURATION=0
+          
+          # Парсим JUnit XML файлы если есть
+          if find . -name "*.xml" -type f | grep -q .; then
+            echo "Found JUnit XML files, parsing..."
+            
+            for xml_file in $(find . -name "*.xml" -type f); do
+              echo "Parsing $xml_file"
+              
+              # Извлекаем статистику из XML
+              TESTS=$(grep -o 'tests="[0-9]*"' "$xml_file" | grep -o '[0-9]*' | head -1 || echo "0")
+              FAILURES=$(grep -o 'failures="[0-9]*"' "$xml_file" | grep -o '[0-9]*' | head -1 || echo "0")
+              SKIPPED=$(grep -o 'skipped="[0-9]*"' "$xml_file" | grep -o '[0-9]*' | head -1 || echo "0")
+              TIME=$(grep -o 'time="[0-9.]*"' "$xml_file" | grep -o '[0-9.]*' | head -1 || echo "0")
+              
+              TOTAL_TESTS=$((TOTAL_TESTS + TESTS))
+              FAILED_TESTS=$((FAILED_TESTS + FAILURES))
+              SKIPPED_TESTS=$((SKIPPED_TESTS + SKIPPED))
+              TEST_DURATION=$(echo "$TEST_DURATION + $TIME" | bc -l 2>/dev/null || echo "$TEST_DURATION")
+            done
+            
+            PASSED_TESTS=$((TOTAL_TESTS - FAILED_TESTS - SKIPPED_TESTS))
+          else
+            echo "No JUnit XML files found, analyzing log files..."
+            
+            # Анализируем логи тестов
+            for log_file in $(find . -name "*.log" -o -name "*.txt" -type f); do
+              echo "Analyzing $log_file"
+              
+              # Подсчитываем результаты из логов
+              TESTS=$(grep -c "=== RUN" "$log_file" 2>/dev/null || echo "0")
+              PASSED=$(grep -c "--- PASS:" "$log_file" 2>/dev/null || echo "0")
+              FAILED=$(grep -c "--- FAIL:" "$log_file" 2>/dev/null || echo "0")
+              SKIPPED=$(grep -c "--- SKIP:" "$log_file" 2>/dev/null || echo "0")
+              
+              TOTAL_TESTS=$((TOTAL_TESTS + TESTS))
+              PASSED_TESTS=$((PASSED_TESTS + PASSED))
+              FAILED_TESTS=$((FAILED_TESTS + FAILED))
+              SKIPPED_TESTS=$((SKIPPED_TESTS + SKIPPED))
+            done
+          fi
+          
+          # Создаем JSON summary
+          cat > test-summary.json << EOF
+          {
+            "module": "${{ inputs.module_name }}",
+            "environment": "${{ inputs.environment }}",
+            "test_type": "${{ inputs.test_type }}",
+            "workflow_run_id": "${{ inputs.workflow_run_id }}",
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "statistics": {
+              "total_tests": $TOTAL_TESTS,
+              "passed_tests": $PASSED_TESTS,
+              "failed_tests": $FAILED_TESTS,
+              "skipped_tests": $SKIPPED_TESTS,
+              "duration_seconds": $TEST_DURATION
+            },
+            "success_rate": $([ $TOTAL_TESTS -gt 0 ] && echo "scale=2; $PASSED_TESTS * 100 / $TOTAL_TESTS" | bc -l || echo "0")
+          }
+          EOF
+          
+          # Выводим summary для других шагов
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          cat test-summary.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          echo "Test results parsed:"
+          echo "Total: $TOTAL_TESTS, Passed: $PASSED_TESTS, Failed: $FAILED_TESTS, Skipped: $SKIPPED_TESTS"
+
+      - name: Generate HTML report
+        id: generate-report
+        run: |
+          cd ${{ env.REPORT_DIR }}
+          
+          # Создаем HTML отчет
+          cat > test-report.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Test Report - ${{ inputs.module_name }}</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  .header { background-color: #f4f4f4; padding: 20px; border-radius: 5px; }
+                  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+                  .metric { background-color: #fff; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                  .metric h3 { margin: 0 0 10px 0; color: #333; }
+                  .metric .value { font-size: 2em; font-weight: bold; }
+                  .passed { color: #28a745; }
+                  .failed { color: #dc3545; }
+                  .skipped { color: #ffc107; }
+                  .total { color: #007bff; }
+                  .details { margin-top: 20px; }
+                  .log-section { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0; }
+                  .log-section h4 { margin: 0 0 10px 0; }
+                  pre { background-color: #fff; padding: 10px; border-radius: 3px; overflow-x: auto; }
+              </style>
+          </head>
+          <body>
+              <div class="header">
+                  <h1>Test Report: ${{ inputs.module_name }}</h1>
+                  <p><strong>Environment:</strong> ${{ inputs.environment }}</p>
+                  <p><strong>Test Type:</strong> ${{ inputs.test_type }}</p>
+                  <p><strong>Generated:</strong> $(date -u +%Y-%m-%dT%H:%M:%SZ)</p>
+                  <p><strong>Workflow Run:</strong> <a href="https://github.com/${{ github.repository }}/actions/runs/${{ inputs.workflow_run_id }}">${{ inputs.workflow_run_id }}</a></p>
+              </div>
+              
+              <div class="summary">
+                  <div class="metric">
+                      <h3>Total Tests</h3>
+                      <div class="value total" id="total-tests">0</div>
+                  </div>
+                  <div class="metric">
+                      <h3>Passed</h3>
+                      <div class="value passed" id="passed-tests">0</div>
+                  </div>
+                  <div class="metric">
+                      <h3>Failed</h3>
+                      <div class="value failed" id="failed-tests">0</div>
+                  </div>
+                  <div class="metric">
+                      <h3>Skipped</h3>
+                      <div class="value skipped" id="skipped-tests">0</div>
+                  </div>
+              </div>
+              
+              <div class="details">
+                  <h2>Test Details</h2>
+                  <div id="test-details">
+                      <!-- Test details will be populated by JavaScript -->
+                  </div>
+              </div>
+              
+              <script>
+                  // Загружаем данные из test-summary.json
+                  fetch('test-summary.json')
+                      .then(response => response.json())
+                      .then(data => {
+                          document.getElementById('total-tests').textContent = data.statistics.total_tests;
+                          document.getElementById('passed-tests').textContent = data.statistics.passed_tests;
+                          document.getElementById('failed-tests').textContent = data.statistics.failed_tests;
+                          document.getElementById('skipped-tests').textContent = data.statistics.skipped_tests;
+                          
+                          // Добавляем детали тестов
+                          const detailsDiv = document.getElementById('test-details');
+                          detailsDiv.innerHTML = `
+                              <div class="log-section">
+                                  <h4>Test Statistics</h4>
+                                  <p>Success Rate: ${data.success_rate}%</p>
+                                  <p>Duration: ${data.statistics.duration_seconds} seconds</p>
+                              </div>
+                          `;
+                      })
+                      .catch(error => {
+                          console.error('Error loading test data:', error);
+                          document.getElementById('test-details').innerHTML = '<p>Error loading test data</p>';
+                      });
+              </script>
+          </body>
+          </html>
+          EOF
+          
+          echo "success=true" >> $GITHUB_OUTPUT
+          echo "HTML report generated"
+
+      - name: Upload report artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: test-report-${{ inputs.module_name }}-${{ inputs.environment }}-${{ inputs.test_type }}
+          path: ${{ env.REPORT_DIR }}/
+          retention-days: 90
+
+  send-notifications:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: generate-report
+    if: always() && secrets.SLACK_WEBHOOK
+    steps:
+      - name: Download report artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: test-report-${{ inputs.module_name }}-${{ inputs.environment }}-${{ inputs.test_type }}
+
+      - name: Parse test summary
+        id: parse-summary
+        run: |
+          if [ -f test-summary.json ]; then
+            TOTAL_TESTS=$(jq -r '.statistics.total_tests' test-summary.json)
+            PASSED_TESTS=$(jq -r '.statistics.passed_tests' test-summary.json)
+            FAILED_TESTS=$(jq -r '.statistics.failed_tests' test-summary.json)
+            SUCCESS_RATE=$(jq -r '.success_rate' test-summary.json)
+            
+            echo "total=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+            echo "passed=$PASSED_TESTS" >> $GITHUB_OUTPUT
+            echo "failed=$FAILED_TESTS" >> $GITHUB_OUTPUT
+            echo "success_rate=$SUCCESS_RATE" >> $GITHUB_OUTPUT
+          else
+            echo "total=0" >> $GITHUB_OUTPUT
+            echo "passed=0" >> $GITHUB_OUTPUT
+            echo "failed=0" >> $GITHUB_OUTPUT
+            echo "success_rate=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ steps.parse-summary.outputs.failed == '0' && 'success' || 'failure' }}
+          channel: '#ci-reports'
+          text: |
+            Test Results: ${{ inputs.module_name }}
+            Environment: ${{ inputs.environment }}
+            Test Type: ${{ inputs.test_type }}
+            
+            📊 Statistics:
+            • Total Tests: ${{ steps.parse-summary.outputs.total }}
+            • Passed: ${{ steps.parse-summary.outputs.passed }}
+            • Failed: ${{ steps.parse-summary.outputs.failed }}
+            • Success Rate: ${{ steps.parse-summary.outputs.success_rate }}%
+            
+            🔗 Workflow: https://github.com/${{ github.repository }}/actions/runs/${{ inputs.workflow_run_id }}
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}

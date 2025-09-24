@@ -1,0 +1,190 @@
+name: SDS Replicated Volume Tests
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+        description: 'Test environment (bare-metal, hypervisor, local)'
+      test_type:
+        required: true
+        type: string
+        description: 'Test type (smoke, integration, full)'
+      module_version:
+        required: false
+        type: string
+        description: 'Module version to test'
+        default: 'latest'
+    secrets:
+      KUBECONFIG_BARE_METAL:
+        required: false
+      KUBECONFIG_HYPERVISOR:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
+      SSH_HOST:
+        required: false
+      DECKHOUSE_LICENSE:
+        required: false
+
+env:
+  MODULE_NAME: sds-replicated-volume
+  GO_VERSION: '1.22'
+
+jobs:
+  test-sds-replicated-volume:
+    name: Test SDS Replicated Volume
+    runs-on: ${{ inputs.environment == 'local' && 'ubuntu-latest' || format('[{0}, {1}]', 'self-hosted', inputs.environment) }}
+    timeout-minutes: 60
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Setup test environment
+        if: inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          mkdir -p ../../sds-e2e-cfg
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            echo "${{ secrets.KUBECONFIG_BARE_METAL }}" | base64 -d > ../../sds-e2e-cfg/kube-bare-metal.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            echo "${{ secrets.KUBECONFIG_HYPERVISOR }}" | base64 -d > ../../sds-e2e-cfg/kube-hypervisor.config
+            KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+
+      - name: Run SDS Replicated Volume tests
+        run: |
+          cd testkit_v2
+          
+          # Определяем параметры запуска в зависимости от среды
+          if [ "${{ inputs.environment }}" = "local" ]; then
+            # Локальные smoke тесты
+            go test -v -timeout 10m ./tests/00_healthcheck_test.go \
+              -stand local \
+              -verbose \
+              -run "TestNodeHealthCheck"
+          elif [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            # Bare metal тесты
+            go test -v -timeout 30m ./tests/... \
+              -stand metal \
+              -verbose \
+              -debug \
+              -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv \
+              -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            # Hypervisor тесты
+            go test -v -timeout 60m ./tests/... \
+              -stand metal \
+              -verbose \
+              -debug \
+              -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv \
+              -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
+          fi
+        env:
+          MODULE_UNDER_TEST: ${{ env.MODULE_NAME }}
+          TEST_TYPE: ${{ inputs.test_type }}
+          LICENSE_KEY: ${{ secrets.DECKHOUSE_LICENSE }}
+
+      - name: Run LVM specific tests
+        if: inputs.test_type == 'full' && inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            go test -v -timeout 45m ./tests/03_sds_lv_test.go \
+              -stand metal \
+              -verbose \
+              -debug \
+              -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv-lvm \
+              -run "TestLVG"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            go test -v -timeout 90m ./tests/03_sds_lv_test.go \
+              -stand metal \
+              -verbose \
+              -debug \
+              -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv-lvm \
+              -run "TestLVG"
+          fi
+
+      - name: Run Linstor specific tests
+        if: inputs.test_type == 'full' && inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            go test -v -timeout 45m ./tests/... \
+              -stand metal \
+              -verbose \
+              -debug \
+              -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv-linstor \
+              -run "Test.*Linstor.*|Test.*Replicated.*"
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            go test -v -timeout 90m ./tests/... \
+              -stand metal \
+              -verbose \
+              -debug \
+              -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config \
+              -sshhost ${{ secrets.SSH_HOST }} \
+              -sshkey ../../sds-e2e-cfg/id_rsa_test \
+              -namespace test-e2e-${{ github.run_id }}-sds-rv-linstor \
+              -run "Test.*Linstor.*|Test.*Replicated.*"
+          fi
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: sds-replicated-volume-test-results-${{ inputs.environment }}-${{ inputs.test_type }}
+          path: testkit_v2/test-results/
+          retention-days: 30
+
+      - name: Cleanup test environment
+        if: always() && inputs.environment != 'local'
+        run: |
+          cd testkit_v2
+          
+          if [ "${{ inputs.environment }}" = "bare-metal" ]; then
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace test-e2e-${{ github.run_id }}-sds-rv --ignore-not-found=true
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace test-e2e-${{ github.run_id }}-sds-rv-lvm --ignore-not-found=true
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace test-e2e-${{ github.run_id }}-sds-rv-linstor --ignore-not-found=true
+          elif [ "${{ inputs.environment }}" = "hypervisor" ]; then
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace test-e2e-${{ github.run_id }}-sds-rv --ignore-not-found=true
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace test-e2e-${{ github.run_id }}-sds-rv-lvm --ignore-not-found=true
+            kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace test-e2e-${{ github.run_id }}-sds-rv-linstor --ignore-not-found=true
+          fi

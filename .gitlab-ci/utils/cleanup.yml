@@ -1,0 +1,197 @@
+# GitLab CI утилиты для очистки тестовых сред
+
+.cleanup_template: &cleanup_template
+  image: alpine:latest
+  stage: cleanup
+  before_script:
+    - apk add --no-cache kubectl
+    - mkdir -p ../../sds-e2e-cfg
+  script:
+    - echo "Cleaning up test environment: $TEST_ENVIRONMENT"
+    - |
+      if [ "$TEST_ENVIRONMENT" = "bare-metal" ]; then
+        echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+        KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+      elif [ "$TEST_ENVIRONMENT" = "hypervisor" ]; then
+        echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+        KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+      else
+        echo "Unknown test environment: $TEST_ENVIRONMENT"
+        exit 1
+      fi
+    - |
+      # Проверяем существование namespace
+      if kubectl --kubeconfig $KUBECONFIG_FILE get namespace $TEST_NAMESPACE > /dev/null 2>&1; then
+        echo "Namespace $TEST_NAMESPACE exists, starting cleanup"
+      else
+        echo "Namespace $TEST_NAMESPACE does not exist, nothing to clean up"
+        exit 0
+      fi
+    - |
+      # Force delete stuck resources if needed
+      if [ "$FORCE_CLEANUP" = "true" ]; then
+        echo "Force cleaning up stuck resources in namespace $TEST_NAMESPACE"
+        
+        # Удаляем finalizers с застрявших ресурсов
+        kubectl --kubeconfig $KUBECONFIG_FILE patch pvc -n $TEST_NAMESPACE --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+        kubectl --kubeconfig $KUBECONFIG_FILE patch pv --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+        kubectl --kubeconfig $KUBECONFIG_FILE patch lvg -n $TEST_NAMESPACE --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+        kubectl --kubeconfig $KUBECONFIG_FILE patch lv -n $TEST_NAMESPACE --type=merge -p '{"metadata":{"finalizers":null}}' --all || true
+        
+        # Удаляем застрявшие поды
+        kubectl --kubeconfig $KUBECONFIG_FILE delete pods -n $TEST_NAMESPACE --force --grace-period=0 --all || true
+      fi
+    - |
+      # Cleanup hypervisor resources if needed
+      if [ "$TEST_ENVIRONMENT" = "hypervisor" ]; then
+        echo "Cleaning up hypervisor resources in namespace $TEST_NAMESPACE"
+        
+        # Удаляем виртуальные машины
+        kubectl --kubeconfig $KUBECONFIG_FILE delete vm -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+        
+        # Удаляем виртуальные диски
+        kubectl --kubeconfig $KUBECONFIG_FILE delete vd -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+        
+        # Удаляем виртуальные блочные устройства
+        kubectl --kubeconfig $KUBECONFIG_FILE delete vmbd -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+        
+        # Ждем завершения удаления VM
+        kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete vm --all -n $TEST_NAMESPACE --timeout=300s || true
+      fi
+    - |
+      # Cleanup storage resources
+      echo "Cleaning up storage resources in namespace $TEST_NAMESPACE"
+      
+      # Удаляем PVC
+      kubectl --kubeconfig $KUBECONFIG_FILE delete pvc -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем LVM Volume Groups
+      kubectl --kubeconfig $KUBECONFIG_FILE delete lvg -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем LVM Logical Volumes
+      kubectl --kubeconfig $KUBECONFIG_FILE delete lv -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем Data Exports
+      kubectl --kubeconfig $KUBECONFIG_FILE delete dataexport -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Ждем завершения удаления PVC
+      kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete pvc --all -n $TEST_NAMESPACE --timeout=300s || true
+    - |
+      # Cleanup test pods and services
+      echo "Cleaning up test pods and services in namespace $TEST_NAMESPACE"
+      
+      # Удаляем все поды
+      kubectl --kubeconfig $KUBECONFIG_FILE delete pods -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем все сервисы
+      kubectl --kubeconfig $KUBECONFIG_FILE delete services -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем все deployments
+      kubectl --kubeconfig $KUBECONFIG_FILE delete deployments -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Удаляем все statefulsets
+      kubectl --kubeconfig $KUBECONFIG_FILE delete statefulsets -n $TEST_NAMESPACE --all --ignore-not-found=true || true
+      
+      # Ждем завершения удаления подов
+      kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete pods --all -n $TEST_NAMESPACE --timeout=300s || true
+    - |
+      # Delete namespace
+      echo "Deleting namespace $TEST_NAMESPACE"
+      
+      # Удаляем namespace
+      kubectl --kubeconfig $KUBECONFIG_FILE delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
+      
+      # Ждем завершения удаления namespace
+      kubectl --kubeconfig $KUBECONFIG_FILE wait --for=delete namespace $TEST_NAMESPACE --timeout=300s || true
+    - |
+      # Verify cleanup
+      if kubectl --kubeconfig $KUBECONFIG_FILE get namespace $TEST_NAMESPACE > /dev/null 2>&1; then
+        echo "WARNING: Namespace $TEST_NAMESPACE still exists"
+        exit 1
+      else
+        echo "SUCCESS: Namespace $TEST_NAMESPACE has been cleaned up"
+      fi
+    - |
+      # Cleanup local files
+      rm -rf ../../sds-e2e-cfg/ || true
+      echo "Local cleanup completed"
+  when: always
+  allow_failure: true
+
+# Очистка bare metal кластера
+cleanup_bare_metal:
+  <<: *cleanup_template
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    FORCE_CLEANUP: "false"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# Очистка hypervisor кластера
+cleanup_hypervisor:
+  <<: *cleanup_template
+  tags:
+    - hypervisor
+    - k8s-cluster
+    - virtualization
+    - nested-vm
+  variables:
+    TEST_ENVIRONMENT: "hypervisor"
+    FORCE_CLEANUP: "false"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# Принудительная очистка (для экстренных случаев)
+force_cleanup:
+  <<: *cleanup_template
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    FORCE_CLEANUP: "true"
+  when: manual
+  allow_failure: true
+
+# Очистка всех namespace с префиксом test-e2e
+cleanup_all_test_namespaces:
+  image: alpine:latest
+  stage: cleanup
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  before_script:
+    - apk add --no-cache kubectl
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+  script:
+    - |
+      # Находим все namespace с префиксом test-e2e
+      NAMESPACES=$(kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config get namespaces -o name | grep "test-e2e-" | cut -d'/' -f2)
+      
+      if [ -z "$NAMESPACES" ]; then
+        echo "No test namespaces found to clean up"
+        exit 0
+      fi
+      
+      echo "Found test namespaces: $NAMESPACES"
+      
+      # Удаляем каждый namespace
+      for ns in $NAMESPACES; do
+        echo "Cleaning up namespace: $ns"
+        kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $ns --ignore-not-found=true || true
+      done
+      
+      echo "All test namespaces cleaned up"
+  when: manual
+  allow_failure: true

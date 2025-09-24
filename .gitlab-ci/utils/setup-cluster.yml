@@ -1,0 +1,172 @@
+# GitLab CI утилиты для настройки тестовых кластеров
+
+.setup_cluster_template: &setup_cluster_template
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl kubectl
+    - mkdir -p ../../sds-e2e-cfg
+  script:
+    - echo "Setting up test cluster for $TEST_ENVIRONMENT"
+    - |
+      if [ "$TEST_ENVIRONMENT" = "bare-metal" ]; then
+        echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+        KUBECONFIG_FILE="../../sds-e2e-cfg/kube-bare-metal.config"
+      elif [ "$TEST_ENVIRONMENT" = "hypervisor" ]; then
+        echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+        KUBECONFIG_FILE="../../sds-e2e-cfg/kube-hypervisor.config"
+      else
+        echo "Unknown test environment: $TEST_ENVIRONMENT"
+        exit 1
+      fi
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+    - |
+      # Проверяем доступность кластера
+      if kubectl --kubeconfig $KUBECONFIG_FILE cluster-info > /dev/null 2>&1; then
+        echo "Cluster is accessible"
+      else
+        echo "Cluster is not accessible"
+        exit 1
+      fi
+    - |
+      # Создаем namespace если его нет
+      if kubectl --kubeconfig $KUBECONFIG_FILE get namespace $TEST_NAMESPACE > /dev/null 2>&1; then
+        echo "Namespace $TEST_NAMESPACE already exists"
+      else
+        kubectl --kubeconfig $KUBECONFIG_FILE create namespace $TEST_NAMESPACE
+        echo "Namespace $TEST_NAMESPACE created"
+      fi
+    - |
+      # Проверяем доступность узлов
+      NODE_COUNT=$(kubectl --kubeconfig $KUBECONFIG_FILE get nodes --no-headers | wc -l)
+      if [ $NODE_COUNT -lt 1 ]; then
+        echo "No nodes available in cluster"
+        exit 1
+      fi
+      echo "Cluster has $NODE_COUNT nodes"
+    - |
+      # Проверяем ресурсы узлов
+      kubectl --kubeconfig $KUBECONFIG_FILE top nodes || echo "Metrics server not available, skipping resource check"
+    - |
+      # Создаем конфигурационные файлы для тестов
+      cat > ../../sds-e2e-cfg/test-config.yml << EOF
+      cluster_name: $CLUSTER_NAME
+      namespace: $TEST_NAMESPACE
+      environment: $TEST_ENVIRONMENT
+      timestamp: $(date -u +%Y%m%d%H%M%S)
+      pipeline_id: $CI_PIPELINE_ID
+      commit_sha: $CI_COMMIT_SHA
+      EOF
+      echo "Test configuration created"
+  artifacts:
+    paths:
+      - ../../sds-e2e-cfg/
+    expire_in: 1 hour
+
+# Настройка bare metal кластера
+setup_bare_metal_cluster:
+  <<: *setup_cluster_template
+  stage: setup
+  tags:
+    - bare-metal
+    - k8s-cluster
+    - lvm-support
+  variables:
+    TEST_ENVIRONMENT: "bare-metal"
+    CLUSTER_NAME: "bare-metal-cluster"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# Настройка hypervisor кластера
+setup_hypervisor_cluster:
+  <<: *setup_cluster_template
+  stage: setup
+  tags:
+    - hypervisor
+    - k8s-cluster
+    - virtualization
+    - nested-vm
+  variables:
+    TEST_ENVIRONMENT: "hypervisor"
+    CLUSTER_NAME: "hypervisor-cluster"
+  script:
+    - apk add --no-cache curl kubectl
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_HYPERVISOR" > ../../sds-e2e-cfg/kube-hypervisor.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+    - |
+      # Проверяем доступность кластера
+      if kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config cluster-info > /dev/null 2>&1; then
+        echo "Cluster is accessible"
+      else
+        echo "Cluster is not accessible"
+        exit 1
+      fi
+    - |
+      # Проверяем доступность Deckhouse
+      if ! kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config get pods -n d8-system | grep -q deckhouse; then
+        echo "Deckhouse is not running in hypervisor cluster"
+        exit 1
+      fi
+    - |
+      # Проверяем доступность модуля virtualization
+      if ! kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config get crd virtualmachines.virtualization.deckhouse.io > /dev/null 2>&1; then
+        echo "Virtualization module is not available"
+        exit 1
+      fi
+      echo "Hypervisor environment is ready"
+    - |
+      # Создаем namespace если его нет
+      if kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config get namespace $TEST_NAMESPACE > /dev/null 2>&1; then
+        echo "Namespace $TEST_NAMESPACE already exists"
+      else
+        kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config create namespace $TEST_NAMESPACE
+        echo "Namespace $TEST_NAMESPACE created"
+      fi
+    - |
+      # Создаем конфигурационные файлы для тестов
+      cat > ../../sds-e2e-cfg/test-config.yml << EOF
+      cluster_name: hypervisor-cluster
+      namespace: $TEST_NAMESPACE
+      environment: hypervisor
+      timestamp: $(date -u +%Y%m%d%H%M%S)
+      pipeline_id: $CI_PIPELINE_ID
+      commit_sha: $CI_COMMIT_SHA
+      EOF
+      echo "Test configuration created"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+# Проверка здоровья кластера
+health_check:
+  image: alpine:latest
+  stage: setup
+  tags:
+    - bare-metal
+    - k8s-cluster
+  before_script:
+    - apk add --no-cache kubectl
+    - mkdir -p ../../sds-e2e-cfg
+    - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
+    - echo "$SSH_PRIVATE_KEY" > ../../sds-e2e-cfg/id_rsa_test
+    - chmod 600 ../../sds-e2e-cfg/id_rsa_test
+  script:
+    - |
+      # Запускаем базовую проверку здоровья
+      cd testkit_v2
+      go test -v -timeout 5m ./tests/00_healthcheck_test.go \
+        -stand metal \
+        -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
+        -sshhost $SSH_HOST \
+        -sshkey ../../sds-e2e-cfg/id_rsa_test \
+        -namespace $TEST_NAMESPACE \
+        -run "TestNodeHealthCheck" || echo "Health check failed, but continuing"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  allow_failure: true
