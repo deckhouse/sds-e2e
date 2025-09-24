@@ -20,8 +20,11 @@ import (
 	"crypto/md5"
 	"encoding/base64"
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 	"time"
+
+	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 )
 
 func hashMd5(in string) string {
@@ -70,4 +73,36 @@ func RandString(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+// Provides N devices with size M on node
+func GetOrCreateConsumableBlockDevices(nName string, size int64, count int) ([]snc.BlockDevice, error) {
+	cluster := EnsureCluster("", "")
+	bds, _ := cluster.ListBD(BdFilter{Node: nName, Consumable: true, Size: float32(size)})
+	if len(bds) >= int(count) {
+		return bds, nil
+	}
+
+	if HypervisorKubeConfig == "" {
+		return nil, fmt.Errorf("Not enough bds on %s: %d of %d", nName, len(bds), count)
+	}
+	hvCluster := EnsureCluster(HypervisorKubeConfig, "")
+	for i := len(bds); i < count; i++ {
+		err := hvCluster.CreateVMBD(nName, nName+"-data-"+RandString(4), HvStorageClass, size)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := RetrySec(30, func() error {
+		bds, _ := cluster.ListBD(BdFilter{Node: nName, Consumable: true, Size: float32(size)})
+		if len(bds) < int(count) {
+			return fmt.Errorf("Not enough bds on %s: %d of %d", nName, len(bds), count)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return cluster.ListBD(BdFilter{Node: nName, Consumable: true, Size: float32(size)})
 }

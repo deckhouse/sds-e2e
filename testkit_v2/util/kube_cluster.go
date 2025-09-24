@@ -23,7 +23,8 @@ import (
 var clrCache = map[string]*KCluster{}
 var mx = new(sync.RWMutex)
 
-func GetCluster(configPath, clusterName string) *KCluster {
+// EnsureCluster creates valid cluster if it does not exist. Check and modify existing cluster if needed. Returns cluster that can be used for tests.
+func EnsureCluster(configPath, clusterName string) *KCluster {
 	mx.Lock()
 	defer mx.Unlock()
 
@@ -39,12 +40,12 @@ func GetCluster(configPath, clusterName string) *KCluster {
 
 	k := configPath + ":" + clusterName
 	if _, ok := clrCache[k]; !ok {
-		clr, err := InitKCluster(configPath, clusterName)
+		cluster, err := InitKCluster(configPath, clusterName)
 		if err != nil {
 			Fatalf("Kubeclient '%s' problem: %s", k, err.Error())
 		}
-		_ = clr.CreateNs(TestNS)
-		clrCache[k] = clr
+		_ = cluster.CreateNs(TestNS)
+		clrCache[k] = cluster
 	}
 
 	return clrCache[k]

@@ -70,16 +70,16 @@ func (f *NodeFilter) Apply(nodes []nodeType) (resp []nodeType) {
 	return
 }
 
-func (clr *KCluster) GetNode(name string) (*nodeType, error) {
-	node, err := (*clr.goClient).CoreV1().Nodes().Get(clr.ctx, name, metav1.GetOptions{})
+func (cluster *KCluster) GetNode(name string) (*nodeType, error) {
+	node, err := (*cluster.goClient).CoreV1().Nodes().Get(cluster.ctx, name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return node, nil
 	}
 	return node, err
 }
 
-func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
-	nodeList, err := (*clr.goClient).CoreV1().Nodes().List(clr.ctx, metav1.ListOptions{})
+func (cluster *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
+	nodeList, err := (*cluster.goClient).CoreV1().Nodes().List(cluster.ctx, metav1.ListOptions{})
 	if err != nil {
 		Warnf("Can't get Nodes: %s", err.Error())
 		return nil, err
@@ -93,8 +93,8 @@ func (clr *KCluster) ListNode(filters ...NodeFilter) ([]nodeType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
-	node, err := clr.GetNode(name)
+func (cluster *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
+	node, err := cluster.GetNode(name)
 	if err != nil {
 		return "", err
 	}
@@ -108,9 +108,9 @@ func (clr *KCluster) ExecNodeSsh(name, cmd string) (string, error) {
 	return "", fmt.Errorf("no node InternalIP")
 }
 
-func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error) {
+func (cluster *KCluster) ExecNode(name string, cmd []string) (string, string, error) {
 	nsName := "d8-sds-node-configurator"
-	pods, err := clr.ListPod(nsName, PodFilter{Name: "%sds-node-configurator-%", Node: name})
+	pods, err := cluster.ListPod(nsName, PodFilter{Name: "%sds-node-configurator-%", Node: name})
 	if err != nil {
 		return "", "", err
 	}
@@ -119,7 +119,7 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 	}
 
 	nsCmd := append([]string{"/opt/deckhouse/sds/bin/nsenter.static", "-m", "-u", "-i", "-p", "-t", "1", "--"}, cmd...)
-	req := clr.goClient.CoreV1().RESTClient().Post().
+	req := cluster.goClient.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Name(pods[0].ObjectMeta.Name).
 		Namespace(nsName).
@@ -133,7 +133,7 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 		Stderr:    true,
 	}, kubescheme.ParameterCodec)
 
-	exec, err := remotecommand.NewSPDYExecutor(clr.restCfg, "POST", req.URL())
+	exec, err := remotecommand.NewSPDYExecutor(cluster.restCfg, "POST", req.URL())
 	//NewSPDYExecutor connects to the provided server and upgrades the connection to multiplexed bidirectional streams
 	if err != nil {
 		return "", "", err
@@ -153,8 +153,8 @@ func (clr *KCluster) ExecNode(name string, cmd []string) (string, string, error)
 }
 
 // Execue cmd on node and check output using expressions
-func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) error {
-	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+func (cluster *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := cluster.ExecNode(nName, strings.Split(cmd, " "))
 	if err != nil {
 		Debugf("Exec %s: %s", nName, cmd)
 		Debugf("  StdErr: %s", stErr)
@@ -173,8 +173,8 @@ func (clr *KCluster) ExecNodeRespContains(nName, cmd string, resp []string) erro
 }
 
 // Execue cmd on node and check output not contain expressions
-func (clr *KCluster) ExecNodeRespNotContains(nName, cmd string, resp []string) error {
-	stOut, stErr, err := clr.ExecNode(nName, strings.Split(cmd, " "))
+func (cluster *KCluster) ExecNodeRespNotContains(nName, cmd string, resp []string) error {
+	stOut, stErr, err := cluster.ExecNode(nName, strings.Split(cmd, " "))
 	if err != nil {
 		Debugf("Exec %s: %s", nName, cmd)
 		Debugf("  StdErr: %s", stErr)
@@ -192,10 +192,10 @@ func (clr *KCluster) ExecNodeRespNotContains(nName, cmd string, resp []string) e
 	return nil
 }
 
-func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]nodeType {
+func (cluster *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string][]nodeType {
 	resp := map[string][]nodeType{}
 
-	nodes, err := clr.ListNode(filters...)
+	nodes, err := cluster.ListNode(filters...)
 	if err != nil {
 		return nil
 	}
@@ -212,9 +212,9 @@ func (clr *KCluster) MapLabelNodes(label any, filters ...NodeFilter) map[string]
 
 /*  Node Group  */
 
-func (clr *KCluster) ListNodeGroup() ([]unstructured.Unstructured, error) {
-	ngs, err := clr.dyClient.Resource(nodeGroupResource).
-		List(clr.ctx, metav1.ListOptions{})
+func (cluster *KCluster) ListNodeGroup() ([]unstructured.Unstructured, error) {
+	ngs, err := cluster.dyClient.Resource(nodeGroupResource).
+		List(cluster.ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -222,13 +222,13 @@ func (clr *KCluster) ListNodeGroup() ([]unstructured.Unstructured, error) {
 	return ngs.Items, err
 }
 
-func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {
+func (cluster *KCluster) CreateNodeGroup(data map[string]interface{}) error {
 	name := data["metadata"].(map[string]interface{})["name"]
 	obj := unstructured.Unstructured{}
 	obj.SetUnstructuredContent(data)
 
-	_, err := clr.dyClient.Resource(nodeGroupResource).
-		Create(clr.ctx, &obj, metav1.CreateOptions{})
+	_, err := cluster.dyClient.Resource(nodeGroupResource).
+		Create(cluster.ctx, &obj, metav1.CreateOptions{})
 	if err == nil {
 		Infof("NodeGroup %q created", name)
 		return nil
@@ -240,8 +240,8 @@ func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {
 		if err != nil {
 			return err
 		}
-		_, err = clr.dyClient.Resource(nodeGroupResource).
-			Patch(clr.ctx, obj.GetName(), apitypes.MergePatchType, content, metav1.PatchOptions{})
+		_, err = cluster.dyClient.Resource(nodeGroupResource).
+			Patch(cluster.ctx, obj.GetName(), apitypes.MergePatchType, content, metav1.PatchOptions{})
 		if err != nil {
 			return err
 		}
@@ -251,7 +251,7 @@ func (clr *KCluster) CreateNodeGroup(data map[string]interface{}) error {
 	return err
 }
 
-func (clr *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
+func (cluster *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
 	ngObj := map[string]interface{}{
 		"apiVersion": "deckhouse.io/v1",
 		"kind":       "NodeGroup",
@@ -270,11 +270,11 @@ func (clr *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
 			},
 		},
 	}
-	return clr.CreateNodeGroup(ngObj)
+	return cluster.CreateNodeGroup(ngObj)
 }
 
-func (clr *KCluster) DeleteNodeGroup(name string) error {
-	err := clr.dyClient.Resource(nodeGroupResource).Delete(clr.ctx, name, metav1.DeleteOptions{})
+func (cluster *KCluster) DeleteNodeGroup(name string) error {
+	err := cluster.dyClient.Resource(nodeGroupResource).Delete(cluster.ctx, name, metav1.DeleteOptions{})
 	if err == nil || apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -283,9 +283,9 @@ func (clr *KCluster) DeleteNodeGroup(name string) error {
 
 /*  Static Instance  */
 
-func (clr *KCluster) ListStaticInstance() ([]StaticInstance, error) {
+func (cluster *KCluster) ListStaticInstance() ([]StaticInstance, error) {
 	sis := StaticInstanceList{}
-	err := clr.rtClient.List(clr.ctx, &sis)
+	err := cluster.controllerRuntimeClient.List(cluster.ctx, &sis)
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func (clr *KCluster) ListStaticInstance() ([]StaticInstance, error) {
 	return sis.Items, nil
 }
 
-func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) error {
+func (cluster *KCluster) CreateStaticInstance(name, role, ip, credentials string) error {
 	si := &StaticInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
@@ -305,7 +305,7 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 		},
 	}
 
-	if err := clr.rtClient.Create(clr.ctx, si); err != nil {
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, si); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			return nil
 		}
@@ -316,18 +316,18 @@ func (clr *KCluster) CreateStaticInstance(name, role, ip, credentials string) er
 	return nil
 }
 
-func (clr *KCluster) DeleteStaticInstance(name string) error {
+func (cluster *KCluster) DeleteStaticInstance(name string) error {
 	si := &StaticInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 	}
-	return clr.rtClient.Delete(clr.ctx, si)
+	return cluster.controllerRuntimeClient.Delete(cluster.ctx, si)
 }
 
 /*  Static Node  */
 
-func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
+func (cluster *KCluster) AddStaticNodes(name, user string, ips []string) error {
 	privSshKey, err := os.ReadFile(NestedSshKey)
 	if err != nil {
 		Errorf("Read %s: %s", NestedSshKey, err.Error())
@@ -336,7 +336,7 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 	b64SshKey := base64.StdEncoding.EncodeToString(privSshKey)
 
 	credentialName := name + "rsa"
-	if err = clr.CreateOrUpdSSHCredential(credentialName, user, b64SshKey); err != nil {
+	if err = cluster.CreateOrUpdSSHCredential(credentialName, user, b64SshKey); err != nil {
 		Errorf("Create SSHCredential: %s", err.Error())
 		return err
 	}
@@ -344,14 +344,14 @@ func (clr *KCluster) AddStaticNodes(name, user string, ips []string) error {
 	role := fmt.Sprintf("vm-%s-worker", name)
 	for _, ip := range ips {
 		siName := fmt.Sprintf("si-%s-%s", name, hashMd5(ip)[:8])
-		err = clr.CreateStaticInstance(siName, role, ip, credentialName)
+		err = cluster.CreateStaticInstance(siName, role, ip, credentialName)
 		if err != nil {
 			Errorf("Create StaticInstance %s: %s", siName, err.Error())
 			return err
 		}
 	}
 
-	if err = clr.CreateNodeGroupStatic(role, role, len(ips)); err != nil {
+	if err = cluster.CreateNodeGroupStatic(role, role, len(ips)); err != nil {
 		Errorf("Create NodeGroup: %s", err.Error())
 		return err
 	}
@@ -381,16 +381,16 @@ func (f *PodFilter) Apply(pods []podType) (resp []podType) {
 	return
 }
 
-func (clr *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
-	pod, err := clr.goClient.CoreV1().Pods(nsName).Get(clr.ctx, pName, metav1.GetOptions{})
+func (cluster *KCluster) GetPod(nsName, pName string) (*coreapi.Pod, error) {
+	pod, err := cluster.goClient.CoreV1().Pods(nsName).Get(cluster.ctx, pName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return pod, nil
 	}
 	return pod, err
 }
 
-func (clr *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod, error) {
-	pods, err := clr.goClient.CoreV1().Pods(nsName).List(clr.ctx, metav1.ListOptions{})
+func (cluster *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod, error) {
+	pods, err := cluster.goClient.CoreV1().Pods(nsName).List(cluster.ctx, metav1.ListOptions{})
 	if err != nil {
 		Errorf("Can't get Pods: %s", err.Error())
 		return nil, err
@@ -404,7 +404,7 @@ func (clr *KCluster) ListPod(nsName string, filters ...PodFilter) ([]coreapi.Pod
 	return resp, nil
 }
 
-func (clr *KCluster) CreatePod(nsName, pName string) error {
+func (cluster *KCluster) CreatePod(nsName, pName string) error {
 	if nsName == "" {
 		nsName = TestNS
 	}
@@ -420,7 +420,7 @@ func (clr *KCluster) CreatePod(nsName, pName string) error {
 		},
 		Spec: coreapi.PodSpec{},
 	}
-	if err := clr.rtClient.Create(clr.ctx, &pod); err != nil {
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, &pod); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			return nil
 		}
@@ -431,9 +431,9 @@ func (clr *KCluster) CreatePod(nsName, pName string) error {
 	return nil
 }
 
-func (clr *KCluster) DeletePod(nsName, pName string) error {
-	if nsName == "" {
-		nsName = TestNS
+func (cluster *KCluster) DeletePod(podName, nameSpace string) error {
+	if nameSpace == "" {
+		nameSpace = TestNS
 	}
 
 	pod := coreapi.Pod{
@@ -442,11 +442,11 @@ func (clr *KCluster) DeletePod(nsName, pName string) error {
 			APIVersion: "v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pName,
-			Namespace: nsName,
+			Name:      podName,
+			Namespace: nameSpace,
 		},
 	}
-	if err := clr.rtClient.Delete(clr.ctx, &pod); err != nil {
+	if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &pod); err != nil {
 		return err
 	}
 

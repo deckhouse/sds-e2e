@@ -23,9 +23,9 @@ import (
 )
 
 func TestNodeHealthCheck(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
-	nodeMap := clr.MapLabelNodes(nil)
+	nodeMap := cluster.MapLabelNodes(nil)
 	for label, nodes := range nodeMap {
 		if len(nodes) == 0 {
 			t.Errorf("No %s nodes", label)

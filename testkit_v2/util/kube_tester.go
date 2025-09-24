@@ -50,13 +50,13 @@ func (t *T) Skipf(format string, args ...any) {
 	t.Fatalf(format, args...)
 }
 
-func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
+func (cluster *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
 	if TreeMode {
-		clr.RunTestTreeGroupNodes(t, label, f, filters...)
+		cluster.RunTestTreeGroupNodes(t, label, f, filters...)
 		return
 	}
 
-	for label, nodes := range clr.MapLabelNodes(label, filters...) {
+	for label, nodes := range cluster.MapLabelNodes(label, filters...) {
 		Infof("%d Nodes for label '%s'", len(nodes), label)
 		if len(nodes) == 0 && !SkipOptional {
 			t.Errorf("no Nodes for label '%s'", label)
@@ -72,8 +72,8 @@ func (clr *KCluster) RunTestGroupNodes(t *testing.T, label any, f func(t *T), fi
 	}
 }
 
-func (clr *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
-	for label, nodes := range clr.MapLabelNodes(label, filters...) {
+func (cluster *KCluster) RunTestTreeGroupNodes(t *testing.T, label any, f func(t *T), filters ...NodeFilter) {
+	for label, nodes := range cluster.MapLabelNodes(label, filters...) {
 		t.Run(label, func(t *testing.T) {
 			if Parallel {
 				t.Parallel()

@@ -35,19 +35,19 @@ func cleanup01() {
 }
 
 func TestLvg(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup01)
 
 	t.Run("create", func(t *testing.T) {
-		clr.RunTestGroupNodes(t, nil, directLVGCreate)
-		if err := clr.WaitLVGsReady(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
+		cluster.RunTestGroupNodes(t, nil, directLVGCreate)
+		if err := cluster.WaitLVGsReady(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
 			t.Fatal(err.Error())
 		}
 	})
 
 	t.Run("resize", func(t *testing.T) {
-		clr.RunTestGroupNodes(t, util.WhereNotLike{"Deb"}, directLVGResize)
+		cluster.RunTestGroupNodes(t, util.WhereNotLike{"Deb"}, directLVGResize)
 	})
 
 	t.Run("delete", directLVGDelete)
@@ -55,19 +55,19 @@ func TestLvg(t *testing.T) {
 
 func directLVGCreate(t *util.T) {
 	bdCount := (t.Node.Id % 3) + 1
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
-	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
+	lvgs, _ := cluster.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
 	if len(lvgs) > 0 {
 		t.Skipf("LVG already exists for %s", t.Node.Name)
 	}
 
 	if util.HypervisorKubeConfig != "" {
 		// create bd on VM
-		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
+		hypervisorClr := util.EnsureCluster(util.HypervisorKubeConfig, "")
 		for i := 1; i <= bdCount; i++ {
 			vmdName := fmt.Sprintf("%s-data-%d", t.Node.Name, i)
-			err := hypervisorClr.CreateVMBD(t.Node.Name, vmdName, HvStorageClass, 6)
+			err := hypervisorClr.CreateVMBD(t.Node.Name, vmdName, util.HvStorageClass, 6)
 			if err != nil {
 				t.Fatalf("Hypervisor CreateVMBD error: %s", err.Error())
 			}
@@ -79,7 +79,7 @@ func directLVGCreate(t *util.T) {
 
 	var bds []snc.BlockDevice
 	if err := util.RetrySec(5, func() error {
-		bds, _ = clr.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
+		bds, _ = cluster.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
 		if len(bds) < bdCount {
 			return fmt.Errorf("%s: not enough Device to create LVG (%d < %d)", t.Node.Name, len(bds), bdCount)
 		}
@@ -90,7 +90,7 @@ func directLVGCreate(t *util.T) {
 
 	for _, bd := range bds[:bdCount] {
 		name := testPrefix + t.Node.Name[len(t.Node.Name)-1:] + "-" + bd.Name[len(bd.Name)-3:]
-		if err := clr.CreateLVG(name, t.Node.Name, []string{bd.Name}); err != nil {
+		if err := cluster.CreateLVG(name, t.Node.Name, []string{bd.Name}); err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 		util.Debugf("LVG %s created for BD %s", name, bd.Name)
@@ -98,26 +98,26 @@ func directLVGCreate(t *util.T) {
 }
 
 func directLVGResize(t *util.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
 	if util.HypervisorKubeConfig != "" {
 		// create bd on VM
-		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
+		hypervisorClr := util.EnsureCluster(util.HypervisorKubeConfig, "")
 		vmdName := fmt.Sprintf("%s-data-%d", t.Node.Name, 21)
 		util.Debugf("Add VMBD %s", vmdName)
-		_ = hypervisorClr.CreateVMBD(t.Node.Name, vmdName, HvStorageClass, 8)
+		_ = hypervisorClr.CreateVMBD(t.Node.Name, vmdName, util.HvStorageClass, 8)
 
 		_ = hypervisorClr.WaitVmbdAttached(util.VmBdFilter{NameSpace: util.TestNS, VmName: t.Node.Name})
 	}
 
-	lvgs, _ := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
+	lvgs, _ := cluster.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}, Node: util.WhereIn{t.Node.Name}})
 	if len(lvgs) == 0 || len(lvgs[0].Status.Nodes) == 0 {
 		t.Fatalf("No LVG for Node %s", t.Node.Name)
 	}
 	lvg := &lvgs[len(lvgs)-1]
 
 	var bdExtra *snc.BlockDevice
-	bds, _ := clr.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
+	bds, _ := cluster.ListBD(util.BdFilter{Node: t.Node.Name, Consumable: true})
 	for _, bd := range bds {
 		if lvg.Status.Nodes[0].Name == bd.Status.NodeName {
 			bdExtra = &bd
@@ -132,12 +132,12 @@ func directLVGResize(t *util.T) {
 	bdSelector := lvg.Spec.BlockDeviceSelector.MatchExpressions[0]
 	bdSelector.Values = append(bdSelector.Values, bdExtra.Name)
 	lvg.Spec.BlockDeviceSelector.MatchExpressions[0] = bdSelector
-	if err := clr.UpdateLVG(lvg); err != nil {
+	if err := cluster.UpdateLVG(lvg); err != nil {
 		t.Fatalf("LVG updating: %s", err.Error())
 	}
 
 	if err := util.RetrySec(30, func() error {
-		lvg, _ := clr.GetLvg(lvg.Name)
+		lvg, _ := cluster.GetLvg(lvg.Name)
 		if lvg.Status.VGSize.Value() > origSize {
 			return nil
 		}
@@ -148,13 +148,13 @@ func directLVGResize(t *util.T) {
 }
 
 func directLVGDelete(t *testing.T) {
-	clr := util.GetCluster("", "")
-	if err := clr.DeleteLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
+	cluster := util.EnsureCluster("", "")
+	if err := cluster.DeleteLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}}); err != nil {
 		t.Fatalf("LVG deleting error: %s", err.Error())
 	}
 
 	if err := util.RetrySec(10, func() error {
-		lvgs, err := clr.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}})
+		lvgs, err := cluster.ListLVG(util.LvgFilter{Name: util.WhereLike{testPrefix}})
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func directLVGDelete(t *testing.T) {
 	}
 
 	if util.HypervisorKubeConfig != "" {
-		hypervisorClr := util.GetCluster(util.HypervisorKubeConfig, "")
+		hypervisorClr := util.EnsureCluster(util.HypervisorKubeConfig, "")
 		err := hypervisorClr.DeleteVmbdAndWait(util.VmBdFilter{NameSpace: util.TestNS})
 		if err != nil {
 			t.Errorf("VMBD deleting error: %s", err)
