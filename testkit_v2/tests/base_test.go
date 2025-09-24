@@ -41,7 +41,7 @@ const (
 	testVDName                = "test-vd"
 	testDEName                = "test-de"
 	testPodName               = "test-pod-for-data-export"
-	testNameSpace             = "test-e2e"
+	testNameSpace             = "test-e2e-ndemchuk"
 	unsupportedExportType     = "UnsupportedKind"
 
 	PVCShortType = "pvc"
