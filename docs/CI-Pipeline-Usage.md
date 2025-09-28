@@ -119,6 +119,93 @@ gh workflow run "CI - Main Pipeline" \
   -f test_type=full
 ```
 
+## Управление тестами через лейблы
+
+### Лейблы в PR/MR описании
+
+Для управления тестами используйте специальные лейблы в описании Pull Request или Merge Request:
+
+#### Пропуск тестов
+
+```bash
+# Пропустить все e2e тесты
+[skip-e2e]
+
+# Пропустить только медленные тесты
+[skip-slow-tests]
+
+# Пропустить тесты для конкретного модуля
+[skip-e2e:sds-replicated-volume]
+```
+
+#### Принудительный запуск
+
+```bash
+# Запустить все тесты, включая медленные
+[force-full-e2e]
+
+# Запустить stress тесты
+[force-stress-tests]
+
+# Запустить тесты для всех модулей
+[force-all-modules]
+```
+
+#### Выбор среды
+
+```bash
+# Запустить только на bare-metal
+[env:bare-metal]
+
+# Запустить только на hypervisor
+[env:hypervisor]
+
+# Запустить на обеих средах
+[env:all]
+```
+
+#### Выбор конкретных тестов
+
+```bash
+# Запустить только тесты data-export
+[test:data-export]
+
+# Запустить только тесты sds-node-configurator
+[test:sds-node-configurator]
+
+# Запустить только healthcheck тесты
+[test:healthcheck]
+
+# Запустить только LVG тесты
+[test:lvg]
+
+# Запустить только PVC тесты
+[test:pvc]
+```
+
+#### Указание ветки модуля
+
+```bash
+# Тестировать с ветки develop модуля
+[module-branch:develop]
+
+# Тестировать с конкретной ветки модуля
+[module-branch:hotfix/storage-issue]
+
+# Тестировать с тега модуля
+[module-tag:v1.2.3]
+```
+
+#### Приоритизация
+
+```bash
+# Высокий приоритет - запустить немедленно
+[priority:high]
+
+# Низкий приоритет - запустить в свободное время
+[priority:low]
+```
+
 ## Мониторинг и отладка
 
 ### Просмотр результатов

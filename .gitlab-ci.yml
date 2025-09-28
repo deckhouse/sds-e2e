@@ -1,7 +1,8 @@
 # GitLab CI конфигурация для e2e тестирования модулей Deckhouse
-# Основной пайплайн с поддержкой кроссплатформенности
+# Основной пайплайн с поддержкой кроссплатформенности и лейблов в MR
 
 stages:
+  - parse-labels
   - code-quality
   - smoke-tests
   - integration-tests
@@ -14,6 +15,16 @@ variables:
   GO_VERSION: "1.22"
   TEST_TIMEOUT: "30m"
   PARALLEL_JOBS: 4
+  # Переменные для лейблов (по умолчанию)
+  SKIP_E2E: "false"
+  SKIP_SLOW: "false"
+  FORCE_FULL: "false"
+  FORCE_STRESS: "false"
+  ENV_FILTER: "all"
+  PRIORITY: "normal"
+  TEST_FILTER: "all"
+  MODULE_BRANCH: "main"
+  MODULE_TAG: ""
 
 # Кэширование для ускорения сборки
 cache:
@@ -21,6 +32,94 @@ cache:
   paths:
     - .cache/go-build/
     - go/pkg/mod/
+
+# =============================================================================
+# PARSE LABELS
+# =============================================================================
+
+parse-labels:
+  stage: parse-labels
+  image: alpine:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - |
+      # Извлекаем лейблы из описания MR
+      if [ -n "$CI_MERGE_REQUEST_DESCRIPTION" ]; then
+        MR_DESCRIPTION="$CI_MERGE_REQUEST_DESCRIPTION"
+      else
+        # Для push и schedule используем commit message
+        MR_DESCRIPTION="$CI_COMMIT_MESSAGE"
+      fi
+      
+      # Проверяем лейблы
+      if echo "$MR_DESCRIPTION" | grep -q "\[skip-e2e\]"; then
+        echo "SKIP_E2E=true" >> .env
+      fi
+      
+      if echo "$MR_DESCRIPTION" | grep -q "\[skip-slow-tests\]"; then
+        echo "SKIP_SLOW=true" >> .env
+      fi
+      
+      if echo "$MR_DESCRIPTION" | grep -q "\[force-full-e2e\]"; then
+        echo "FORCE_FULL=true" >> .env
+      fi
+      
+      if echo "$MR_DESCRIPTION" | grep -q "\[force-stress-tests\]"; then
+        echo "FORCE_STRESS=true" >> .env
+      fi
+      
+      # Извлекаем среду
+      if echo "$MR_DESCRIPTION" | grep -q "\[env:bare-metal\]"; then
+        echo "ENV_FILTER=bare-metal" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[env:hypervisor\]"; then
+        echo "ENV_FILTER=hypervisor" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[env:all\]"; then
+        echo "ENV_FILTER=all" >> .env
+      fi
+      
+      # Извлекаем приоритет
+      if echo "$MR_DESCRIPTION" | grep -q "\[priority:high\]"; then
+        echo "PRIORITY=high" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[priority:low\]"; then
+        echo "PRIORITY=low" >> .env
+      fi
+      
+      # Извлекаем конкретные тесты
+      if echo "$MR_DESCRIPTION" | grep -q "\[test:data-export\]"; then
+        echo "TEST_FILTER=data-export" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[test:sds-node-configurator\]"; then
+        echo "TEST_FILTER=sds-node-configurator" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[test:healthcheck\]"; then
+        echo "TEST_FILTER=healthcheck" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[test:lvg\]"; then
+        echo "TEST_FILTER=lvg" >> .env
+      elif echo "$MR_DESCRIPTION" | grep -q "\[test:pvc\]"; then
+        echo "TEST_FILTER=pvc" >> .env
+      fi
+      
+      # Извлекаем ветку модуля
+      if echo "$MR_DESCRIPTION" | grep -q "\[module-branch:"; then
+        MODULE_BRANCH=$(echo "$MR_DESCRIPTION" | grep -o "\[module-branch:[^]]*\]" | sed 's/\[module-branch://;s/\]//')
+        echo "MODULE_BRANCH=$MODULE_BRANCH" >> .env
+      fi
+      
+      # Извлекаем тег модуля
+      if echo "$MR_DESCRIPTION" | grep -q "\[module-tag:"; then
+        MODULE_TAG=$(echo "$MR_DESCRIPTION" | grep -o "\[module-tag:[^]]*\]" | sed 's/\[module-tag://;s/\]//')
+        echo "MODULE_TAG=$MODULE_TAG" >> .env
+        echo "MODULE_BRANCH=$MODULE_TAG" >> .env
+      fi
+      
+      # Выводим результат для отладки
+      echo "Parsed labels:"
+      cat .env || echo "No labels found"
+  artifacts:
+    reports:
+      dotenv: .env
+    expire_in: 1 hour
 
 # =============================================================================
 # CODE QUALITY
@@ -59,18 +158,22 @@ smoke_tests:
   rules:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-  parallel:
-    matrix:
-      - MODULE: ["sds-replicated-volume", "sds-node-configurator", "data-export"]
   script:
     - cd testkit_v2
-    - go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+    # Определяем какие тесты запускать на основе фильтра
+    - |
+      if [ "$TEST_FILTER" = "healthcheck" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 10m ./tests/00_healthcheck_test.go -stand local -verbose
+      fi
   artifacts:
     reports:
       junit: test-results/smoke-*.xml
     paths:
       - test-results/
     expire_in: 1 week
+  needs:
+    - job: parse-labels
+      artifacts: true
 
 # =============================================================================
 # INTEGRATION TESTS - BARE METAL
@@ -87,13 +190,10 @@ integration_tests_bare_metal:
     - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH =~ /^(main|develop)$/
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_PIPELINE_SOURCE == "web"
-  parallel:
-    matrix:
-      - MODULE: ["sds-replicated-volume", "sds-node-configurator", "data-export"]
-      - TEST_TYPE: ["integration", "full"]
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event" && $SKIP_E2E != "true" && $SKIP_SLOW != "true"
   variables:
     TEST_ENVIRONMENT: "bare-metal"
-    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}-${MODULE}"
+    TEST_NAMESPACE: "test-e2e-${CI_PIPELINE_ID}"
   before_script:
     - mkdir -p ../../sds-e2e-cfg
     - echo "$KUBECONFIG_BARE_METAL" > ../../sds-e2e-cfg/kube-bare-metal.config
@@ -101,18 +201,9 @@ integration_tests_bare_metal:
     - chmod 600 ../../sds-e2e-cfg/id_rsa_test
   script:
     - cd testkit_v2
+    # Определяем какие тесты запускать на основе фильтра
     - |
-      if [ "$MODULE" = "sds-replicated-volume" ]; then
-        go test -v -timeout 30m ./tests/... \
-          -stand metal \
-          -verbose \
-          -debug \
-          -kconfig ../../sds-e2e-cfg/kube-bare-metal.config \
-          -sshhost $SSH_HOST \
-          -sshkey ../../sds-e2e-cfg/id_rsa_test \
-          -namespace $TEST_NAMESPACE \
-          -run "Test.*LVG.*|Test.*PVC.*|Test.*Storage.*"
-      elif [ "$MODULE" = "sds-node-configurator" ]; then
+      if [ "$TEST_FILTER" = "sds-node-configurator" ] || [ "$TEST_FILTER" = "lvg" ] || [ -z "$TEST_FILTER" ]; then
         go test -v -timeout 30m ./tests/01_sds_nc_test.go \
           -stand metal \
           -verbose \
@@ -122,8 +213,9 @@ integration_tests_bare_metal:
           -sshkey ../../sds-e2e-cfg/id_rsa_test \
           -namespace $TEST_NAMESPACE \
           -run "TestLvg"
-      elif [ "$MODULE" = "data-export" ]; then
-        go test -v -timeout 30m ./tests/base_test.go \
+      fi
+      if [ "$TEST_FILTER" = "pvc" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 30m ./tests/03_sds_lv_test.go \
           -stand metal \
           -verbose \
           -debug \
@@ -131,7 +223,7 @@ integration_tests_bare_metal:
           -sshhost $SSH_HOST \
           -sshkey ../../sds-e2e-cfg/id_rsa_test \
           -namespace $TEST_NAMESPACE \
-          -run "TestDataExport/routing|TestDataExport/auth"
+          -run "TestPVC"
       fi
   after_script:
     - kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace $TEST_NAMESPACE --ignore-not-found=true || true
@@ -142,6 +234,9 @@ integration_tests_bare_metal:
       - test-results/
     expire_in: 1 month
   timeout: 1h
+  needs:
+    - job: parse-labels
+      artifacts: true
 
 # =============================================================================
 # INTEGRATION TESTS - HYPERVISOR

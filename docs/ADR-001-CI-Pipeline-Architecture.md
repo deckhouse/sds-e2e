@@ -124,84 +124,248 @@ jobs:
 
 #### Управление через лейблы
 
-Разработчики могут контролировать процесс тестирования через лейблы в коммитах и PR:
+Разработчики могут контролировать процесс тестирования через лейблы в описании PR/MR:
 
 **Лейблы для пропуска тестов:**
 ```bash
 # Пропустить все e2e тесты
-git commit -m "fix: critical bug [skip-e2e]"
+[skip-e2e]
 
 # Пропустить только медленные тесты
-git commit -m "docs: update README [skip-slow-tests]"
+[skip-slow-tests]
 
 # Пропустить тесты для конкретного модуля
-git commit -m "fix: sds-replicated-volume bug [skip-e2e:sds-replicated-volume]"
+[skip-e2e:sds-replicated-volume]
 ```
 
 **Лейблы для принудительного запуска:**
 ```bash
 # Запустить все тесты, включая медленные
-git commit -m "feat: new feature [force-full-e2e]"
+[force-full-e2e]
 
 # Запустить stress тесты
-git commit -m "perf: optimization [force-stress-tests]"
+[force-stress-tests]
 
 # Запустить тесты для всех модулей
-git commit -m "refactor: common changes [force-all-modules]"
+[force-all-modules]
 ```
 
 **Лейблы для выбора среды:**
 ```bash
 # Запустить только на bare-metal
-git commit -m "test: storage changes [env:bare-metal]"
+[env:bare-metal]
 
 # Запустить только на hypervisor
-git commit -m "test: vm changes [env:hypervisor]"
+[env:hypervisor]
 
 # Запустить на обеих средах
-git commit -m "test: cross-platform [env:all]"
+[env:all]
 ```
 
 **Лейблы для приоритизации:**
 ```bash
 # Высокий приоритет - запустить немедленно
-git commit -m "hotfix: critical issue [priority:high]"
+[priority:high]
 
 # Низкий приоритет - запустить в свободное время
-git commit -m "docs: update [priority:low]"
+[priority:low]
 ```
 
 **Лейблы для выбора конкретных тестов:**
 ```bash
 # Запустить только тесты data-export
-git commit -m "fix: data-export bug [test:data-export]"
+[test:data-export]
 
 # Запустить только тесты sds-node-configurator
-git commit -m "fix: sds-nc bug [test:sds-node-configurator]"
+[test:sds-node-configurator]
 
 # Запустить только healthcheck тесты
-git commit -m "fix: cluster issue [test:healthcheck]"
+[test:healthcheck]
 
 # Запустить только LVG тесты
-git commit -m "fix: lvg bug [test:lvg]"
+[test:lvg]
 
 # Запустить только PVC тесты
-git commit -m "fix: pvc bug [test:pvc]"
+[test:pvc]
 ```
 
 **Лейблы для указания ветки модуля:**
 ```bash
 # Тестировать с ветки develop модуля
-git commit -m "test: new feature [module-branch:develop]"
+[module-branch:develop]
 
 # Тестировать с конкретной ветки модуля
-git commit -m "test: hotfix [module-branch:hotfix/storage-issue]"
+[module-branch:hotfix/storage-issue]
 
 # Тестировать с тега модуля
-git commit -m "test: release [module-tag:v1.2.3]"
+[module-tag:v1.2.3]
 ```
 
+
 #### GitHub Actions
+
+**Парсинг лейблов из PR:**
+```yaml
+# .github/workflows/e2e-testing.yml
+name: E2E Testing Pipeline
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+jobs:
+  parse-labels:
+    runs-on: ubuntu-latest
+    outputs:
+      skip-e2e: ${{ steps.parse.outputs.skip-e2e }}
+      skip-slow: ${{ steps.parse.outputs.skip-slow }}
+      force-full: ${{ steps.parse.outputs.force-full }}
+      force-stress: ${{ steps.parse.outputs.force-stress }}
+      env-filter: ${{ steps.parse.outputs.env-filter }}
+      priority: ${{ steps.parse.outputs.priority }}
+      test-filter: ${{ steps.parse.outputs.test-filter }}
+      module-branch: ${{ steps.parse.outputs.module-branch }}
+      module-tag: ${{ steps.parse.outputs.module-tag }}
+    steps:
+      - name: Parse PR description for labels
+        id: parse
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+          
+          # Проверяем лейблы
+          if echo "$PR_BODY" | grep -q "\[skip-e2e\]"; then
+            echo "skip-e2e=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[skip-slow-tests\]"; then
+            echo "skip-slow=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[force-full-e2e\]"; then
+            echo "force-full=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[force-stress-tests\]"; then
+            echo "force-stress=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем среду
+          if echo "$PR_BODY" | grep -q "\[env:bare-metal\]"; then
+            echo "env-filter=bare-metal" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[env:hypervisor\]"; then
+            echo "env-filter=hypervisor" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[env:all\]"; then
+            echo "env-filter=all" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем приоритет
+          if echo "$PR_BODY" | grep -q "\[priority:high\]"; then
+            echo "priority=high" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[priority:low\]"; then
+            echo "priority=low" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем конкретные тесты
+          if echo "$PR_BODY" | grep -q "\[test:data-export\]"; then
+            echo "test-filter=data-export" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:sds-node-configurator\]"; then
+            echo "test-filter=sds-node-configurator" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:healthcheck\]"; then
+            echo "test-filter=healthcheck" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:lvg\]"; then
+            echo "test-filter=lvg" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:pvc\]"; then
+            echo "test-filter=pvc" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем ветку модуля
+          MODULE_BRANCH=$(echo "$PR_BODY" | grep -o "\[module-branch:[^]]*\]" | sed 's/\[module-branch://;s/\]//')
+          if [ -n "$MODULE_BRANCH" ]; then
+            echo "module-branch=$MODULE_BRANCH" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем тег модуля
+          MODULE_TAG=$(echo "$PR_BODY" | grep -o "\[module-tag:[^]]*\]" | sed 's/\[module-tag://;s/\]//')
+          if [ -n "$MODULE_TAG" ]; then
+            echo "module-tag=$MODULE_TAG" >> $GITHUB_OUTPUT
+          fi
+
+  smoke-tests:
+    needs: parse-labels
+    if: needs.parse-labels.outputs.skip-e2e != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run smoke tests
+        run: |
+          cd testkit_v2
+          # Определяем какие тесты запускать на основе фильтра
+          TEST_FILTER="${{ needs.parse-labels.outputs.test-filter }}"
+          if [ "$TEST_FILTER" = "healthcheck" ] || [ -z "$TEST_FILTER" ]; then
+            go test -v -timeout 10m ./tests/00_healthcheck_test.go \
+              -stand local -verbose
+          fi
+
+  fast-e2e:
+    needs: [parse-labels, smoke-tests]
+    if: needs.parse-labels.outputs.skip-e2e != 'true' && needs.parse-labels.outputs.skip-slow != 'true'
+    runs-on: [self-hosted, bare-metal]
+    steps:
+      - name: Run fast e2e tests
+        run: |
+          cd testkit_v2
+          # Определяем какие тесты запускать на основе фильтра
+          TEST_FILTER="${{ needs.parse-labels.outputs.test-filter }}"
+          if [ "$TEST_FILTER" = "sds-node-configurator" ] || [ "$TEST_FILTER" = "lvg" ] || [ -z "$TEST_FILTER" ]; then
+            go test -v -timeout 30m ./tests/01_sds_nc_test.go \
+              -stand metal -run "TestLvg" \
+              -kconfig ${{ secrets.KUBECONFIG_BARE_METAL }}
+          fi
+          if [ "$TEST_FILTER" = "pvc" ] || [ -z "$TEST_FILTER" ]; then
+            go test -v -timeout 30m ./tests/03_sds_lv_test.go \
+              -stand metal -run "TestPVC" \
+              -kconfig ${{ secrets.KUBECONFIG_BARE_METAL }}
+          fi
+
+  full-e2e:
+    needs: [parse-labels, fast-e2e]
+    if: |
+      needs.parse-labels.outputs.skip-e2e != 'true' && 
+      (needs.parse-labels.outputs.force-full == 'true' || 
+       needs.parse-labels.outputs.skip-slow != 'true')
+    runs-on: [self-hosted, hypervisor]
+    steps:
+      - name: Run full e2e tests
+        run: |
+          cd testkit_v2
+          # Определяем какие тесты запускать на основе фильтра
+          TEST_FILTER="${{ needs.parse-labels.outputs.test-filter }}"
+          if [ "$TEST_FILTER" = "data-export" ] || [ -z "$TEST_FILTER" ]; then
+            go test -v -timeout 120m ./tests/base_test.go \
+              -stand metal -run "TestDataExport" \
+              -hypervisorkconfig ${{ secrets.KUBECONFIG_HYPERVISOR }}
+          fi
+          if [ "$TEST_FILTER" = "sds-node-configurator" ] || [ "$TEST_FILTER" = "lvg" ] || [ -z "$TEST_FILTER" ]; then
+            go test -v -timeout 120m ./tests/05_sds_node_configurator_test.go \
+              -stand metal -run "TestLvg.*" \
+              -hypervisorkconfig ${{ secrets.KUBECONFIG_HYPERVISOR }}
+          fi
+
+  stress-tests:
+    needs: [parse-labels, full-e2e]
+    if: |
+      needs.parse-labels.outputs.skip-e2e != 'true' && 
+      (needs.parse-labels.outputs.force-stress == 'true' || 
+       needs.parse-labels.outputs.skip-slow != 'true')
+    runs-on: [self-hosted, hypervisor]
+    steps:
+      - name: Run stress tests
+        run: |
+          cd testkit_v2
+          go test -v -timeout 180m ./tests/... \
+            -stand metal -run "Test.*" \
+            -hypervisorkconfig ${{ secrets.KUBECONFIG_HYPERVISOR }}
+```
 
 **Ручной запуск через UI:**
 1. Перейти в Actions → "E2E Testing Pipeline"
@@ -238,6 +402,172 @@ notify-e2e-pipeline:
 ```
 
 #### GitLab CI
+
+**Парсинг лейблов из MR:**
+```yaml
+# .gitlab-ci.yml
+variables:
+  SKIP_E2E: "false"
+  SKIP_SLOW: "false"
+  FORCE_FULL: "false"
+  FORCE_STRESS: "false"
+  ENV_FILTER: "all"
+  PRIORITY: "normal"
+  TEST_FILTER: "all"
+  MODULE_BRANCH: "main"
+  MODULE_TAG: ""
+
+parse-labels:
+  stage: .pre
+  image: alpine:latest
+  script:
+    - |
+      # Извлекаем лейблы из описания MR
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[skip-e2e\]"; then
+        echo "SKIP_E2E=true" >> .env
+      fi
+      
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[skip-slow-tests\]"; then
+        echo "SKIP_SLOW=true" >> .env
+      fi
+      
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[force-full-e2e\]"; then
+        echo "FORCE_FULL=true" >> .env
+      fi
+      
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[force-stress-tests\]"; then
+        echo "FORCE_STRESS=true" >> .env
+      fi
+      
+      # Извлекаем среду
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[env:bare-metal\]"; then
+        echo "ENV_FILTER=bare-metal" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[env:hypervisor\]"; then
+        echo "ENV_FILTER=hypervisor" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[env:all\]"; then
+        echo "ENV_FILTER=all" >> .env
+      fi
+      
+      # Извлекаем приоритет
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[priority:high\]"; then
+        echo "PRIORITY=high" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[priority:low\]"; then
+        echo "PRIORITY=low" >> .env
+      fi
+      
+      # Извлекаем конкретные тесты
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[test:data-export\]"; then
+        echo "TEST_FILTER=data-export" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[test:sds-node-configurator\]"; then
+        echo "TEST_FILTER=sds-node-configurator" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[test:healthcheck\]"; then
+        echo "TEST_FILTER=healthcheck" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[test:lvg\]"; then
+        echo "TEST_FILTER=lvg" >> .env
+      elif echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[test:pvc\]"; then
+        echo "TEST_FILTER=pvc" >> .env
+      fi
+      
+      # Извлекаем ветку модуля
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[module-branch:"; then
+        MODULE_BRANCH=$(echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -o "\[module-branch:[^]]*\]" | sed 's/\[module-branch://;s/\]//')
+        echo "MODULE_BRANCH=$MODULE_BRANCH" >> .env
+      fi
+      
+      # Извлекаем тег модуля
+      if echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -q "\[module-tag:"; then
+        MODULE_TAG=$(echo "$CI_MERGE_REQUEST_DESCRIPTION" | grep -o "\[module-tag:[^]]*\]" | sed 's/\[module-tag://;s/\]//')
+        echo "MODULE_TAG=$MODULE_TAG" >> .env
+        echo "MODULE_BRANCH=$MODULE_TAG" >> .env
+      fi
+  artifacts:
+    reports:
+      dotenv: .env
+
+smoke-tests:
+  stage: test
+  image: golang:1.22
+  tags:
+    - local
+  script:
+    - |
+      cd testkit_v2
+      # Определяем какие тесты запускать на основе фильтра
+      if [ "$TEST_FILTER" = "healthcheck" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 10m ./tests/00_healthcheck_test.go \
+          -stand local -verbose
+      fi
+  needs:
+    - job: parse-labels
+      artifacts: true
+
+fast-e2e:
+  stage: test
+  image: golang:1.22
+  tags:
+    - bare-metal
+  script:
+    - |
+      cd testkit_v2
+      # Определяем какие тесты запускать на основе фильтра
+      if [ "$TEST_FILTER" = "sds-node-configurator" ] || [ "$TEST_FILTER" = "lvg" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 30m ./tests/01_sds_nc_test.go \
+          -stand metal -run "TestLvg" \
+          -kconfig $KUBECONFIG_BARE_METAL
+      fi
+      if [ "$TEST_FILTER" = "pvc" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 30m ./tests/03_sds_lv_test.go \
+          -stand metal -run "TestPVC" \
+          -kconfig $KUBECONFIG_BARE_METAL
+      fi
+  needs:
+    - job: parse-labels
+      artifacts: true
+  rules:
+    - if: $SKIP_E2E != "true" && $SKIP_SLOW != "true"
+
+full-e2e:
+  stage: test
+  image: golang:1.22
+  tags:
+    - hypervisor
+  script:
+    - |
+      cd testkit_v2
+      # Определяем какие тесты запускать на основе фильтра
+      if [ "$TEST_FILTER" = "data-export" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 120m ./tests/base_test.go \
+          -stand metal -run "TestDataExport" \
+          -hypervisorkconfig $KUBECONFIG_HYPERVISOR
+      fi
+      if [ "$TEST_FILTER" = "sds-node-configurator" ] || [ "$TEST_FILTER" = "lvg" ] || [ -z "$TEST_FILTER" ]; then
+        go test -v -timeout 120m ./tests/05_sds_node_configurator_test.go \
+          -stand metal -run "TestLvg.*" \
+          -hypervisorkconfig $KUBECONFIG_HYPERVISOR
+      fi
+  needs:
+    - job: parse-labels
+      artifacts: true
+  rules:
+    - if: $SKIP_E2E != "true" && ($FORCE_FULL == "true" || $SKIP_SLOW != "true")
+
+stress-tests:
+  stage: test
+  image: golang:1.22
+  tags:
+    - hypervisor
+  script:
+    - |
+      cd testkit_v2
+      go test -v -timeout 180m ./tests/... \
+        -stand metal -run "Test.*" \
+        -hypervisorkconfig $KUBECONFIG_HYPERVISOR
+  needs:
+    - job: parse-labels
+      artifacts: true
+  rules:
+    - if: $SKIP_E2E != "true" && ($FORCE_STRESS == "true" || $SKIP_SLOW != "true")
+```
 
 **Ручной запуск через UI:**
 1. Перейти в CI/CD → Pipelines

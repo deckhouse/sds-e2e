@@ -30,8 +30,86 @@ env:
   E2E_REPO: "deckhouse/sds-e2e"
 
 jobs:
+  # Парсинг лейблов из PR
+  parse-labels:
+    runs-on: ubuntu-latest
+    outputs:
+      skip-e2e: ${{ steps.parse.outputs.skip-e2e }}
+      skip-slow: ${{ steps.parse.outputs.skip-slow }}
+      force-full: ${{ steps.parse.outputs.force-full }}
+      force-stress: ${{ steps.parse.outputs.force-stress }}
+      env-filter: ${{ steps.parse.outputs.env-filter }}
+      priority: ${{ steps.parse.outputs.priority }}
+      test-filter: ${{ steps.parse.outputs.test-filter }}
+      module-branch: ${{ steps.parse.outputs.module-branch }}
+      module-tag: ${{ steps.parse.outputs.module-tag }}
+    steps:
+      - name: Parse PR description for labels
+        id: parse
+        run: |
+          PR_BODY="${{ github.event.pull_request.body }}"
+          
+          # Проверяем лейблы
+          if echo "$PR_BODY" | grep -q "\[skip-e2e\]"; then
+            echo "skip-e2e=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[skip-slow-tests\]"; then
+            echo "skip-slow=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[force-full-e2e\]"; then
+            echo "force-full=true" >> $GITHUB_OUTPUT
+          fi
+          
+          if echo "$PR_BODY" | grep -q "\[force-stress-tests\]"; then
+            echo "force-stress=true" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем среду
+          if echo "$PR_BODY" | grep -q "\[env:bare-metal\]"; then
+            echo "env-filter=bare-metal" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[env:hypervisor\]"; then
+            echo "env-filter=hypervisor" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[env:all\]"; then
+            echo "env-filter=all" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем приоритет
+          if echo "$PR_BODY" | grep -q "\[priority:high\]"; then
+            echo "priority=high" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[priority:low\]"; then
+            echo "priority=low" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем конкретные тесты
+          if echo "$PR_BODY" | grep -q "\[test:data-export\]"; then
+            echo "test-filter=data-export" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:sds-node-configurator\]"; then
+            echo "test-filter=sds-node-configurator" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:healthcheck\]"; then
+            echo "test-filter=healthcheck" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:lvg\]"; then
+            echo "test-filter=lvg" >> $GITHUB_OUTPUT
+          elif echo "$PR_BODY" | grep -q "\[test:pvc\]"; then
+            echo "test-filter=pvc" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем ветку модуля
+          MODULE_BRANCH=$(echo "$PR_BODY" | grep -o "\[module-branch:[^]]*\]" | sed 's/\[module-branch://;s/\]//')
+          if [ -n "$MODULE_BRANCH" ]; then
+            echo "module-branch=$MODULE_BRANCH" >> $GITHUB_OUTPUT
+          fi
+          
+          # Извлекаем тег модуля
+          MODULE_TAG=$(echo "$PR_BODY" | grep -o "\[module-tag:[^]]*\]" | sed 's/\[module-tag://;s/\]//')
+          if [ -n "$MODULE_TAG" ]; then
+            echo "module-tag=$MODULE_TAG" >> $GITHUB_OUTPUT
+          fi
+
   # Этап сборки
   build:
+    needs: parse-labels
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ steps.meta.outputs.tags }}
@@ -796,3 +874,111 @@ generate-report:
 - Быстрые тесты (smoke, unit) - Сценарий 1
 - Медленные тесты (full e2e, stress) - Сценарий 2
 - Критические тесты - оба сценария
+
+## Примеры использования лейблов
+
+### GitHub Pull Requests
+
+```bash
+# Пропустить все e2e тесты
+[skip-e2e]
+
+# Пропустить только медленные тесты
+[skip-slow-tests]
+
+# Запустить все тесты, включая медленные
+[force-full-e2e]
+
+# Запустить stress тесты
+[force-stress-tests]
+
+# Запустить только на bare-metal
+[env:bare-metal]
+
+# Запустить только на hypervisor
+[env:hypervisor]
+
+# Запустить только тесты data-export
+[test:data-export]
+
+# Запустить только тесты sds-node-configurator
+[test:sds-node-configurator]
+
+# Запустить только healthcheck тесты
+[test:healthcheck]
+
+# Запустить только LVG тесты
+[test:lvg]
+
+# Запустить только PVC тесты
+[test:pvc]
+
+# Тестировать с ветки develop модуля
+[module-branch:develop]
+
+# Тестировать с тега модуля
+[module-tag:v1.2.3]
+
+# Высокий приоритет
+[priority:high]
+
+# Низкий приоритет
+[priority:low]
+```
+
+### GitLab Merge Requests
+
+```bash
+# Пропустить все e2e тесты
+[skip-e2e]
+
+# Пропустить только медленные тесты
+[skip-slow-tests]
+
+# Запустить все тесты, включая медленные
+[force-full-e2e]
+
+# Запустить stress тесты
+[force-stress-tests]
+
+# Запустить только на bare-metal
+[env:bare-metal]
+
+# Запустить только на hypervisor
+[env:hypervisor]
+
+# Запустить только тесты data-export
+[test:data-export]
+
+# Запустить только тесты sds-node-configurator
+[test:sds-node-configurator]
+
+# Запустить только healthcheck тесты
+[test:healthcheck]
+
+# Запустить только LVG тесты
+[test:lvg]
+
+# Запустить только PVC тесты
+[test:pvc]
+
+# Тестировать с ветки develop модуля
+[module-branch:develop]
+
+# Тестировать с тега модуля
+[module-tag:v1.2.3]
+
+# Высокий приоритет
+[priority:high]
+
+# Низкий приоритет
+[priority:low]
+```
+
+### Преимущества использования лейблов
+
+- **Гибкость**: Разработчики могут точно контролировать, какие тесты запускать
+- **Экономия ресурсов**: Пропуск ненужных тестов экономит время и ресурсы
+- **Простота использования**: Лейблы в PR/MR понятны всем разработчикам
+- **Масштабируемость**: Легко добавлять новые лейблы и фильтры
+- **Интеграция**: Работает как с GitHub Actions, так и с GitLab CI
