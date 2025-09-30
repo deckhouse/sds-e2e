@@ -1,0 +1,240 @@
+# Шаблон для интеграции e2e тестов в существующие workflow'ы модулей
+# Добавить этот job в существующий workflow после job'ов сборки
+
+# Парсинг лейблов PR для e2e тестов
+parse-e2e-labels:
+  name: Parse E2E Labels
+  runs-on: ubuntu-latest
+  if: github.event_name == 'pull_request'
+  outputs:
+    run-e2e: ${{ steps.parse.outputs.run-e2e }}
+    skip-e2e: ${{ steps.parse.outputs.skip-e2e }}
+    test-type: ${{ steps.parse.outputs.test-type }}
+    environment: ${{ steps.parse.outputs.environment }}
+    priority: ${{ steps.parse.outputs.priority }}
+  steps:
+    - name: Parse PR labels for E2E tests
+      id: parse
+      run: |
+        # Получаем лейблы PR
+        LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+        echo "PR Labels: $LABELS"
+        
+        # Проверяем наличие лейбла e2e:run
+        if echo "$LABELS" | grep -q "e2e:run"; then
+          echo "run-e2e=true" >> $GITHUB_OUTPUT
+        else
+          echo "run-e2e=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Проверяем наличие лейбла e2e:skip
+        if echo "$LABELS" | grep -q "e2e:skip"; then
+          echo "skip-e2e=true" >> $GITHUB_OUTPUT
+        else
+          echo "skip-e2e=false" >> $GITHUB_OUTPUT
+        fi
+        
+        # Определяем тип тестов
+        if echo "$LABELS" | grep -q "e2e:smoke"; then
+          echo "test-type=smoke" >> $GITHUB_OUTPUT
+        elif echo "$LABELS" | grep -q "e2e:full"; then
+          echo "test-type=full" >> $GITHUB_OUTPUT
+        else
+          echo "test-type=integration" >> $GITHUB_OUTPUT
+        fi
+        
+        # Определяем окружение
+        if echo "$LABELS" | grep -q "e2e:bare-metal"; then
+          echo "environment=bare-metal" >> $GITHUB_OUTPUT
+        elif echo "$LABELS" | grep -q "e2e:hypervisor"; then
+          echo "environment=hypervisor" >> $GITHUB_OUTPUT
+        else
+          echo "environment=local" >> $GITHUB_OUTPUT
+        fi
+        
+        # Определяем приоритет
+        if echo "$LABELS" | grep -q "e2e:priority:high"; then
+          echo "priority=high" >> $GITHUB_OUTPUT
+        elif echo "$LABELS" | grep -q "e2e:priority:low"; then
+          echo "priority=low" >> $GITHUB_OUTPUT
+        else
+          echo "priority=normal" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "Parsed E2E values:"
+        echo "  run-e2e: ${{ steps.parse.outputs.run-e2e }}"
+        echo "  skip-e2e: ${{ steps.parse.outputs.skip-e2e }}"
+        echo "  test-type: ${{ steps.parse.outputs.test-type }}"
+        echo "  environment: ${{ steps.parse.outputs.environment }}"
+        echo "  priority: ${{ steps.parse.outputs.priority }}"
+
+# Запуск e2e тестов (добавить после job'ов сборки)
+run-e2e-tests:
+  name: Run E2E Tests
+  runs-on: ${{ needs.parse-e2e-labels.outputs.environment == 'local' && 'ubuntu-latest' || (needs.parse-e2e-labels.outputs.environment == 'bare-metal' && 'self-hosted' || 'self-hosted') }}
+  needs: [parse-e2e-labels] # Добавить зависимости от job'ов сборки
+  if: needs.parse-e2e-labels.outputs.run-e2e == 'true' && needs.parse-e2e-labels.outputs.skip-e2e == 'false'
+  steps:
+    - name: Checkout e2e tests repository
+      uses: actions/checkout@v4
+      with:
+        repository: deckhouse/sds-e2e
+        token: ${{ secrets.E2E_TRIGGER_TOKEN }}
+        path: sds-e2e
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.22'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-e2e-${{ hashFiles('sds-e2e/testkit_v2/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-e2e-
+
+    - name: Download e2e dependencies
+      run: |
+        cd sds-e2e/testkit_v2
+        go mod download
+
+    - name: Setup test environment
+      run: |
+        cd sds-e2e/testkit_v2
+        mkdir -p ../../sds-e2e-cfg
+        
+        # Настройка kubeconfig в зависимости от окружения
+        if [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "bare-metal" ]; then
+          echo "${{ secrets.KUBECONFIG_BARE_METAL }}" | base64 -d > ../../sds-e2e-cfg/kube-bare-metal.config
+        elif [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "hypervisor" ]; then
+          echo "${{ secrets.KUBECONFIG_HYPERVISOR }}" | base64 -d > ../../sds-e2e-cfg/kube-hypervisor.config
+        fi
+        
+        # Настройка SSH ключа
+        if [ "${{ needs.parse-e2e-labels.outputs.environment }}" != "local" ]; then
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ../../sds-e2e-cfg/id_rsa_test
+          chmod 600 ../../sds-e2e-cfg/id_rsa_test
+        fi
+
+    - name: Run E2E tests
+      run: |
+        cd sds-e2e/testkit_v2
+        
+        # Определяем параметры запуска на основе лейблов
+        TEST_ARGS="-v -timeout 30m"
+        
+        # Добавляем параметры в зависимости от окружения
+        if [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "local" ]; then
+          TEST_ARGS="$TEST_ARGS -stand local"
+        elif [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "bare-metal" ]; then
+          TEST_ARGS="$TEST_ARGS -stand metal -kconfig ../../sds-e2e-cfg/kube-bare-metal.config"
+        elif [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "hypervisor" ]; then
+          TEST_ARGS="$TEST_ARGS -stand metal -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config"
+        fi
+        
+        # Добавляем verbose и debug для детального логирования
+        TEST_ARGS="$TEST_ARGS -verbose -debug"
+        
+        # Определяем тесты для запуска на основе модуля
+        MODULE_NAME="${{ github.repository_owner }}/${{ github.event.repository.name }}"
+        if [[ "$MODULE_NAME" == *"sds-node-configurator"* ]]; then
+          TEST_PATTERN="./tests/*sds*_test.go"
+        elif [[ "$MODULE_NAME" == *"sds-replicated-volume"* ]]; then
+          TEST_PATTERN="./tests/*sds*_test.go"
+        elif [[ "$MODULE_NAME" == *"data-export"* ]]; then
+          TEST_PATTERN="./tests/*data*_test.go"
+        else
+          TEST_PATTERN="./tests/..."
+        fi
+        
+        echo "Running E2E tests for module: $MODULE_NAME"
+        echo "Test args: $TEST_ARGS"
+        echo "Test pattern: $TEST_PATTERN"
+        
+        go test $TEST_ARGS $TEST_PATTERN
+      env:
+        MODULE_UNDER_TEST: ${{ github.event.repository.name }}
+        TEST_TYPE: ${{ needs.parse-e2e-labels.outputs.test_type }}
+        LICENSE_KEY: ${{ secrets.DECKHOUSE_LICENSE }}
+        SSH_HOST: ${{ secrets.SSH_HOST }}
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results-${{ github.event.repository.name }}-${{ needs.parse-e2e-labels.outputs.environment }}-${{ needs.parse-e2e-labels.outputs.test_type }}
+        path: sds-e2e/testkit_v2/test-results/
+        retention-days: 7
+
+    - name: Comment PR with results
+      if: always()
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const status = '${{ job.status }}' === 'success' ? '✅' : '❌';
+          const statusText = '${{ job.status }}' === 'success' ? 'passed' : 'failed';
+          
+          const comment = `## E2E Tests Results ${status}
+          
+          **Module:** ${{ github.event.repository.name }}
+          **Environment:** ${{ needs.parse-e2e-labels.outputs.environment }}
+          **Test Type:** ${{ needs.parse-e2e-labels.outputs.test_type }}
+          **Priority:** ${{ needs.parse-e2e-labels.outputs.priority }}
+          
+          E2E tests ${statusText} successfully!
+          
+          <details>
+          <summary>View Details</summary>
+          
+          - **Workflow:** ${{ github.workflow }}
+          - **Run ID:** ${{ github.run_id }}
+          - **Commit:** ${{ github.sha }}
+          - **Triggered by:** PR labels
+          
+          </details>`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Cleanup test environment
+      if: always() && needs.parse-e2e-labels.outputs.environment != 'local'
+      run: |
+        cd sds-e2e/testkit_v2
+        # Cleanup namespace and resources
+        if [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "bare-metal" ]; then
+          kubectl --kubeconfig ../../sds-e2e-cfg/kube-bare-metal.config delete namespace test-e2e-${{ github.run_id }}-${{ github.event.repository.name }} --ignore-not-found=true
+        elif [ "${{ needs.parse-e2e-labels.outputs.environment }}" = "hypervisor" ]; then
+          kubectl --kubeconfig ../../sds-e2e-cfg/kube-hypervisor.config delete namespace test-e2e-${{ github.run_id }}-${{ github.event.repository.name }} --ignore-not-found=true
+        fi
+
+# Уведомление о пропуске тестов
+skip-e2e-notification:
+  name: Skip E2E Tests Notification
+  runs-on: ubuntu-latest
+  needs: [parse-e2e-labels]
+  if: needs.parse-e2e-labels.outputs.skip-e2e == 'true'
+  steps:
+    - name: Comment PR about skip
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const comment = `## E2E Tests Skipped ⏭️
+          
+          E2E tests were skipped due to the \`e2e:skip\` label.
+          
+          To run tests, remove the \`e2e:skip\` label and add \`e2e:run\` label.`;
+          
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });

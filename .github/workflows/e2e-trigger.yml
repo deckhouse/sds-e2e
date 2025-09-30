@@ -1,0 +1,231 @@
+name: E2E Tests Trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
+  pull_request_target:
+    types: [opened, synchronize, labeled, unlabeled]
+
+jobs:
+  # Парсинг лейблов PR
+  parse-labels:
+    name: Parse PR Labels
+    runs-on: ubuntu-latest
+    outputs:
+      run-e2e: ${{ steps.parse.outputs.run-e2e }}
+      skip-e2e: ${{ steps.parse.outputs.skip-e2e }}
+      test-type: ${{ steps.parse.outputs.test-type }}
+      module: ${{ steps.parse.outputs.module }}
+      environment: ${{ steps.parse.outputs.environment }}
+      priority: ${{ steps.parse.outputs.priority }}
+    steps:
+      - name: Parse PR labels
+        id: parse
+        run: |
+          # Получаем лейблы PR
+          LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+          echo "PR Labels: $LABELS"
+          
+          # Проверяем наличие лейбла e2e:run
+          if echo "$LABELS" | grep -q "e2e:run"; then
+            echo "run-e2e=true" >> $GITHUB_OUTPUT
+          else
+            echo "run-e2e=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Проверяем наличие лейбла e2e:skip
+          if echo "$LABELS" | grep -q "e2e:skip"; then
+            echo "skip-e2e=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip-e2e=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Определяем тип тестов
+          if echo "$LABELS" | grep -q "e2e:smoke"; then
+            echo "test-type=smoke" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "e2e:full"; then
+            echo "test-type=full" >> $GITHUB_OUTPUT
+          else
+            echo "test-type=integration" >> $GITHUB_OUTPUT
+          fi
+          
+          # Определяем модуль
+          if echo "$LABELS" | grep -q "e2e:sds-node-configurator"; then
+            echo "module=sds-node-configurator" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "e2e:sds-replicated-volume"; then
+            echo "module=sds-replicated-volume" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "e2e:data-export"; then
+            echo "module=data-export" >> $GITHUB_OUTPUT
+          else
+            echo "module=all" >> $GITHUB_OUTPUT
+          fi
+          
+          # Определяем окружение
+          if echo "$LABELS" | grep -q "e2e:bare-metal"; then
+            echo "environment=bare-metal" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "e2e:hypervisor"; then
+            echo "environment=hypervisor" >> $GITHUB_OUTPUT
+          else
+            echo "environment=local" >> $GITHUB_OUTPUT
+          fi
+          
+          # Определяем приоритет
+          if echo "$LABELS" | grep -q "e2e:priority:high"; then
+            echo "priority=high" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q "e2e:priority:low"; then
+            echo "priority=low" >> $GITHUB_OUTPUT
+          else
+            echo "priority=normal" >> $GITHUB_OUTPUT
+          fi
+          
+          echo "Parsed values:"
+          echo "  run-e2e: ${{ steps.parse.outputs.run-e2e }}"
+          echo "  skip-e2e: ${{ steps.parse.outputs.skip-e2e }}"
+          echo "  test-type: ${{ steps.parse.outputs.test-type }}"
+          echo "  module: ${{ steps.parse.outputs.module }}"
+          echo "  environment: ${{ steps.parse.outputs.environment }}"
+          echo "  priority: ${{ steps.parse.outputs.priority }}"
+
+  # Запуск e2e тестов
+  run-e2e-tests:
+    name: Run E2E Tests
+    runs-on: ubuntu-latest
+    needs: parse-labels
+    if: needs.parse-labels.outputs.run-e2e == 'true' && needs.parse-labels.outputs.skip-e2e == 'false'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - module: ${{ needs.parse-labels.outputs.module }}
+            environment: ${{ needs.parse-labels.outputs.environment }}
+            test_type: ${{ needs.parse-labels.outputs.test_type }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: |
+          cd testkit_v2
+          go mod download
+
+      - name: Run E2E tests
+        run: |
+          cd testkit_v2
+          
+          # Определяем параметры запуска на основе лейблов
+          TEST_ARGS="-v -timeout 30m"
+          
+          # Добавляем параметры в зависимости от окружения
+          if [ "${{ matrix.environment }}" = "local" ]; then
+            TEST_ARGS="$TEST_ARGS -stand local"
+          elif [ "${{ matrix.environment }}" = "bare-metal" ]; then
+            TEST_ARGS="$TEST_ARGS -stand metal -kconfig ../../sds-e2e-cfg/kube-bare-metal.config"
+          elif [ "${{ matrix.environment }}" = "hypervisor" ]; then
+            TEST_ARGS="$TEST_ARGS -stand metal -hypervisorkconfig ../../sds-e2e-cfg/kube-hypervisor.config"
+          fi
+          
+          # Добавляем verbose и debug для детального логирования
+          TEST_ARGS="$TEST_ARGS -verbose -debug"
+          
+          # Определяем тесты для запуска
+          if [ "${{ matrix.module }}" = "all" ]; then
+            TEST_PATTERN="./tests/..."
+          else
+            TEST_PATTERN="./tests/*${{ matrix.module }}*_test.go"
+          fi
+          
+          echo "Running tests with args: $TEST_ARGS"
+          echo "Test pattern: $TEST_PATTERN"
+          
+          go test $TEST_ARGS $TEST_PATTERN
+        env:
+          MODULE_UNDER_TEST: ${{ matrix.module }}
+          TEST_TYPE: ${{ matrix.test_type }}
+          LICENSE_KEY: ${{ secrets.DECKHOUSE_LICENSE }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: e2e-test-results-${{ matrix.module }}-${{ matrix.environment }}-${{ matrix.test_type }}
+          path: testkit_v2/test-results/
+          retention-days: 7
+
+      - name: Comment PR with results
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            
+            // Определяем статус тестов
+            const status = '${{ job.status }}' === 'success' ? '✅' : '❌';
+            const statusText = '${{ job.status }}' === 'success' ? 'passed' : 'failed';
+            
+            // Формируем комментарий
+            const comment = `## E2E Tests Results ${status}
+            
+            **Module:** ${{ matrix.module }}
+            **Environment:** ${{ matrix.environment }}
+            **Test Type:** ${{ matrix.test_type }}
+            **Priority:** ${{ needs.parse-labels.outputs.priority }}
+            
+            Tests ${statusText} successfully!
+            
+            <details>
+            <summary>View Details</summary>
+            
+            - **Workflow:** ${{ github.workflow }}
+            - **Run ID:** ${{ github.run_id }}
+            - **Commit:** ${{ github.sha }}
+            - **Triggered by:** PR labels
+            
+            </details>`;
+            
+            // Отправляем комментарий в PR
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Уведомление о пропуске тестов
+  skip-notification:
+    name: Skip E2E Tests Notification
+    runs-on: ubuntu-latest
+    needs: parse-labels
+    if: needs.parse-labels.outputs.skip-e2e == 'true'
+    steps:
+      - name: Comment PR about skip
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const comment = `## E2E Tests Skipped ⏭️
+            
+            E2E tests were skipped due to the \`e2e:skip\` label.
+            
+            To run tests, remove the \`e2e:skip\` label and add \`e2e:run\` label.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

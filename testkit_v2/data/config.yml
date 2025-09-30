@@ -19,7 +19,7 @@ deckhouse:
   # Address of the Docker registry where the Deckhouse images are located
   imagesRepo: dev-registry.deckhouse.io/sys/deckhouse-oss
   # A special string with your token to access Docker registry (generated automatically for your license token)
-  registryDockerCfg: eyJhdXRocyI6eyJkZXYtcmVnaXN0cnkuZGVja2hvdXNlLmlvIjp7ImF1dGgiOiJiR2xqWlc1elpTMTBiMnRsYmpwelJtc3hRbHAyUm05aWIyTjJhRkZXYUV4aldVaFZiVTVWWjJkSU4yOTFNZz09In19fQ==
+  registryDockerCfg: eyJhdXRocyI6eyJkZXYtcmVnaXN0cnkuZGVja2hvdXNlLmlvIjp7ImF1dGgiOiJiR2xqWlc1elpTMTBiMnRsYmpvNGRYZFhibTFYWm5kMVkzRkdjRlU0ZGxGVWNGWjBVVGxqUzFCS01VdE1iUT09In19fQ==
   devBranch: main
 ---
 # Deckhouse module settings.

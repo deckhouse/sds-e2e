@@ -96,7 +96,7 @@ metadata:
 spec:
   registry:
     ca: ""
-    dockerCfg: eyJhdXRocyI6eyJkZXYtcmVnaXN0cnkuZGVja2hvdXNlLmlvIjp7ImF1dGgiOiJiR2xqWlc1elpTMTBiMnRsYmpwelJtc3hRbHAyUm05aWIyTjJhRkZXYUV4aldVaFZiVTVWWjJkSU4yOTFNZz09In19fQ==
+    dockerCfg: eyJhdXRocyI6eyJkZXYtcmVnaXN0cnkuZGVja2hvdXNlLmlvIjp7ImF1dGgiOiJiR2xqWlc1elpTMTBiMnRsYmpvNGRYZFhibTFYWm5kMVkzRkdjRlU0ZGxGVWNGWjBVVGxqUzFCS01VdE1iUT09In19fQ==
     repo: dev-registry.deckhouse.io/sys/deckhouse-oss/modules
     scheme: HTTPS
   releaseChannel: ""

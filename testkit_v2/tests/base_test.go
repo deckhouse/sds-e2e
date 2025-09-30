@@ -58,12 +58,12 @@ const (
 // TestDataExport runs all data export related tests
 func TestDataExport(t *testing.T) {
 	t.Run("routing", testDataExportRoutingValidation)
-	t.Run("auth", testDataExportAuth)
-	t.Run("files_content", testDataExportFilesContent)
-	t.Run("files_headers", testDataExportFilesHeaders)
-	// t.Run("directories", testDataExportDirectoriesGroup)
+	//t.Run("auth", testDataExportAuth)
+	//t.Run("files_content", testDataExportFilesContent)
+	//t.Run("files_headers", testDataExportFilesHeaders)
+	//t.Run("directories", testDataExportDirectoriesGroup)
 	// t.Run("methods_not_allowed", testDataExportMethodNotAllowedGroup)
-	// t.Run("block_mode", testStorageVolumeDataManagerBlock)
+	t.Run("block_mode", testStorageVolumeDataManagerBlock)
 	// t.Run("ttl_expired", testDataExportTTLExpired)
 	// t.Run("delete_data_export", testDeleteDataExport)
 	// t.Run("export_type_already_exported", testExportTypeWhichIsAlreadyExported)

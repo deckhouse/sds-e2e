@@ -279,8 +279,8 @@ func ClusterCreate() {
 		if err != nil {
 			return err
 		}
-		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
-			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
+		if int(dsNodeConfigurator.Status.NumberReady) < len(vmWorkers) {
+			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(vmWorkers))
 		}
 		Debugf("sds-node-configurator ready")
 		return nil
