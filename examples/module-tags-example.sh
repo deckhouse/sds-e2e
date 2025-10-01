@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Примеры использования image tags для модулей в e2e тестах
+
+echo "=== Примеры использования image tags для модулей ==="
+
+echo ""
+echo "1. Тестирование с конкретными версиями модулей:"
+echo "go test -v ./tests/05_sds_node_configurator_test.go \\"
+echo "  -sds-node-configurator-tag=\"pr123\" \\"
+echo "  -sds-replicated-volume-tag=\"pr456\" \\"
+echo "  -data-export-tag=\"mr789\""
+
+echo ""
+echo "2. Использование переменных окружения:"
+echo "export SDS_NODE_CONFIGURATOR_TAG=\"pr123\""
+echo "export SDS_REPLICATED_VOLUME_TAG=\"pr456\""
+echo "go test -v ./tests/..."
+
+echo ""
+echo "3. Тестирование с ветками разработки:"
+echo "go test -v ./tests/... \\"
+echo "  -sds-node-configurator-tag=\"main\" \\"
+echo "  -sds-replicated-volume-tag=\"pr456\""
+
+echo ""
+echo "4. Комбинированный подход (флаги переопределяют переменные):"
+echo "export SDS_NODE_CONFIGURATOR_TAG=\"pr123\""
+echo "go test -v ./tests/... -sds-node-configurator-tag=\"pr456\"  # Используется pr456"
+
+echo ""
+echo "5. Тестирование с MR/PR тегами:"
+echo "go test -v ./tests/... \\"
+echo "  -sds-node-configurator-tag=\"pr123\" \\"
+echo "  -sds-replicated-volume-tag=\"mr456\""
+
+echo ""
+echo "6. В CI/CD пайплайне:"
+echo "# GitHub Actions"
+echo "export SDS_NODE_CONFIGURATOR_TAG=\"pr\${{ github.event.number }}\""
+echo "export SDS_REPLICATED_VOLUME_TAG=\"pr\${{ github.event.number }}\""
+echo "go test -v ./tests/..."
+
+echo ""
+echo "7. Одновременное тестирование GitHub и GitLab:"
+echo "go test -v ./tests/... \\"
+echo "  -sds-node-configurator-tag=\"pr123\" \\"
+echo "  -sds-replicated-volume-tag=\"mr456\" \\"
+echo "  -data-export-tag=\"main\""
+
+echo ""
+echo "8. Автоматическое определение платформы:"
+echo "if [ -n \"\$GITHUB_PR_NUMBER\" ]; then"
+echo "  export SDS_NODE_CONFIGURATOR_TAG=\"pr\${GITHUB_PR_NUMBER}\""
+echo "elif [ -n \"\$GITLAB_MERGE_REQUEST_IID\" ]; then"
+echo "  export SDS_NODE_CONFIGURATOR_TAG=\"mr\${GITLAB_MERGE_REQUEST_IID}\""
+echo "else"
+echo "  export SDS_NODE_CONFIGURATOR_TAG=\"main\""
+echo "fi"
+echo "go test -v ./tests/..."
+
+echo ""
+echo "=== Доступные флаги ==="
+echo "-sds-node-configurator-tag    : Тег для sds-node-configurator"
+echo "-sds-replicated-volume-tag    : Тег для sds-replicated-volume"
+echo "-sds-local-volume-tag         : Тег для sds-local-volume"
+echo "-data-export-tag             : Тег для data-export"
+
+echo ""
+echo "=== Переменные окружения ==="
+echo "SDS_NODE_CONFIGURATOR_TAG    : Тег для sds-node-configurator"
+echo "SDS_REPLICATED_VOLUME_TAG    : Тег для sds-replicated-volume"
+echo "SDS_LOCAL_VOLUME_TAG         : Тег для sds-local-volume"
+echo "DATA_EXPORT_TAG              : Тег для data-export"
+
+echo ""
+echo "=== Приоритет настроек ==="
+echo "1. Флаги командной строки (высший приоритет)"
+echo "2. Переменные окружения"
+echo "3. Значения по умолчанию (main)"
+
+echo ""
+echo "=== Отладка ==="
+echo "Используйте флаг -verbose для просмотра используемых тегов:"
+echo "go test -v ./tests/... -verbose"
