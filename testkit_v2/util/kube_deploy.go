@@ -28,8 +28,8 @@ import (
 
 /*  Daemon Set  */
 
-func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, error) {
-	ds, err := (*clr.goClient).AppsV1().DaemonSets(nsName).Get(clr.ctx, dsName, metav1.GetOptions{})
+func (cluster *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, error) {
+	ds, err := (*cluster.goClient).AppsV1().DaemonSets(nsName).Get(cluster.ctx, dsName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -37,8 +37,8 @@ func (clr *KCluster) GetDaemonSet(nsName, dsName string) (*appsapi.DaemonSet, er
 	return ds, nil
 }
 
-func (clr *KCluster) ListDaemonSet(nsName string) ([]appsapi.DaemonSet, error) {
-	dsList, err := (*clr.goClient).AppsV1().DaemonSets(nsName).List(clr.ctx, metav1.ListOptions{})
+func (cluster *KCluster) ListDaemonSet(nsName string) ([]appsapi.DaemonSet, error) {
+	dsList, err := (*cluster.goClient).AppsV1().DaemonSets(nsName).List(cluster.ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (clr *KCluster) ListDaemonSet(nsName string) ([]appsapi.DaemonSet, error) {
 
 /*  Service  */
 
-func (clr *KCluster) ListSvc(nsName string) ([]coreapi.Service, error) {
+func (cluster *KCluster) ListSvc(nsName string) ([]coreapi.Service, error) {
 	svcList := coreapi.ServiceList{}
 	optsList := ctrlrtclient.ListOptions{}
 	if nsName != "" {
@@ -57,14 +57,14 @@ func (clr *KCluster) ListSvc(nsName string) ([]coreapi.Service, error) {
 	}
 
 	opts := ctrlrtclient.ListOption(&optsList)
-	if err := clr.rtClient.List(clr.ctx, &svcList, opts); err != nil {
+	if err := cluster.controllerRuntimeClient.List(cluster.ctx, &svcList, opts); err != nil {
 		return nil, err
 	}
 
 	return svcList.Items, nil
 }
 
-func (clr *KCluster) CreateSvcNodePort(nsName, sName string, selector map[string]string, port, nodePort int) error {
+func (cluster *KCluster) CreateSvcNodePort(nsName, sName string, selector map[string]string, port, nodePort int) error {
 	svc := coreapi.Service{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Service",
@@ -84,7 +84,7 @@ func (clr *KCluster) CreateSvcNodePort(nsName, sName string, selector map[string
 		},
 	}
 
-	err := clr.rtClient.Create(clr.ctx, &svc)
+	err := cluster.controllerRuntimeClient.Create(cluster.ctx, &svc)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return err
 	}

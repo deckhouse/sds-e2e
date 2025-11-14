@@ -23,9 +23,16 @@ import (
 	snc "github.com/deckhouse/sds-node-configurator/api/v1alpha1"
 	coreapi "k8s.io/api/core/v1"
 	storapi "k8s.io/api/storage/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	DefaultLVMVolumeGroupNamePrefix = "default-lvg-"
+	DefaultLVMVolumeGroupSize       = "10Gi"
+	DefaultVGNameOnTheNode          = "vg-default"
 )
 
 /*  Block Device  */
@@ -61,9 +68,9 @@ func (f *BdFilter) Apply(bds []snc.BlockDevice) (resp []snc.BlockDevice) {
 	return
 }
 
-func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
+func (cluster *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
 	bdList := &snc.BlockDeviceList{}
-	err := clr.rtClient.List(clr.ctx, bdList)
+	err := cluster.controllerRuntimeClient.List(cluster.ctx, bdList)
 	if err != nil {
 		Warnf("Can't get BDs: %s", err.Error())
 		return nil, err
@@ -77,13 +84,13 @@ func (clr *KCluster) ListBD(filters ...BdFilter) ([]snc.BlockDevice, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) DeleteBd(filters ...BdFilter) error {
-	bdList, err := clr.ListBD(filters...)
+func (cluster *KCluster) DeleteBd(filters ...BdFilter) error {
+	bdList, err := cluster.ListBD(filters...)
 	if err != nil {
 		return err
 	}
 	for _, bd := range bdList {
-		if err := clr.rtClient.Delete(clr.ctx, &bd); err != nil {
+		if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &bd); err != nil {
 			return err
 		}
 	}
@@ -91,12 +98,12 @@ func (clr *KCluster) DeleteBd(filters ...BdFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteBdAndWait(filters ...BdFilter) error {
-	if err := clr.DeleteBd(filters...); err != nil {
+func (cluster *KCluster) DeleteBdAndWait(filters ...BdFilter) error {
+	if err := cluster.DeleteBd(filters...); err != nil {
 		return err
 	}
 	return RetrySec(20, func() error {
-		bds, err := clr.ListBD(filters...)
+		bds, err := cluster.ListBD(filters...)
 		if err != nil {
 			return err
 		}
@@ -111,15 +118,13 @@ func (clr *KCluster) DeleteBdAndWait(filters ...BdFilter) error {
 
 /*  LVM Volume Group  */
 
-type lvgType = snc.LVMVolumeGroup
-
 type LvgFilter struct {
 	Name  any
 	Node  any
 	Phase any
 }
 
-func (f *LvgFilter) Apply(lvgs []lvgType) (resp []lvgType) {
+func (f *LvgFilter) Apply(lvgs []snc.LVMVolumeGroup) (resp []snc.LVMVolumeGroup) {
 	for _, lvg := range lvgs {
 		if f.Name != nil && !CheckCondition(f.Name, lvg.Name) {
 			continue
@@ -136,9 +141,9 @@ func (f *LvgFilter) Apply(lvgs []lvgType) (resp []lvgType) {
 	return
 }
 
-func (clr *KCluster) GetLvg(lvgName string) (*lvgType, error) {
-	lvg := lvgType{}
-	err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+func (cluster *KCluster) GetLvg(lvgName string) (*snc.LVMVolumeGroup, error) {
+	lvg := snc.LVMVolumeGroup{}
+	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
 		Name: lvgName,
 	}, &lvg)
 	if err != nil {
@@ -147,9 +152,16 @@ func (clr *KCluster) GetLvg(lvgName string) (*lvgType, error) {
 	return &lvg, nil
 }
 
-func (clr *KCluster) ListLVG(filters ...LvgFilter) ([]lvgType, error) {
+// ListLVG returns a list of LVM Volume Groups filtered by the provided filters.
+// If no filters are provided, it returns all LVM Volume Groups in the cluster.
+// Example usage:
+//
+//	lvgList, err := cluster.ListLVG(LvgFilter{Name: "my-lvg"})
+//	lvgList, err := cluster.ListLVG() // Get all LVGs
+//	lvgList, err := cluster.ListLVG(LvgFilter{Node: "node1"}, LvgFilter{Phase: "Ready"})
+func (cluster *KCluster) ListLVG(filters ...LvgFilter) ([]snc.LVMVolumeGroup, error) {
 	lvgList := &snc.LVMVolumeGroupList{}
-	if err := clr.rtClient.List(clr.ctx, lvgList); err != nil {
+	if err := cluster.controllerRuntimeClient.List(cluster.ctx, lvgList); err != nil {
 		Warnf("Can't get LVGs: %s", err.Error())
 		return nil, err
 	}
@@ -162,10 +174,10 @@ func (clr *KCluster) ListLVG(filters ...LvgFilter) ([]lvgType, error) {
 	return resp, nil
 }
 
-func (clr *KCluster) WaitLVGsReady(filters ...LvgFilter) error {
+func (cluster *KCluster) WaitLVGsReady(filters ...LvgFilter) error {
 	filtersNotReady := append(filters, LvgFilter{Phase: "!Ready"})
 	if err := RetrySec(35, func() error {
-		lvgs, err := clr.ListLVG(filtersNotReady...)
+		lvgs, err := cluster.ListLVG(filtersNotReady...)
 		if err != nil {
 			return err
 		}
@@ -177,7 +189,7 @@ func (clr *KCluster) WaitLVGsReady(filters ...LvgFilter) error {
 		return err
 	}
 
-	lvgs, err := clr.ListLVG(filters...)
+	lvgs, err := cluster.ListLVG(filters...)
 	if err != nil {
 		return err
 	}
@@ -191,7 +203,7 @@ func (clr *KCluster) WaitLVGsReady(filters ...LvgFilter) error {
 	return nil
 }
 
-func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
+func (cluster *KCluster) CreateLVG(name, nodeName string, bds []string) error {
 	Debugf("Creating LVG %s (node %s, bds %v)", name, nodeName, bds)
 	lvmVolumeGroup := &snc.LVMVolumeGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -208,7 +220,7 @@ func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
 			Local: snc.LVMVolumeGroupLocalSpec{NodeName: nodeName},
 		},
 	}
-	err := clr.rtClient.Create(clr.ctx, lvmVolumeGroup)
+	err := cluster.controllerRuntimeClient.Create(cluster.ctx, lvmVolumeGroup)
 	if err != nil {
 		Errorf("Can't create LVG %s (node %s, bds %v)", name, nodeName, bds)
 		return err
@@ -216,15 +228,15 @@ func (clr *KCluster) CreateLVG(name, nodeName string, bds []string) error {
 	return nil
 }
 
-func (clr *KCluster) CreateLvgWithCheck(name, nodeName string, bds []string) error {
-	if err := clr.CreateLVG(name, nodeName, bds); err != nil {
+func (cluster *KCluster) CreateLvgWithCheck(name, nodeName string, bds []string) error {
+	if err := cluster.CreateLVG(name, nodeName, bds); err != nil {
 		return err
 	}
 
-	return clr.WaitLVGsReady(LvgFilter{Name: name})
+	return cluster.WaitLVGsReady(LvgFilter{Name: name})
 }
 
-func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) error {
+func (cluster *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) error {
 	lvg := &snc.LVMVolumeGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
@@ -246,7 +258,7 @@ func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) err
 	if tp, ok := ext["thinpools"]; ok {
 		lvg.Spec.ThinPools = tp.([]snc.LVMVolumeGroupThinPoolSpec)
 	}
-	err := clr.rtClient.Create(clr.ctx, lvg)
+	err := cluster.controllerRuntimeClient.Create(cluster.ctx, lvg)
 	if err != nil {
 		Errorf("Can't create LVG %s/%s", nodeName, name)
 		return err
@@ -254,8 +266,8 @@ func (clr *KCluster) CreateLvgExt(name, nodeName string, ext map[string]any) err
 	return nil
 }
 
-func (clr *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
-	err := clr.rtClient.Update(clr.ctx, lvg)
+func (cluster *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
+	err := cluster.controllerRuntimeClient.Update(cluster.ctx, lvg)
 	if err != nil {
 		Errorf("Can't update LVG %s", lvg.Name)
 		return err
@@ -264,11 +276,11 @@ func (clr *KCluster) UpdateLVG(lvg *snc.LVMVolumeGroup) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteLVG(filters ...LvgFilter) error {
-	lvgs, _ := clr.ListLVG(filters...)
+func (cluster *KCluster) DeleteLVG(filters ...LvgFilter) error {
+	lvgs, _ := cluster.ListLVG(filters...)
 
 	for _, lvg := range lvgs {
-		if err := clr.rtClient.Delete(clr.ctx, &lvg); err != nil {
+		if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &lvg); err != nil {
 			return err
 		}
 	}
@@ -276,13 +288,13 @@ func (clr *KCluster) DeleteLVG(filters ...LvgFilter) error {
 	return nil
 }
 
-func (clr *KCluster) DeleteLvgAndWait(filters ...LvgFilter) error {
-	if err := clr.DeleteLVG(filters...); err != nil {
+func (cluster *KCluster) DeleteLvgAndWait(filters ...LvgFilter) error {
+	if err := cluster.DeleteLVG(filters...); err != nil {
 		return err
 	}
 
 	return RetrySec(15, func() error {
-		lvgs, err := clr.ListLVG(filters...)
+		lvgs, err := cluster.ListLVG(filters...)
 		if err != nil {
 			return err
 		}
@@ -296,7 +308,7 @@ func (clr *KCluster) DeleteLvgAndWait(filters ...LvgFilter) error {
 
 /*  Storage Class  */
 
-func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
+func (cluster *KCluster) CreateLocalThickStorageClass(name string) (*storapi.StorageClass, error) {
 	lvmType := "Thick"
 	lvmVolGroups := "- name: vg-w1\n- name: vg-w2"
 
@@ -315,11 +327,11 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 			Name:      name,
 			Namespace: "default",
 		},
-		Provisioner: "lvm.csi.storage.deckhouse.io",
+		Provisioner: "local.csi.storage.deckhouse.io",
 		Parameters: map[string]string{
-			"lvm.csi.storage.deckhouse.io/lvm-type":            lvmType,
-			"lvm.csi.storage.deckhouse.io/volume-binding-mode": string(volBindingMode),
-			"lvm.csi.storage.deckhouse.io/lvm-volume-groups":   lvmVolGroups,
+			"local.csi.storage.deckhouse.io/lvm-type":            lvmType,
+			"local.csi.storage.deckhouse.io/volume-binding-mode": string(volBindingMode),
+			"local.csi.storage.deckhouse.io/lvm-volume-groups":   lvmVolGroups,
 		},
 		ReclaimPolicy:        &reclaimPolicy,
 		MountOptions:         nil,
@@ -327,17 +339,60 @@ func (clr *KCluster) CreateSC(name string) (*storapi.StorageClass, error) {
 		VolumeBindingMode:    &volBindingMode,
 	}
 
-	if err := clr.rtClient.Create(clr.ctx, sc); err != nil {
+	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, sc); err != nil {
 		Errorf("Can't create SC %s", sc.Name)
 		return nil, err
 	}
 	return sc, nil
 }
 
+func (cluster *KCluster) CreateDefaultStorageClass(name string) (*storapi.StorageClass, error) {
+	enableThinProvisioning := true
+	err := cluster.EnsureSDSReplicatedVolumeModuleEnabled(enableThinProvisioning)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure SDS Replicated Volume module enabled: %w", err)
+	}
+
+	err = cluster.WaitUntilSDSReplicatedVolumeModuleReady()
+	if err != nil {
+		return nil, fmt.Errorf("failed to wait until SDS Replicated Volume module is ready: %w", err)
+	}
+
+	err = cluster.EnsureEveryNodeHasLVMVolumeGroup(DefaultLVMVolumeGroupSize)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure every node has LVM Volume Group: %w", err)
+	}
+
+	// StorageClass := &storapi.StorageClass{}
+	// lvmType := "Thin"
+
+	return nil, nil
+
+}
+
+func (cluster *KCluster) EnsureStorageClass(storageClassName string) (*storapi.StorageClass, error) {
+	storageClass := &storapi.StorageClass{}
+
+	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{Name: storageClassName}, storageClass)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+
+		// StorageClass does not exist, create it
+		storageClass, err = cluster.CreateDefaultStorageClass(storageClassName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create StorageClass %s: %w", storageClassName, err)
+		}
+	}
+
+	return storageClass, nil
+}
+
 /*  Persistent Volume Claims  */
 
-func (clr *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
-	pvcList, err := (*clr.goClient).CoreV1().PersistentVolumeClaims(nsName).List(clr.ctx, metav1.ListOptions{})
+func (cluster *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim, error) {
+	pvcList, err := (*cluster.goClient).CoreV1().PersistentVolumeClaims(nsName).List(cluster.ctx, metav1.ListOptions{})
 	if err != nil {
 		Debugf("Can't get '%s' PVCs: %s", nsName, err.Error())
 		return nil, err
@@ -346,7 +401,13 @@ func (clr *KCluster) ListPVC(nsName string) ([]coreapi.PersistentVolumeClaim, er
 	return pvcList.Items, nil
 }
 
-func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
+func (cluster *KCluster) CreatePVCInTestNS(name, scName, size string) (*coreapi.PersistentVolumeClaim, error) {
+
+	_, err := cluster.EnsureStorageClass(scName)
+	if err != nil {
+		return nil, err
+	}
+
 	resourceList := make(map[coreapi.ResourceName]resource.Quantity)
 	sizeStorage, err := resource.ParseQuantity(size)
 	if err != nil {
@@ -376,17 +437,17 @@ func (clr *KCluster) CreatePVC(name, scName, size string) (*coreapi.PersistentVo
 		},
 	}
 
-	err = clr.rtClient.Create(clr.ctx, &pvc)
+	err = cluster.controllerRuntimeClient.Create(cluster.ctx, &pvc)
 	if err != nil {
 		return nil, err
 	}
 	return &pvc, nil
 }
 
-func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
+func (cluster *KCluster) WaitPVCStatus(name string) (string, error) {
 	pvc := coreapi.PersistentVolumeClaim{}
 	for i := 0; i < pvcWaitIterationCount; i++ {
-		err := clr.rtClient.Get(clr.ctx, ctrlrtclient.ObjectKey{
+		err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
 			Name:      name,
 			Namespace: TestNS,
 		}, &pvc)
@@ -407,7 +468,7 @@ func (clr *KCluster) WaitPVCStatus(name string) (string, error) {
 		pvcWaitInterval*pvcWaitIterationCount)
 }
 
-func (clr *KCluster) DeletePVC(name string) error {
+func (cluster *KCluster) DeletePVC(name string) error {
 	pvc := coreapi.PersistentVolumeClaim{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "PersistentVolumeClaim",
@@ -419,18 +480,57 @@ func (clr *KCluster) DeletePVC(name string) error {
 		},
 	}
 
-	if err := clr.rtClient.Delete(clr.ctx, &pvc); err != nil {
+	if err := cluster.controllerRuntimeClient.Delete(cluster.ctx, &pvc); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (clr *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
-	err := clr.rtClient.Update(clr.ctx, pvc)
+func (cluster *KCluster) UpdatePVC(pvc *coreapi.PersistentVolumeClaim) error {
+	err := cluster.controllerRuntimeClient.Update(cluster.ctx, pvc)
 	if err != nil {
 		Warnf("Can't update PVC %s", pvc.Name)
 		return err
 	}
+
+	return nil
+}
+
+func (cluster *KCluster) EnsureEveryNodeHasLVMVolumeGroup(lvmVolumeGroupSize string) error {
+	readyLVMVolumeGroups, err := cluster.ListLVG(LvgFilter{Phase: "Ready"})
+	if err != nil {
+		return fmt.Errorf("failed to list LVM Volume Groups: %w", err)
+	}
+
+	nodes, err := cluster.ListNode()
+	if err != nil {
+		return fmt.Errorf("failed to list nodes: %w", err)
+	}
+	for _, node := range nodes {
+		nodeName := node.Name
+		lvgName := DefaultLVMVolumeGroupNamePrefix + nodeName
+
+		// Check if the LVM Volume Group already exists for the node
+		lvgExists := false
+		for _, lvg := range readyLVMVolumeGroups {
+			if lvg.Name == lvgName {
+				lvgExists = true
+				break
+			}
+		}
+
+		if !lvgExists {
+			Debugf("Creating LVM Volume Group %s for node %s", lvgName, nodeName)
+			err = cluster.CreateLvgWithCheck(lvgName, nodeName, []string{})
+			if err != nil {
+				return fmt.Errorf("failed to create LVM Volume Group %s for node %s: %w", lvgName, nodeName, err)
+			}
+		} else {
+			Debugf("LVM Volume Group %s already exists for node %s", lvgName, nodeName)
+		}
+	}
+
+	Debugf("All nodes have LVM Volume Groups")
 
 	return nil
 }

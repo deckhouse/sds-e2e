@@ -15,17 +15,17 @@ import (
 
 // 1 - Create LVMVolumeGroup. Check VG, PV auto creating
 func TestLvgThickCreateCascade(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		cmdPrefix := "sudo " + lvmD8 + " "
 		if t.Node.Id%2 == 1 {
 			cmdPrefix = "sudo lvm "
 			if strings.Contains(t.Node.Raw.Status.NodeInfo.OSImage, "Debian") {
-				_, _, _ = clr.ExecNode(nName, []string{"sudo", "apt", "-y", "install", "lvm2"})
+				_, _, _ = cluster.ExecNode(nName, []string{"sudo", "apt", "-y", "install", "lvm2"})
 			}
 		}
 
@@ -34,14 +34,14 @@ func TestLvgThickCreateCascade(t *testing.T) {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
+		if err := cluster.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
 			"VG Size\\s+21[45]\\d{7} B", //2.00 GiB(2147483648 B) +- 20 MiB
 			"Alloc PE / Size[\\s\\d]+ 0 / 0 B",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
+		if err := cluster.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
 			"PV Size\\s+21[45]\\d{7} B  /", //2.00 GiB(2147483648 B) +- 20 MiB
 		}); err != nil {
@@ -52,25 +52,25 @@ func TestLvgThickCreateCascade(t *testing.T) {
 
 // 2 - Delete LVMVolumeGroup. Check VG, PV auto deleting
 func TestLvgThickDeleteCascadeManually(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgCreate(nName, 3)
 		if err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
+		_ = cluster.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
 
-		if err := clr.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
 			"VG Name ",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
 			"VG Name ",
 		}); err != nil {
 			t.Error(err.Error())
@@ -80,15 +80,15 @@ func TestLvgThickDeleteCascadeManually(t *testing.T) {
 
 // 3 - Increase BlockDevice size. Check LVG, PV, VG resizing
 func TestLvgThickDiskResize(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to resize VD")
 	}
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	hvCluster := util.EnsureCluster(util.HypervisorKubeConfig, "")
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgCreate(nName, 1)
 		if err != nil {
@@ -99,13 +99,13 @@ func TestLvgThickDiskResize(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		vdList, _ := hvClr.ListVD(util.VdFilter{NameSpace: util.TestNS, Name: "%" + t.Node.Name + "-data-%"})
+		vdList, _ := hvCluster.ListVD(util.VdFilter{NameSpace: util.TestNS, Name: "%" + t.Node.Name + "-data-%"})
 		if len(vdList) == 0 {
 			t.Fatalf("Non VD for node %s", t.Node.Name)
 		}
 		for _, vd := range vdList {
 			vd.Spec.PersistentVolumeClaim.Size = resource.NewQuantity(2*1024*1024*1024, resource.BinarySI)
-			if err := hvClr.UpdateVd(&vd); err != nil {
+			if err := hvCluster.UpdateVd(&vd); err != nil {
 				t.Fatal(err.Error())
 			}
 		}
@@ -120,14 +120,14 @@ func TestLvgThickDiskResize(t *testing.T) {
 
 // 4 - Add second BlockDevice to LVG. Check LVG, PV, VG resizing
 func TestLvgThickAddBd(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgCreate(nName, 1)
 		if err != nil {
@@ -145,12 +145,12 @@ func TestLvgThickAddBd(t *testing.T) {
 		bdSelector := lvg.Spec.BlockDeviceSelector.MatchExpressions[0]
 		bdSelector.Values = append(bdSelector.Values, bds[0].Name)
 		lvg.Spec.BlockDeviceSelector.MatchExpressions[0] = bdSelector
-		if err := clr.UpdateLVG(lvg); err != nil {
+		if err := cluster.UpdateLVG(lvg); err != nil {
 			t.Fatalf("LVG updating: %s", err.Error())
 		}
 
 		if err := util.RetrySec(20, func() error {
-			lvg, err := clr.GetLvg(lvg.Name)
+			lvg, err := cluster.GetLvg(lvg.Name)
 			if err != nil {
 				return err
 			}
@@ -170,15 +170,15 @@ func TestLvgThickAddBd(t *testing.T) {
 
 // 5 - Reconnect BlockDevice to another path. Check LVG no changes
 func TestLvgThickReconnectBd(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	hvCluster := util.EnsureCluster(util.HypervisorKubeConfig, "")
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgCreate(nName, 1)
 		if err != nil {
@@ -189,24 +189,24 @@ func TestLvgThickReconnectBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		vmbds, _ := hvClr.ListVMBD(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
+		vmbds, _ := hvCluster.ListVMBD(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
 		oldBdPath := lvg.Status.Nodes[0].Devices[0].Path
 
-		err = hvClr.DetachVmbd(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
+		err = hvCluster.DetachVmbd(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
-		_ = clr.DeleteBd(util.BdFilter{Name: bdName})
+		_ = cluster.DeleteBd(util.BdFilter{Name: bdName})
 
 		_, _ = getOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
-			_ = hvClr.AttachVmbd(nName, vmbd.Name)
+			_ = hvCluster.AttachVmbd(nName, vmbd.Name)
 		}
-		_ = hvClr.WaitVmbdAttached(util.VmBdFilter{VmName: nName})
+		_ = hvCluster.WaitVmbdAttached(util.VmBdFilter{VmName: nName})
 
-		lvg, err = clr.GetLvg(lvg.Name)
+		lvg, err = cluster.GetLvg(lvg.Name)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -228,11 +228,11 @@ func TestLvgThickReconnectBd(t *testing.T) {
 
 // 6 - Add new LV to empty VG. Check VG allocated size increase
 func TestVgThickAddLv(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 
 		vgName := "e2e-vg-" + util.RandString(4)
@@ -240,28 +240,28 @@ func TestVgThickAddLv(t *testing.T) {
 		if err != nil {
 			t.Fatal(err.Error())
 		}
-		stOut, stErr, err := clr.ExecNode(nName, []string{"sudo", lvmD8, "vgcreate", vgName, bds[0].Status.Path})
+		stOut, stErr, err := cluster.ExecNode(nName, []string{"sudo", lvmD8, "vgcreate", vgName, bds[0].Status.Path})
 		if err != nil {
 			util.Debugf("vgcreate stOut: %s", stOut)
 			util.Debugf("vgcreate stErr: %s", stErr)
 			t.Fatal(err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespContains(nName, vgdisplayCmd, []string{
 			"VG Name\\s+" + vgName,
 			"Alloc PE / Size[\\s\\d]+ 0 / 0",
 		}); err != nil {
 			t.Error(err.Error())
 		}
 
-		stOut, stErr, err = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvcreate", "-L", "500m", vgName})
+		stOut, stErr, err = cluster.ExecNode(nName, []string{"sudo", lvmD8, "lvcreate", "-L", "500m", vgName})
 		if err != nil {
 			util.Debugf("vgcreate stOut: %s", stOut)
 			util.Debugf("vgcreate stErr: %s", stErr)
 			t.Fatal(err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespContains(nName, vgdisplayCmd, []string{
 			"VG Name\\s+" + vgName,
 			"Alloc PE / Size[\\s\\d]+ / 500.00 MiB",
 		}); err != nil {
@@ -274,17 +274,17 @@ func TestVgThickAddLv(t *testing.T) {
 
 // 1 - Create LVMVolumeGroup on ThinPools. Check VG, PV, LV auto creating
 func TestLvgThinCreateCascade(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		cmdPrefix := "sudo " + lvmD8 + " "
 		if t.Node.Id%2 == 1 {
 			cmdPrefix = "sudo lvm "
 			if strings.Contains(t.Node.Raw.Status.NodeInfo.OSImage, "Debian") {
-				_, _, _ = clr.ExecNode(nName, []string{"sudo", "apt", "-y", "install", "lvm2"})
+				_, _, _ = cluster.ExecNode(nName, []string{"sudo", "apt", "-y", "install", "lvm2"})
 			}
 		}
 
@@ -293,20 +293,20 @@ func TestLvgThinCreateCascade(t *testing.T) {
 			t.Fatalf("LVG creating: %s", err.Error())
 		}
 
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
+		if err := cluster.ExecNodeRespContains(nName, cmdPrefix+"vgdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
 			"VG Size\\s+4(27|28|29|30|31)\\d{7} B",         //4.00 GiB(4294967296 B) +- 20 MiB
 			"Alloc PE / Size\\s+\\d+ / 3(49|5\\d)\\d{7} B", //3.3 GiB(3543348019 B) +- 50 MiB
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
+		if err := cluster.ExecNodeRespContains(nName, cmdPrefix+"pvdisplay --units B", []string{
 			"VG Name\\s+" + lvg.Name,
 			"PV Size\\s+4(27|28|29|30|31)\\d{7} B  /", //4.00 GiB(4294967296 B) +- 20 MiB
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, cmdPrefix+"lvdisplay", []string{
+		if err := cluster.ExecNodeRespContains(nName, cmdPrefix+"lvdisplay", []string{
 			"LV Name\\s+thin-e2e-01",
 			"LV Name\\s+thin-e2e-02",
 			"LV Size\\s+1.00 GiB",
@@ -319,11 +319,11 @@ func TestLvgThinCreateCascade(t *testing.T) {
 
 // 2 - Delete LV before LVMVolumeGroup. Check VG, PV auto deleting
 func TestLvgThinDeleteCascadeManually(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		var out string
 		nName := t.Node.Name
 
@@ -333,25 +333,25 @@ func TestLvgThinDeleteCascadeManually(t *testing.T) {
 		}
 
 		vgName := lvg.Spec.ActualVGNameOnTheNode
-		out, _, err = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", "/dev/" + vgName + "/thin-e2e-01"})
+		out, _, err = cluster.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", "/dev/" + vgName + "/thin-e2e-01"})
 		if err != nil {
 			util.Debugf("lvremove output: %s", out)
 			t.Fatal(err.Error())
 		}
 
-		_ = clr.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
+		_ = cluster.DeleteLvgAndWait(util.LvgFilter{Name: lvg.Name})
 
-		if err := clr.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
 			"VG Name ",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
 			"VG Name ",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespNotContains(nName, lvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, lvdisplayCmd, []string{
 			"LV Name ",
 		}); err != nil {
 			t.Error(err.Error())
@@ -361,11 +361,11 @@ func TestLvgThinDeleteCascadeManually(t *testing.T) {
 
 // 3 - Delete LVMVolumeGroup. Check VG, PV still exist. Delete LV. Check VG, PV auto deleting
 func TestLvgThinDeleteCascadeK8s(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		var out string
 		nName := t.Node.Name
 
@@ -375,43 +375,43 @@ func TestLvgThinDeleteCascadeK8s(t *testing.T) {
 		}
 		vgName := lvg.Spec.ActualVGNameOnTheNode
 
-		_ = clr.DeleteLVG(util.LvgFilter{Name: lvg.Name})
+		_ = cluster.DeleteLVG(util.LvgFilter{Name: lvg.Name})
 		time.Sleep(4 * time.Second)
 
-		if err := clr.ExecNodeRespContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespContains(nName, vgdisplayCmd, []string{
 			"VG Name\\s+" + lvg.Name,
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, pvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespContains(nName, pvdisplayCmd, []string{
 			"VG Name\\s+" + lvg.Name,
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespContains(nName, lvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespContains(nName, lvdisplayCmd, []string{
 			"LV Name\\s+thin-e2e-01",
 		}); err != nil {
 			t.Error(err.Error())
 		}
 
-		out, _, err = clr.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", "/dev/" + vgName + "/thin-e2e-01"})
+		out, _, err = cluster.ExecNode(nName, []string{"sudo", lvmD8, "lvremove", "-y", "/dev/" + vgName + "/thin-e2e-01"})
 		if err != nil {
 			util.Debugf("lvremove output: %s", out)
 			t.Fatal(err.Error())
 		}
 		time.Sleep(3 * time.Second)
 
-		if err := clr.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, vgdisplayCmd, []string{
 			"VG Name\\s+",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, pvdisplayCmd, []string{
 			"VG Name\\s+",
 		}); err != nil {
 			t.Error(err.Error())
 		}
-		if err := clr.ExecNodeRespNotContains(nName, lvdisplayCmd, []string{
+		if err := cluster.ExecNodeRespNotContains(nName, lvdisplayCmd, []string{
 			"LV Name\\s+",
 		}); err != nil {
 			t.Error(err.Error())
@@ -421,15 +421,15 @@ func TestLvgThinDeleteCascadeK8s(t *testing.T) {
 
 // 4.1 - Increase BlockDevice size. Check LVG, PV, VG resizing. Check ThinPools no changes
 func TestLvgThinDiskResize(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to resize VD")
 	}
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	hvCluster := util.EnsureCluster(util.HypervisorKubeConfig, "")
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		lvg, err := directLvgTpCreate(t.Node.Name, 2.34)
 		if err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
@@ -442,13 +442,13 @@ func TestLvgThinDiskResize(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		vdList, _ := hvClr.ListVD(util.VdFilter{NameSpace: util.TestNS, Name: "%" + t.Node.Name + "-data-%"})
+		vdList, _ := hvCluster.ListVD(util.VdFilter{NameSpace: util.TestNS, Name: "%" + t.Node.Name + "-data-%"})
 		if len(vdList) == 0 {
 			t.Fatalf("Non VD for node %s", t.Node.Name)
 		}
 		for _, vd := range vdList {
 			vd.Spec.PersistentVolumeClaim.Size = resource.NewQuantity(4*1024*1024*1024, resource.BinarySI)
-			if err := hvClr.UpdateVd(&vd); err != nil {
+			if err := hvCluster.UpdateVd(&vd); err != nil {
 				t.Fatal(err.Error())
 			}
 		}
@@ -466,11 +466,11 @@ func TestLvgThinDiskResize(t *testing.T) {
 
 // 4.2 - Increase ThinPool size. Check LVG, PV, VG, ThinPool resizing
 func TestLvgThinPoolResize(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		lvg, err := directLvgTpCreate(t.Node.Name, 2.34)
 		if err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
@@ -487,7 +487,7 @@ func TestLvgThinPoolResize(t *testing.T) {
 			t.Fatalf("Invalid ThinPool size: %s != 1.0Gi", lvg.Spec.ThinPools[0].Size)
 		}
 		lvg.Spec.ThinPools[0].Size = "1.21Gi"
-		if err := clr.UpdateLVG(lvg); err != nil {
+		if err := cluster.UpdateLVG(lvg); err != nil {
 			t.Fatalf("LVG updating: %s", err.Error())
 		}
 
@@ -502,11 +502,11 @@ func TestLvgThinPoolResize(t *testing.T) {
 
 // 4.3 - Increase ThinPool size over VG. Check LVG, PV, VG, ThinPool no changes
 func TestLvgThinPoolOversize(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		lvg, err := directLvgTpCreate(t.Node.Name, 2.34)
 		if err != nil {
 			t.Fatalf("LVG creating: %s", err.Error())
@@ -523,12 +523,12 @@ func TestLvgThinPoolOversize(t *testing.T) {
 			t.Fatalf("Invalid ThinPool size: %s != 1.0Gi", lvg.Spec.ThinPools[0].Size)
 		}
 		lvg.Spec.ThinPools[0].Size = "1.8Gi"
-		if err := clr.UpdateLVG(lvg); err != nil {
+		if err := cluster.UpdateLVG(lvg); err != nil {
 			t.Fatalf("LVG updating: %s", err.Error())
 		}
 
 		time.Sleep(3 * time.Second)
-		lvg, _ = clr.GetLvg(lvg.Name)
+		lvg, _ = cluster.GetLvg(lvg.Name)
 		if lvg.Spec.ThinPools[0].Size != "1.8Gi" {
 			t.Errorf("ThinPool size: %s != 1.8Gi", lvg.Spec.ThinPools[0].Size)
 		}
@@ -546,7 +546,7 @@ func TestLvgThinPoolOversize(t *testing.T) {
 
 // 5 - Add second BlockDevice to LVG. Check LVG, PV, VG resizing. Check ThinPools no changes
 func TestLvgThinAddBd(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
@@ -554,7 +554,7 @@ func TestLvgThinAddBd(t *testing.T) {
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgTpCreate(nName, 1.7)
 		if err != nil {
@@ -575,12 +575,12 @@ func TestLvgThinAddBd(t *testing.T) {
 		bdSelector := lvg.Spec.BlockDeviceSelector.MatchExpressions[0]
 		bdSelector.Values = append(bdSelector.Values, bds[0].Name)
 		lvg.Spec.BlockDeviceSelector.MatchExpressions[0] = bdSelector
-		if err := clr.UpdateLVG(lvg); err != nil {
+		if err := cluster.UpdateLVG(lvg); err != nil {
 			t.Fatalf("LVG updating: %s", err.Error())
 		}
 
 		if err := util.RetrySec(20, func() error {
-			lvg, _ = clr.GetLvg(lvg.Name)
+			lvg, _ = cluster.GetLvg(lvg.Name)
 			if lvg.Status.VGSize.Value() != int64(3)*1024*1024*1024 {
 				return fmt.Errorf("VG %s size: %d != 3Gi", lvg.Name, lvg.Status.VGSize.Value())
 			}
@@ -600,15 +600,15 @@ func TestLvgThinAddBd(t *testing.T) {
 
 // 6 - Reconnect BlockDevice to another path. Check LVG no changes
 func TestLvgThinReconnectBd(t *testing.T) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	if util.HypervisorKubeConfig == "" {
 		t.Fatal("No HypervisorKubeConfig to add VD")
 	}
 	prepareClr()
 	t.Cleanup(cleanup05)
 
-	hvClr := util.GetCluster(util.HypervisorKubeConfig, "")
-	clr.RunTestGroupNodes(t, nil, func(t *util.T) {
+	hvCluster := util.EnsureCluster(util.HypervisorKubeConfig, "")
+	cluster.RunTestGroupNodes(t, nil, func(t *util.T) {
 		nName := t.Node.Name
 		lvg, err := directLvgTpCreate(nName, 1.1)
 		if err != nil {
@@ -619,25 +619,25 @@ func TestLvgThinReconnectBd(t *testing.T) {
 			t.Error(err.Error())
 		}
 
-		vmbds, _ := hvClr.ListVMBD(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
+		vmbds, _ := hvCluster.ListVMBD(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
 		oldBdPath := lvg.Status.Nodes[0].Devices[0].Path
 
-		err = hvClr.DetachVmbd(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
+		err = hvCluster.DetachVmbd(util.VmBdFilter{VmName: nName, Name: "%-data-%"})
 		if err != nil {
 			t.Fatal(err.Error())
 		}
 		bdName := lvg.Spec.BlockDeviceSelector.MatchExpressions[0].Values[0]
-		_ = clr.DeleteBd(util.BdFilter{Name: bdName})
+		_ = cluster.DeleteBd(util.BdFilter{Name: bdName})
 
 		_, _ = getOrCreateConsumableBlockDevices(nName, 2, 1)
 
 		for _, vmbd := range vmbds {
-			_ = hvClr.AttachVmbd(nName, vmbd.Name)
+			_ = hvCluster.AttachVmbd(nName, vmbd.Name)
 		}
-		_ = hvClr.WaitVmbdAttached(util.VmBdFilter{VmName: nName})
+		_ = hvCluster.WaitVmbdAttached(util.VmBdFilter{VmName: nName})
 		time.Sleep(time.Second)
 
-		lvg, err = clr.GetLvg(lvg.Name)
+		lvg, err = cluster.GetLvg(lvg.Name)
 		if err != nil {
 			t.Fatal(err.Error())
 		}
@@ -663,9 +663,9 @@ func cleanup05() {
 }
 
 func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree string) error {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
-	lvg, _ := clr.GetLvg(lvgName)
+	lvg, _ := cluster.GetLvg(lvgName)
 	if len(lvg.Status.Nodes[0].Devices) != len(vSize) {
 		return fmt.Errorf("LVG %s devices: %d != %d", lvgName, len(lvg.Status.Nodes[0].Devices), len(vSize))
 	}
@@ -703,7 +703,7 @@ func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree st
 	}
 
 	for cmd, resp := range nChecks {
-		if err := clr.ExecNodeRespContains(nName, cmd, resp); err != nil {
+		if err := cluster.ExecNodeRespContains(nName, cmd, resp); err != nil {
 			return err
 		}
 	}
@@ -712,9 +712,9 @@ func checkNodeLvgSize(lvgName string, vSize []float32, vFree []string, vgFree st
 }
 
 func thinPoolsCheck(lvgName string, sizes ...float32) error {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 
-	lvg, _ := clr.GetLvg(lvgName)
+	lvg, _ := cluster.GetLvg(lvgName)
 	tps := lvg.Status.ThinPools
 
 	if len(tps) != len(sizes) {
@@ -743,7 +743,7 @@ func thinPoolsCheck(lvgName string, sizes ...float32) error {
 }
 
 func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	bds, err := getOrCreateConsumableBlockDevices(nName, size, 1)
 	if err != nil {
 		return nil, err
@@ -751,16 +751,16 @@ func directLvgCreate(nName string, size int64) (*snc.LVMVolumeGroup, error) {
 
 	bd := bds[0]
 	lvgName := "e2e-lvg-" + bd.Name[len(bd.Name)-4:]
-	err = clr.CreateLvgWithCheck(lvgName, nName, []string{bd.Name})
+	err = cluster.CreateLvgWithCheck(lvgName, nName, []string{bd.Name})
 	if err != nil {
 		return nil, err
 	}
 
-	return clr.GetLvg(lvgName)
+	return cluster.GetLvg(lvgName)
 }
 
 func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) {
-	clr := util.GetCluster("", "")
+	cluster := util.EnsureCluster("", "")
 	bds, err := getOrCreateConsumableBlockDevices(nName, int64(size+0.9999), 1)
 	if err != nil {
 		return nil, err
@@ -769,7 +769,7 @@ func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) 
 	bd := bds[0]
 	lvgName := "e2e-lvg-" + bd.Name[len(bd.Name)-4:]
 	if size >= 2 {
-		err = clr.CreateLvgExt(lvgName, nName, map[string]any{
+		err = cluster.CreateLvgExt(lvgName, nName, map[string]any{
 			"bds": []string{bd.Name},
 			"thinpools": []snc.LVMVolumeGroupThinPoolSpec{{
 				Name:            "thin-e2e-01",
@@ -782,7 +782,7 @@ func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) 
 			}},
 		})
 	} else {
-		err = clr.CreateLvgExt(lvgName, nName, map[string]any{
+		err = cluster.CreateLvgExt(lvgName, nName, map[string]any{
 			"bds": []string{bd.Name},
 			"thinpools": []snc.LVMVolumeGroupThinPoolSpec{{
 				Name:            "thin-e2e-01",
@@ -795,9 +795,9 @@ func directLvgTpCreate(nName string, size float32) (*snc.LVMVolumeGroup, error) 
 		return nil, err
 	}
 
-	if err := clr.WaitLVGsReady(util.LvgFilter{Name: lvgName}); err != nil {
+	if err := cluster.WaitLVGsReady(util.LvgFilter{Name: lvgName}); err != nil {
 		return nil, err
 	}
 
-	return clr.GetLvg(lvgName)
+	return cluster.GetLvg(lvgName)
 }
