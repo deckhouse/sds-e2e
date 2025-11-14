@@ -109,19 +109,72 @@ func mkResources() {
 }
 
 func installVmDh(client sshClient, masterIp string) error {
-	Infof("Docker install/update")
+	if err := ensureDockerInstalled(client); err != nil {
+		return err
+	}
+
+	dhImg, err := authenticateRegistry(client)
+	if err != nil {
+		return err
+	}
+
+	if err := bootstrapConfig(client, dhImg, masterIp); err != nil {
+		return err
+	}
+
+	if err := bootstrapResources(client, dhImg, masterIp); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func ensureDockerInstalled(client sshClient) error {
 	// TODO add docker check/install for other OS (Astra, RedOS, Alt, ...) with error "docker not found"
 	out := "Unable to lock directory"
 	for strings.Contains(out, "Unable to lock directory") {
 		out, _ = client.Exec("sudo apt update && sudo apt -y install docker.io")
 	}
+	return nil
+}
 
+func ensureDockerRemoved(bootstrapIp string) error {
+	bootstrapClient := HvSshClient.GetFwdClient("user", bootstrapIp+":22", NestedSshKey)
+	defer bootstrapClient.Close()
+
+	out, _ := bootstrapClient.Exec("docker --version")
+	if !strings.Contains(out, "Docker version") {
+		Infof("Docker already removed from bootstrap node %s", bootstrapIp)
+		return nil
+	}
+
+	Infof("Removing Docker from bootstrap node %s", bootstrapIp)
+	if out, err := bootstrapClient.Exec("sudo apt-get purge docker.io -y --autoremove"); err != nil {
+		return fmt.Errorf("failed to purge packages on bootstrap node %s: %v: %s", bootstrapIp, err, out)
+	}
+
+	if out, err := bootstrapClient.Exec("sudo rm -rf /var/lib/docker"); err != nil {
+		return fmt.Errorf("failed to remove /var/lib/docker on bootstrap node %s: %v: %s", bootstrapIp, err, out)
+	}
+
+	if out, err := bootstrapClient.Exec("sudo rm -rf /etc/docker"); err != nil {
+		return fmt.Errorf("failed to remove /etc/docker on bootstrap node %s: %v: %s", bootstrapIp, err, out)
+	}
+
+	Infof("Docker successfully removed from bootstrap node %s", bootstrapIp)
+	return nil
+}
+
+func authenticateRegistry(client sshClient) (string, error) {
 	dhImg := DhCeImg
 	if licenseKey != "" {
 		_ = client.ExecFatal(fmt.Sprintf(RegistryLoginCmd, licenseKey))
 		dhImg = DhDevImg
 	}
+	return dhImg, nil
+}
 
+func bootstrapConfig(client sshClient, dhImg, masterIp string) error {
 	Infof("Master dhctl bootstrap config (6-9m)")
 	cmd := fmt.Sprintf(DhInstallCommand, dhImg, masterIp)
 	Debugf(cmd)
@@ -130,22 +183,56 @@ func installVmDh(client sshClient, masterIp string) error {
 		Critf(out)
 		return fmt.Errorf("dhctl bootstrap config error")
 	}
+	return nil
+}
 
+func bootstrapResources(client sshClient, dhImg, masterIp string) error {
 	Infof("Master dhctl bootstrap resources")
-	cmd = fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp)
+	cmd := fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp)
 	Debugf(cmd)
 	cmd = "sudo -i timeout 600 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
 	if out, err := client.Exec(cmd); err != nil {
 		Critf(out)
 		return fmt.Errorf("dhctl bootstrap resources error: %w", err)
 	}
-
 	return nil
 }
 
-func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
+func checkDeckhouseInstalled() bool {
 	out, _ := NestedSshClient.Exec("ls /opt/deckhouse")
-	if strings.Contains(out, "cannot access '/opt/deckhouse'") {
+	return !strings.Contains(out, "cannot access '/opt/deckhouse'")
+}
+
+func uploadBootstrapFiles(client sshClient, bootstrapVm *VmConfig) error {
+	for _, f := range []string{ConfigName, ResourcesName} {
+		err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, f := range []string{PrivKeyName} {
+		err := client.Upload(filepath.Join(KubePath, f), filepath.Join(RemoteAppPath, f))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func getKubeconfig(masterVm *VmConfig) error {
+	out := NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
+	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedK8sPort)
+	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Installs Deckhouse at virtual machines
+func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
+	if !checkDeckhouseInstalled() {
 		if licenseKey == "" {
 			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
 		}
@@ -157,18 +244,8 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 		client := HvSshClient.GetFwdClient("user", bootstrapVm.ip+":22", vmKeyPath)
 		defer client.Close()
 
-		for _, f := range []string{ConfigName, ResourcesName} {
-			err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
-			if err != nil {
-				Fatalf(err.Error())
-			}
-		}
-
-		for _, f := range []string{PrivKeyName} {
-			err := client.Upload(filepath.Join(KubePath, f), filepath.Join(RemoteAppPath, f))
-			if err != nil {
-				Fatalf(err.Error())
-			}
+		if err := uploadBootstrapFiles(client, bootstrapVm); err != nil {
+			Fatalf(err.Error())
 		}
 
 		if err := installVmDh(client, masterVm.ip); err != nil {
@@ -176,10 +253,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 		}
 	}
 
-	out = NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
-	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedK8sPort)
-	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
-	if err != nil {
+	if err := getKubeconfig(masterVm); err != nil {
 		Fatalf(err.Error())
 	}
 }
@@ -200,25 +274,26 @@ func cleanUpNs(cluster *KCluster) {
 	}
 }
 
-func ClusterCreate() {
-	nsName := TestNS
-	Infof("NS '%s'", nsName)
-
+func setupHypervisorConnection() (*KCluster, error) {
 	HvSshClient = GetSshClient(HvSshUser, HvHost+":22", HvSshKey)
 	go HvSshClient.NewTunnel("127.0.0.1:"+HvK8sPort, "127.0.0.1:"+HvK8sPort)
 
 	cluster, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
 		Critf("Kubeclient '%s' problem", HypervisorKubeConfig)
-		Fatalf(err.Error())
+		return nil, err
 	}
 
+	return cluster, nil
+}
+
+func prepareNamespace(cluster *KCluster, nsName string) error {
 	switch TestNSCleanUp {
 	case "reinit":
 		Debugf("Delete old namespace %s", nsName)
 		// TODO add NS exists check
 		if err := cluster.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
-			Fatalf("Can't delete namespace %s: %v", nsName, err)
+			return err
 		}
 	case "free tmp":
 		cleanUpNs(cluster)
@@ -227,15 +302,17 @@ func ClusterCreate() {
 	GenerateRSAKeys(NestedSshKey, filepath.Join(KubePath, PubKeyName))
 
 	if err := cluster.CreateNs(nsName); err != nil {
-		Fatalf(err.Error())
+		return err
 	}
 
-	Infof("VM check")
-	vmSync(cluster, VmCluster, nsName)
+	return nil
+}
 
+func identifyVmRoles(vms []VmConfig) ([]*VmConfig, []*VmConfig, *VmConfig, error) {
 	var vmMasters, vmWorkers []*VmConfig
 	var vmBootstrap *VmConfig
-	for _, vm := range VmCluster {
+
+	for _, vm := range vms {
 		if slices.Contains(vm.roles, "master") {
 			vmMasters = append(vmMasters, &vm)
 			continue
@@ -251,7 +328,49 @@ func ClusterCreate() {
 		vmBootstrap = vmWorkers[0]
 	}
 	if len(vmMasters) != 1 || vmBootstrap == nil {
-		Fatalf("VmCluster: 1 master and 1 setup record is required")
+		return nil, nil, nil, fmt.Errorf("VmCluster: 1 master and 1 setup record is required")
+	}
+
+	return vmMasters, vmWorkers, vmBootstrap, nil
+}
+
+func ensureClusterReady(cluster *KCluster) error {
+	Infof("Check Cluster ready (8-10m)")
+	if err := RetrySec(12*60, func() error {
+		dsNodeConfigurator, err := cluster.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
+		if err != nil {
+			return err
+		}
+		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
+			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
+		}
+		Debugf("sds-node-configurator ready")
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
+}
+
+func ClusterCreate() {
+	nsName := TestNS
+	Infof("NS '%s'", nsName)
+
+	cluster, err := setupHypervisorConnection()
+	if err != nil {
+		Fatalf(err.Error())
+	}
+
+	if err := prepareNamespace(cluster, nsName); err != nil {
+		Fatalf(err.Error())
+	}
+
+	Infof("VM check")
+	vmSync(cluster, VmCluster, nsName)
+
+	vmMasters, vmWorkers, vmBootstrap, err := identifyVmRoles(VmCluster)
+	if err != nil {
+		Fatalf(err.Error())
 	}
 
 	NestedSshClient = HvSshClient.GetFwdClient(NestedSshUser, vmMasters[0].ip+":22", NestedSshKey)
@@ -269,22 +388,18 @@ func ClusterCreate() {
 	for i, vm := range vmWorkers {
 		nodeIps[i] = vm.ip
 	}
+
+	if vmBootstrap != nil {
+		if err := ensureDockerRemoved(vmBootstrap.ip); err != nil {
+			Fatalf("Failed to remove Docker from bootstrap node: %v", err)
+		}
+	}
+
 	if err := cluster.AddStaticNodes("e2e", "user", nodeIps); err != nil {
 		Fatalf(err.Error())
 	}
 
-	Infof("Check Cluster ready (8-10m)")
-	if err := RetrySec(12*60, func() error {
-		dsNodeConfigurator, err := cluster.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
-		if err != nil {
-			return err
-		}
-		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
-			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
-		}
-		Debugf("sds-node-configurator ready")
-		return nil
-	}); err != nil {
+	if err := ensureClusterReady(cluster); err != nil {
 		Fatalf(err.Error())
 	}
 }
