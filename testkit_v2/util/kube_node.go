@@ -34,6 +34,7 @@ import (
 	apitypes "k8s.io/apimachinery/pkg/types"
 	kubescheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/remotecommand"
+	ctrlrtclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
@@ -252,6 +253,7 @@ func (cluster *KCluster) CreateNodeGroup(data map[string]interface{}) error {
 }
 
 func (cluster *KCluster) CreateNodeGroupStatic(name, role string, count int) error {
+
 	ngObj := map[string]interface{}{
 		"apiVersion": "deckhouse.io/v1",
 		"kind":       "NodeGroup",
@@ -293,7 +295,34 @@ func (cluster *KCluster) ListStaticInstance() ([]StaticInstance, error) {
 	return sis.Items, nil
 }
 
-func (cluster *KCluster) CreateStaticInstance(name, role, ip, credentials string) error {
+// staticInstanceNeedsUpdate проверяет, отличается ли существующий StaticInstance от желаемого состояния
+func staticInstanceNeedsUpdate(existing, desired *StaticInstance) bool {
+	// Сравниваем Spec.Address
+	if existing.Spec.Address != desired.Spec.Address {
+		return true
+	}
+
+	// Сравниваем Spec.CredentialsRef
+	if desired.Spec.CredentialsRef != nil {
+		if existing.Spec.CredentialsRef == nil ||
+			existing.Spec.CredentialsRef.Name != desired.Spec.CredentialsRef.Name {
+			return true
+		}
+	} else if existing.Spec.CredentialsRef != nil {
+		return true
+	}
+
+	// Сравниваем Labels (node-role)
+	existingRole, exists := existing.Labels["node-role"]
+	desiredRole, desiredExists := desired.Labels["node-role"]
+	if !exists || !desiredExists || existingRole != desiredRole {
+		return true
+	}
+
+	return false
+}
+
+func (cluster *KCluster) EnsureStaticInstance(name, role, ip, credentials string) error {
 	si := &StaticInstance{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   name,
@@ -305,14 +334,35 @@ func (cluster *KCluster) CreateStaticInstance(name, role, ip, credentials string
 		},
 	}
 
-	if err := cluster.controllerRuntimeClient.Create(cluster.ctx, si); err != nil {
-		if apierrors.IsAlreadyExists(err) {
+	// Проверяем, существует ли StaticInstance
+	existing := &StaticInstance{}
+	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{Name: name}, existing)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			if err := cluster.controllerRuntimeClient.Create(cluster.ctx, si); err != nil {
+				Errorf("Can't create StaticInstance %s", name)
+				return err
+			}
 			return nil
 		}
 
-		Errorf("Can't create StaticInstance %s", name)
+		Errorf("Can't get StaticInstance %s: %s", name, err.Error())
 		return err
 	}
+
+	if staticInstanceNeedsUpdate(existing, si) {
+		existing.Spec = si.Spec
+		existing.Labels = make(map[string]string)
+		for k, v := range si.Labels {
+			existing.Labels[k] = v
+		}
+
+		if err := cluster.controllerRuntimeClient.Update(cluster.ctx, existing); err != nil {
+			Errorf("Can't update StaticInstance %s: %s", name, err.Error())
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -327,32 +377,55 @@ func (cluster *KCluster) DeleteStaticInstance(name string) error {
 
 /*  Static Node  */
 
-func (cluster *KCluster) AddStaticNodes(name, user string, ips []string) error {
+func (cluster *KCluster) createSSHCredentials(name, user string) (string, error) {
 	privSshKey, err := os.ReadFile(NestedSshKey)
 	if err != nil {
 		Errorf("Read %s: %s", NestedSshKey, err.Error())
-		return err
+		return "", err
 	}
 	b64SshKey := base64.StdEncoding.EncodeToString(privSshKey)
 
 	credentialName := name + "rsa"
 	if err = cluster.CreateOrUpdSSHCredential(credentialName, user, b64SshKey); err != nil {
 		Errorf("Create SSHCredential: %s", err.Error())
-		return err
+		return "", err
 	}
 
-	role := fmt.Sprintf("vm-%s-worker", name)
+	return credentialName, nil
+}
+
+func (cluster *KCluster) createStaticInstances(name, role string, ips []string, credentialName string) error {
 	for _, ip := range ips {
 		siName := fmt.Sprintf("si-%s-%s", name, hashMd5(ip)[:8])
-		err = cluster.CreateStaticInstance(siName, role, ip, credentialName)
+		err := cluster.EnsureStaticInstance(siName, role, ip, credentialName)
 		if err != nil {
 			Errorf("Create StaticInstance %s: %s", siName, err.Error())
 			return err
 		}
 	}
+	return nil
+}
 
-	if err = cluster.CreateNodeGroupStatic(role, role, len(ips)); err != nil {
+func (cluster *KCluster) createNodeGroupForStatic(role string, count int) error {
+	if err := cluster.CreateNodeGroupStatic(role, role, count); err != nil {
 		Errorf("Create NodeGroup: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (cluster *KCluster) AddStaticNodes(name, user string, ips []string) error {
+	credentialName, err := cluster.createSSHCredentials(name, user)
+	if err != nil {
+		return err
+	}
+
+	role := fmt.Sprintf("vm-%s-worker", name)
+	if err := cluster.createStaticInstances(name, role, ips, credentialName); err != nil {
+		return err
+	}
+
+	if err := cluster.createNodeGroupForStatic(role, len(ips)); err != nil {
 		return err
 	}
 
