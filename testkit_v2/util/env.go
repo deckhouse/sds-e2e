@@ -115,7 +115,7 @@ var clusterTypeMap = map[string]clusterType{
 		VmCluster: []VmConfig{
 			{"vm1-ub22", []string{"master"}, "", 4, 8, 20, "Ubuntu_22"},
 			{"vm2-ub22", []string{"setup", "worker"}, "", 2, 6, 20, "Ubuntu_22"},
-			{"vm3-ub22", []string{"worker"}, "", 2, 4, 20, "Ubuntu_22"},
+			{"vm3-ub22", []string{"worker"}, "", 2, 6, 20, "Ubuntu_22"},
 		},
 	},
 	"Ubuntu 22 + Ubuntu 24 + Debian 11": clusterType{
