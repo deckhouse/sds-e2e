@@ -176,19 +176,19 @@ func authenticateRegistry(client sshClient) (string, error) {
 }
 
 func bootstrapConfig(client sshClient, dhImg, masterIp string) error {
-	Infof("Master dhctl bootstrap config")
+	Infof("Master: running dhctl bootstrap phase 'config'")
 	cmd := fmt.Sprintf(DhInstallCommand, dhImg, masterIp)
 	Debugf(cmd)
 	cmd = "sudo -i timeout 900 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
 	if out, err := client.Exec(cmd); err != nil {
 		Critf(out)
-		return fmt.Errorf("dhctl bootstrap config error")
+		return fmt.Errorf("dhctl bootstrap config error: %w", err)
 	}
 	return nil
 }
 
 func bootstrapResources(client sshClient, dhImg, masterIp string) error {
-	Infof("Master dhctl bootstrap resources")
+	Infof("Master: running dhctl bootstrap phase 'resources'")
 	cmd := fmt.Sprintf(DhResourcesInstallCommand, dhImg, masterIp)
 	Debugf(cmd)
 	cmd = "sudo -i timeout 600 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
@@ -234,31 +234,32 @@ func getKubeconfig(masterVm *VmConfig) error {
 	return nil
 }
 
-// Installs Deckhouse at virtual machines
+// Installs Deckhouse on virtual machines
 func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 	if !checkDeckhouseInstalled() {
 		if licenseKey == "" {
 			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
 		}
 
-		Infof("Setup virtual cluster")
+		Infof("Deploying Deckhouse on the test cluster")
 		mkConfig()
 		mkResources()
+		// TODO  - add error handling for mkConfig and mkResources
 
 		client := HvSshClient.GetFwdClient("user", bootstrapVm.ip+":22", vmKeyPath)
 		defer client.Close()
 
 		if err := uploadBootstrapFiles(client, bootstrapVm); err != nil {
-			Fatalf(err.Error())
+			Fatalf("failed to upload bootstrap files: %w", err)
 		}
 
 		if err := installVmDh(client, masterVm.ip); err != nil {
-			Fatalf(err.Error())
+			Fatalf("failed to install Deckhouse on the test cluster: %w", err)
 		}
 	}
 
 	if err := getKubeconfig(masterVm); err != nil {
-		Fatalf(err.Error())
+		Fatalf("failed to get kubeconfig: %w", err)
 	}
 }
 
@@ -270,9 +271,9 @@ func cleanUpNs(cluster *KCluster) {
 			continue
 		}
 		if unixNow-ns.GetCreationTimestamp().Unix() > nsCleanUpSeconds {
-			Debugf("Dedeting namespace %s", ns.Name)
+			Debugf("Deleting old namespace %s", ns.Name)
 			if err := cluster.DeleteNs(NsFilter{Name: ns.Name}); err != nil {
-				Fatalf("Can't delete namespace %s: %v", ns.Name, err)
+				Fatalf("Can't delete old namespace %s: %v", ns.Name, err)
 			}
 		}
 	}
@@ -284,7 +285,7 @@ func setupHypervisorConnection() (*KCluster, error) {
 
 	cluster, err := InitKCluster(HypervisorKubeConfig, "")
 	if err != nil {
-		Critf("Kubeclient '%s' problem", HypervisorKubeConfig)
+		Critf("Kubeclient '%s' problem: %w", HypervisorKubeConfig, err)
 		return nil, err
 	}
 
@@ -294,9 +295,10 @@ func setupHypervisorConnection() (*KCluster, error) {
 func prepareNamespace(cluster *KCluster, nsName string) error {
 	switch TestNSCleanUp {
 	case "reinit":
-		Debugf("Delete old namespace %s", nsName)
+		Debugf("Deleting old namespace %s", nsName)
 		// TODO add NS exists check
 		if err := cluster.DeleteNsAndWait(NsFilter{Name: nsName}); err != nil {
+			Fatalf("failed to delete old namespace %s: %w", nsName, err)
 			return err
 		}
 	case "free tmp":
@@ -306,6 +308,7 @@ func prepareNamespace(cluster *KCluster, nsName string) error {
 	GenerateRSAKeys(NestedSshKey, filepath.Join(KubePath, PubKeyName))
 
 	if err := cluster.CreateNs(nsName); err != nil {
+		Fatalf("failed to create namespace %s: %w", nsName, err)
 		return err
 	}
 
@@ -429,7 +432,7 @@ func ensureClusterReady(cluster *KCluster) error {
 		Debugf("snapshot-controller ready")
 		return nil
 	}); err != nil {
-		return fmt.Errorf("snapshot-controller module not ready: %w", err)
+		return fmt.Errorf("snapshot-controller module is not ready: %w", err)
 	}
 
 	// Check sds-local-volume module (required by sds-node-configurator)
@@ -447,7 +450,7 @@ func ensureClusterReady(cluster *KCluster) error {
 		Debugf("sds-local-volume ready")
 		return nil
 	}); err != nil {
-		return fmt.Errorf("sds-local-volume module not ready: %w", err)
+		return fmt.Errorf("sds-local-volume module is not ready: %w", err)
 	}
 
 	// Check sds-node-configurator module last
@@ -460,7 +463,7 @@ func ensureClusterReady(cluster *KCluster) error {
 		Debugf("sds-node-configurator ready")
 		return nil
 	}); err != nil {
-		return fmt.Errorf("sds-node-configurator module not ready: %w", err)
+		return fmt.Errorf("sds-node-configurator module is not ready: %w", err)
 	}
 
 	return nil

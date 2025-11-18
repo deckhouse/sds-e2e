@@ -1,2 +1,6 @@
 .gitignore
 .idea
+
+# Generated test configuration files
+testkit_v2/data/config.yml
+testkit_v2/data/resources.yml
