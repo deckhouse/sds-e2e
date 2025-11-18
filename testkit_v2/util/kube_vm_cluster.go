@@ -142,15 +142,7 @@ func ensureDockerInstalled(client sshClient) error {
 
 	Infof("Installing Docker")
 
-	// Update package list
-	Infof("Updating package list...")
-	if out, err := client.Exec("sudo apt update"); err != nil {
-		return fmt.Errorf("failed to update package list: %w\nOutput: %s", err, out)
-	}
-
-	// Install docker.io package
-	Infof("Installing docker.io package...")
-	if out, err := client.Exec("sudo apt install -y docker.io"); err != nil {
+	if out, err := client.Exec("sudo apt update && sudo apt install -y docker.io"); err != nil {
 		return fmt.Errorf("failed to install docker.io: %w\nOutput: %s", err, out)
 	}
 
