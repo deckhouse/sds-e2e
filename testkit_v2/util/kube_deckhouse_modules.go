@@ -111,7 +111,7 @@ func (cluster *KCluster) EnsureModuleEnabled(moduleConfig *v1alpha1nfs.ModuleCon
 }
 
 func (cluster *KCluster) WaitUntilSDSReplicatedVolumeModuleReady() error {
-	Debugf("Waiting for SDS Replicated Volume module to be ready...")
+	Debugf("Waiting for SDS Replicated Volume module to get ready...")
 
 	return cluster.WaitUntilDeploymentReady(SDSReplicatedVolumeModuleNamespace, SDSReplicatedVolumeControllerDeploymentName, ModuleReadyTimeout)
 }

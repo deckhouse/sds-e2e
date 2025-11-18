@@ -54,7 +54,7 @@ func vmCreate(cluster *KCluster, vms []VmConfig, nsName string) {
 	for _, vmItem := range vms {
 		err := cluster.CreateVM(nsName, vmItem.name, vmItem.ip, vmItem.cpu, vmItem.ram, HvStorageClass, vmItem.image, sshPubKeyString, vmItem.diskSize)
 		if err != nil {
-			Fatalf("creating vm: %w", err)
+			Fatalf("creating: %w", err)
 		}
 	}
 }
@@ -62,7 +62,7 @@ func vmCreate(cluster *KCluster, vms []VmConfig, nsName string) {
 func vmSync(cluster *KCluster, vms []VmConfig, nsName string) {
 	vmList, err := cluster.ListVM(VmFilter{NameSpace: nsName})
 	if err != nil || len(vmList) < len(vms) {
-		Infof("Create VM (2-5m)")
+		Infof("Creating VMs")
 		vmCreate(cluster, vms, nsName)
 	}
 
@@ -72,9 +72,9 @@ func vmSync(cluster *KCluster, vms []VmConfig, nsName string) {
 			return err
 		}
 		if len(vmList) < len(vms) {
-			return fmt.Errorf("VMs ready: %d of %d", len(vmList), len(vms))
+			return fmt.Errorf("VMs are ready: %d of %d", len(vmList), len(vms))
 		}
-		Debugf("VMs ready: %d", len(vmList))
+		Debugf("VMs are ready: %d", len(vmList))
 		return nil
 	}); err != nil {
 		Fatalf(err.Error())
@@ -178,7 +178,7 @@ func authenticateRegistry(client sshClient) (string, error) {
 }
 
 func bootstrapConfig(client sshClient, dhImg, masterIp string) error {
-	Infof("Master dhctl bootstrap config (6-9m)")
+	Infof("Master dhctl bootstrap config")
 	cmd := fmt.Sprintf(DhInstallCommand, dhImg, masterIp)
 	Debugf(cmd)
 	cmd = "sudo -i timeout 900 " + cmd + " > /tmp/bootstrap.out || {(tail -30 /tmp/bootstrap.out; exit 124)}"
@@ -240,7 +240,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
 		}
 
-		Infof("Setup virtual cluster (8-12m)")
+		Infof("Setup virtual cluster")
 		mkConfig()
 		mkResources()
 
@@ -390,7 +390,7 @@ func checkDaemonSetReady(cluster *KCluster, nsName, dsName string) error {
 
 // ensureNodesReady checks if all nodes are ready after being added
 func ensureNodesReady(cluster *KCluster, expectedNodeCount int) error {
-	Infof("Check nodes ready (%dm)", NodesReadyTimeout/60)
+	Infof("Check if nodes are ready")
 	return RetrySec(NodesReadyTimeout, func() error {
 		nodes, err := cluster.ListNode()
 		if err != nil {
@@ -418,7 +418,7 @@ func ensureNodesReady(cluster *KCluster, expectedNodeCount int) error {
 }
 
 func ensureClusterReady(cluster *KCluster) error {
-	Infof("Check Cluster ready (8-10m)")
+	Infof("Check if cluster is ready")
 
 	// Check snapshot-controller module first (required by sds-local-volume)
 	if err := RetrySec(ModuleReadyTimeout, func() error {
@@ -478,7 +478,6 @@ func ClusterCreate() {
 		Fatalf(err.Error())
 	}
 
-	Infof("VM check")
 	vmSync(cluster, VmCluster, nsName)
 
 	vmMasters, vmWorkers, vmBootstrap, err := identifyVmRoles(VmCluster)
@@ -514,7 +513,7 @@ func ClusterCreate() {
 
 	// Wait for nodes to be ready before checking module readiness
 	if err := ensureNodesReady(cluster, len(nodeIps)); err != nil {
-		Fatalf("Nodes not ready: %v", err)
+		Fatalf("Nodes are not ready: %v", err)
 	}
 
 	if err := ensureClusterReady(cluster); err != nil {
