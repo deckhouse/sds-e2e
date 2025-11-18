@@ -25,6 +25,7 @@ import (
 	"time"
 
 	virt "github.com/deckhouse/virtualization/api/core/v1alpha2"
+	coreapi "k8s.io/api/core/v1"
 )
 
 const (
@@ -334,21 +335,102 @@ func identifyVmRoles(vms []VmConfig) ([]*VmConfig, []*VmConfig, *VmConfig, error
 	return vmMasters, vmWorkers, vmBootstrap, nil
 }
 
+// checkDeploymentReady checks if all specified deployments in a namespace are ready
+func checkDeploymentReady(cluster *KCluster, nsName string, deploymentName string) error {
+
+	ready, err := cluster.CheckDeploymentReady(nsName, deploymentName)
+	if err != nil {
+		return fmt.Errorf("failed to check deployment %s in namespace %s: %w", deploymentName, nsName, err)
+	}
+	if !ready {
+		return fmt.Errorf("deployment %s in namespace %s is not ready", deploymentName, nsName)
+	}
+
+	return nil
+}
+
+// checkDaemonSetReady checks if daemonset is ready with desired == current == ready
+func checkDaemonSetReady(cluster *KCluster, nsName, dsName string) error {
+	ds, err := cluster.GetDaemonSet(nsName, dsName)
+	if err != nil {
+		return fmt.Errorf("failed to get daemonset %s in namespace %s: %w", dsName, nsName, err)
+	}
+
+	desired := int(ds.Status.DesiredNumberScheduled)
+	current := int(ds.Status.CurrentNumberScheduled)
+	ready := int(ds.Status.NumberReady)
+
+	if desired != current || current != ready || desired != ready {
+		return fmt.Errorf("daemonset %s in namespace %s not ready: desired=%d, current=%d, ready=%d",
+			dsName, nsName, desired, current, ready)
+	}
+
+	// Check all pods are running
+	pods, err := cluster.ListPod(nsName, PodFilter{Name: fmt.Sprintf("%%%s-%%", dsName)})
+	if err != nil {
+		return fmt.Errorf("failed to list pods for daemonset %s in namespace %s: %w", dsName, nsName, err)
+	}
+
+	if len(pods) != desired {
+		return fmt.Errorf("daemonset %s in namespace %s: expected %d pods, found %d",
+			dsName, nsName, desired, len(pods))
+	}
+
+	for _, pod := range pods {
+		if pod.Status.Phase != coreapi.PodRunning {
+			return fmt.Errorf("daemonset %s in namespace %s: pod %s is not running (phase: %s)",
+				dsName, nsName, pod.Name, pod.Status.Phase)
+		}
+	}
+
+	return nil
+}
+
 func ensureClusterReady(cluster *KCluster) error {
 	Infof("Check Cluster ready (8-10m)")
-	if err := RetrySec(12*60, func() error {
-		dsNodeConfigurator, err := cluster.GetDaemonSet("d8-sds-node-configurator", "sds-node-configurator")
-		if err != nil {
+
+	// Check snapshot-controller module first (required by sds-local-volume)
+	if err := RetrySec(ModuleReadyTimeout, func() error {
+		if err := checkDeploymentReady(cluster, SnapshotControllerModuleNamespace, SnapshotControllerDeploymentName); err != nil {
 			return err
 		}
-		if int(dsNodeConfigurator.Status.NumberReady) < len(VmCluster) {
-			return fmt.Errorf("sds-node-configurator ready: %d of %d", dsNodeConfigurator.Status.NumberReady, len(VmCluster))
+		Debugf("snapshot-controller ready")
+		return nil
+	}); err != nil {
+		return fmt.Errorf("snapshot-controller module not ready: %w", err)
+	}
+
+	// Check sds-local-volume module (required by sds-node-configurator)
+	if err := RetrySec(ModuleReadyTimeout, func() error {
+		// Check required deployment
+		if err := checkDeploymentReady(cluster, SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSIControllerDeploymentName); err != nil {
+			return err
 		}
+
+		// Check daemonset
+		if err := checkDaemonSetReady(cluster, SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSINodeDaemonSetName); err != nil {
+			return err
+		}
+
+		Debugf("sds-local-volume ready")
+		return nil
+	}); err != nil {
+		return fmt.Errorf("sds-local-volume module not ready: %w", err)
+	}
+
+	// Check sds-node-configurator module last
+	if err := RetrySec(ModuleReadyTimeout, func() error {
+		// Check daemonset with desired == current == ready and all pods running
+		if err := checkDaemonSetReady(cluster, SDSNodeConfiguratorModuleNamespace, SDSNodeConfiguratorDaemonSetName); err != nil {
+			return err
+		}
+
 		Debugf("sds-node-configurator ready")
 		return nil
 	}); err != nil {
-		return err
+		return fmt.Errorf("sds-node-configurator module not ready: %w", err)
 	}
+
 	return nil
 }
 
