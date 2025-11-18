@@ -133,8 +133,37 @@ func installVmDh(client sshClient, masterIp string) error {
 }
 
 func ensureDockerInstalled(client sshClient) error {
-	// TODO add PROPER! docker check/install for different OS (Astra, RedOS, Alt, ...)
-	_, _ = client.Exec("sudo apt-get update && sudo apt-get -y install docker.io")
+	// Check if docker is already installed
+	out, err := client.Exec("docker --version")
+	if err == nil && strings.Contains(out, "Docker version") {
+		Debugf("Docker is already installed: %s", strings.TrimSpace(out))
+		return nil
+	}
+
+	Infof("Installing Docker")
+
+	// Update package list
+	Infof("Updating package list...")
+	if out, err := client.Exec("sudo apt update"); err != nil {
+		return fmt.Errorf("failed to update package list: %w\nOutput: %s", err, out)
+	}
+
+	// Install docker.io package
+	Infof("Installing docker.io package...")
+	if out, err := client.Exec("sudo apt install -y docker.io"); err != nil {
+		return fmt.Errorf("failed to install docker.io: %w\nOutput: %s", err, out)
+	}
+
+	// Verify docker installation
+	out, err = client.Exec("docker --version")
+	if err != nil {
+		return fmt.Errorf("docker installation completed but docker command failed: %w\nOutput: %s", err, out)
+	}
+	if !strings.Contains(out, "Docker version") {
+		return fmt.Errorf("docker installation verification failed: expected 'Docker version' in output, got: %s", out)
+	}
+
+	Infof("Docker successfully installed: %s", strings.TrimSpace(out))
 	return nil
 }
 
