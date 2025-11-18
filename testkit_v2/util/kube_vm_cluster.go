@@ -133,14 +133,12 @@ func installVmDh(client sshClient, masterIp string) error {
 }
 
 func ensureDockerInstalled(client sshClient) error {
-	// TODO add docker check/install for other OS (Astra, RedOS, Alt, ...) with error "docker not found"
-	out := "Unable to lock directory"
-	for strings.Contains(out, "Unable to lock directory") {
-		out, _ = client.Exec("sudo apt update && sudo apt -y install docker.io")
-	}
+	// TODO add PROPER! docker check/install for different OS (Astra, RedOS, Alt, ...)
+	_, _ = client.Exec("sudo apt-get update && sudo apt-get -y install docker.io")
 	return nil
 }
 
+// TODO find out why we should remove docker at all!
 func ensureDockerRemoved(bootstrapIp string) error {
 	bootstrapClient := HvSshClient.GetFwdClient("user", bootstrapIp+":22", NestedSshKey)
 	defer bootstrapClient.Close()
@@ -201,11 +199,13 @@ func bootstrapResources(client sshClient, dhImg, masterIp string) error {
 	return nil
 }
 
+// TODO - check if Deckhouse is installed by checking if pods are running in d8-system namespace
 func checkDeckhouseInstalled() bool {
 	out, _ := NestedSshClient.Exec("ls /opt/deckhouse")
 	return !strings.Contains(out, "cannot access '/opt/deckhouse'")
 }
 
+// TODO - remove unused parameter bootstrapVm
 func uploadBootstrapFiles(client sshClient, bootstrapVm *VmConfig) error {
 	for _, f := range []string{ConfigName, ResourcesName} {
 		err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
@@ -223,6 +223,7 @@ func uploadBootstrapFiles(client sshClient, bootstrapVm *VmConfig) error {
 	return nil
 }
 
+// TODO - remove unused parameter masterVm
 func getKubeconfig(masterVm *VmConfig) error {
 	out := NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
 	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedK8sPort)
@@ -337,7 +338,7 @@ func identifyVmRoles(vms []VmConfig) ([]*VmConfig, []*VmConfig, *VmConfig, error
 	return vmMasters, vmWorkers, vmBootstrap, nil
 }
 
-// checkDeploymentReady checks if all specified deployments in a namespace are ready
+// checkDeploymentReady checks if specified deployment in a namespace is ready
 func checkDeploymentReady(cluster *KCluster, nsName string, deploymentName string) error {
 
 	ready, err := cluster.CheckDeploymentReady(nsName, deploymentName)
