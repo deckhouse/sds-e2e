@@ -240,7 +240,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 			Fatalf("Deckhouse EE license key is required: export licensekey=\"<license key>\"")
 		}
 
-		Infof("Setup virtual clustaer (8-12m)")
+		Infof("Setup virtual cluster (8-12m)")
 		mkConfig()
 		mkResources()
 
