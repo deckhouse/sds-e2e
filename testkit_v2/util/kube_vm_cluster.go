@@ -34,6 +34,8 @@ const (
 	DhInstallCommand          = "docker run --network=host -t -v '/home/user/config.yml:/config.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --config=/config.yml"
 	DhResourcesInstallCommand = "docker run --network=host -t -v '/home/user/resources.yml:/resources.yml' -v '/home/user/:/tmp/' %s dhctl bootstrap-phase create-resources --ssh-user=user --ssh-host=%s --ssh-agent-private-keys=/tmp/id_rsa_test --resources=/resources.yml"
 	RegistryLoginCmd          = "sudo docker login -u license-token -p %s dev-registry.deckhouse.io"
+
+	NodesReadyTimeout = 600 // Timeout for nodes to be ready (in seconds) - 10*60
 )
 
 type VmConfig struct {
@@ -386,6 +388,35 @@ func checkDaemonSetReady(cluster *KCluster, nsName, dsName string) error {
 	return nil
 }
 
+// ensureNodesReady checks if all nodes are ready after being added
+func ensureNodesReady(cluster *KCluster, expectedNodeCount int) error {
+	Infof("Check nodes ready (%dm)", NodesReadyTimeout/60)
+	return RetrySec(NodesReadyTimeout, func() error {
+		nodes, err := cluster.ListNode()
+		if err != nil {
+			return fmt.Errorf("failed to list nodes: %w", err)
+		}
+
+		readyCount := 0
+		for _, node := range nodes {
+			// Check if node has Ready condition with status True
+			for _, condition := range node.Status.Conditions {
+				if condition.Type == coreapi.NodeReady && condition.Status == coreapi.ConditionTrue {
+					readyCount++
+					break
+				}
+			}
+		}
+
+		if readyCount < expectedNodeCount {
+			return fmt.Errorf("nodes ready: %d of %d", readyCount, expectedNodeCount)
+		}
+
+		Debugf("All %d nodes are ready", readyCount)
+		return nil
+	})
+}
+
 func ensureClusterReady(cluster *KCluster) error {
 	Infof("Check Cluster ready (8-10m)")
 
@@ -479,6 +510,11 @@ func ClusterCreate() {
 
 	if err := cluster.AddStaticNodes("e2e", "user", nodeIps); err != nil {
 		Fatalf(err.Error())
+	}
+
+	// Wait for nodes to be ready before checking module readiness
+	if err := ensureNodesReady(cluster, len(nodeIps)); err != nil {
+		Fatalf("Nodes not ready: %v", err)
 	}
 
 	if err := ensureClusterReady(cluster); err != nil {
