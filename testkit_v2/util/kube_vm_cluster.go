@@ -395,13 +395,7 @@ func ensureClusterReady(cluster *KCluster) error {
 	Infof("Check if cluster is ready")
 
 	// Check snapshot-controller module first (required by sds-local-volume)
-	if err := RetrySec(ModuleReadyTimeout, func() error {
-		if err := cluster.CheckDeploymentReady(SnapshotControllerModuleNamespace, SnapshotControllerDeploymentName); err != nil {
-			return err
-		}
-		Debugf("snapshot-controller ready")
-		return nil
-	}); err != nil {
+	if err := cluster.WaitUntilDeploymentReady(SnapshotControllerModuleNamespace, SnapshotControllerDeploymentName, ModuleReadyTimeout); err != nil {
 		return fmt.Errorf("snapshot-controller module is not ready: %w", err)
 	}
 
