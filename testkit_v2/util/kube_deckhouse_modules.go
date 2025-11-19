@@ -42,7 +42,7 @@ const (
 	SDSReplicatedVolumeModuleNamespace          = "d8-sds-replicated-volume"
 	SDSReplicatedVolumeControllerDeploymentName = "sds-replicated-volume-controller"
 
-	ModuleReadyTimeout = 720 // Timeout for module to be ready (in seconds) - 12*60
+	ModuleReadyTimeout = 300 // Timeout for module to be ready (in seconds) - 5*60
 )
 
 // EnsureModule creates and configure deckhouse module if it does not exist. Check and modify existing module if needed.

@@ -400,35 +400,24 @@ func ensureClusterReady(cluster *KCluster) error {
 	}
 
 	// Check sds-local-volume module (required by sds-node-configurator)
-	if err := RetrySec(ModuleReadyTimeout, func() error {
-		// Check required deployment
-		if err := cluster.CheckDeploymentReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSIControllerDeploymentName); err != nil {
-			return err
-		}
-
-		// Check daemonset
-		if err := cluster.CheckDaemonSetReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSINodeDaemonSetName); err != nil {
-			return err
-		}
-
-		Debugf("sds-local-volume ready")
-		return nil
-	}); err != nil {
-		return fmt.Errorf("sds-local-volume module is not ready: %w", err)
+	// Check required deployment
+	if err := cluster.WaitUntilDeploymentReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSIControllerDeploymentName, ModuleReadyTimeout); err != nil {
+		return fmt.Errorf("sds-local-volume module deployment is not ready: %w", err)
 	}
+
+	// Check daemonset
+	if err := cluster.WaitUntilDaemonSetReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSINodeDaemonSetName, ModuleReadyTimeout); err != nil {
+		return fmt.Errorf("sds-local-volume module daemonset is not ready: %w", err)
+	}
+
+	Debugf("sds-local-volume ready")
 
 	// Check sds-node-configurator module last
-	if err := RetrySec(ModuleReadyTimeout, func() error {
-		// Check daemonset with desired == current == ready and all pods running
-		if err := cluster.CheckDaemonSetReady(SDSNodeConfiguratorModuleNamespace, SDSNodeConfiguratorDaemonSetName); err != nil {
-			return err
-		}
-
-		Debugf("sds-node-configurator ready")
-		return nil
-	}); err != nil {
+	if err := cluster.WaitUntilDaemonSetReady(SDSNodeConfiguratorModuleNamespace, SDSNodeConfiguratorDaemonSetName, ModuleReadyTimeout); err != nil {
 		return fmt.Errorf("sds-node-configurator module is not ready: %w", err)
 	}
+
+	Debugf("sds-node-configurator ready")
 
 	return nil
 }

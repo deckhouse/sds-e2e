@@ -303,6 +303,17 @@ func (cluster *KCluster) WaitUntilDeploymentReady(nsName, deploymentName string,
 	})
 }
 
+func (cluster *KCluster) WaitUntilDaemonSetReady(nsName, dsName string, timeoutSec int) error {
+	Debugf("Waiting for daemonset %s in namespace %s to be ready for %d seconds...", dsName, nsName, timeoutSec)
+	return RetrySec(timeoutSec, func() error {
+		if err := cluster.CheckDaemonSetReady(nsName, dsName); err != nil {
+			return err
+		}
+		Debugf("DaemonSet %s in namespace %s is ready", dsName, nsName)
+		return nil
+	})
+}
+
 // CheckDaemonSetReady checks if daemonset is ready with desired == current == ready
 func (cluster *KCluster) CheckDaemonSetReady(nsName, dsName string) error {
 	ds, err := cluster.GetDaemonSet(nsName, dsName)
