@@ -50,11 +50,11 @@ go test \
   ./tests/tools.go \
   "$@" \
   -debug \
-  -sshhost $hv_ssh_dst \
+  -sshhost "$hv_ssh_dst" \
   -hypervisorkconfig kube-hypervisor.config \
   -skipoptional \
   -keepstate \
   -clustertype "Ubuntu 22 mini" \
-  -hvstorageclass "hpe" \
-  -namespace $e2e_namespace
+  -hvstorageclass "$hv_storage_class" \
+  -namespace "$e2e_namespace"
 
