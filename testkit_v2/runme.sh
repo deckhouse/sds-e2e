@@ -7,6 +7,7 @@
 # export licensekey="mdfbweufglkwjbdlkfe"
 # export hv_ssh_dst="tfadm@172.17.1.67"
 # export e2e_namespace="e2e-username"
+# export hv_storage_class="hpe" # HPE storage class name for nested cluster creation (virtual machines)
 
 # Check required environment variables
 missing_vars=()
@@ -15,8 +16,16 @@ if [ -z "$hv_ssh_dst" ]; then
     missing_vars+=("hv_ssh_dst")
 fi
 
+if [ -z "$hv_storage_class" ]; then
+    missing_vars+=("hv_storage_class")
+fi
+
 if [ -z "$e2e_namespace" ]; then
     missing_vars+=("e2e_namespace")
+fi
+
+if [ -z "$licensekey" ]; then
+    missing_vars+=("licensekey")
 fi
 
 if [ ${#missing_vars[@]} -gt 0 ]; then
@@ -29,6 +38,7 @@ if [ ${#missing_vars[@]} -gt 0 ]; then
     echo "  export hv_ssh_dst=\"<user>@<host>\"" >&2
     echo "  export e2e_namespace=\"e2e-username\"" >&2
     echo "  export licensekey=\"<EE deckhouse license key>\"" >&2
+    echo "  export hv_storage_class=\"hpe\"" >&2
     echo "" >&2
     echo "Then run: $0 [test-file name and other go test parameters...]" >&2
     exit 1

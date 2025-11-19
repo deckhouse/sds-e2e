@@ -142,8 +142,20 @@ func ensureDockerInstalled(client sshClient) error {
 
 	Infof("Installing Docker")
 
-	if out, err := client.Exec("sudo apt update && sudo apt install -y docker.io"); err != nil {
-		return fmt.Errorf("failed to install docker.io: %w\nOutput: %s", err, out)
+	// Retry apt installation to handle lock conflicts
+	if err := RetrySec(120, func() error {
+		out, err := client.Exec("sudo apt update && sudo apt install -y docker.io")
+		if err != nil {
+			// Check if it's an apt lock error
+			if strings.Contains(out, "Could not get lock") || strings.Contains(out, "Unable to lock directory") {
+				return fmt.Errorf("apt is locked, retrying: %w\nOutput: %s", err, out)
+			}
+			// For other errors, return immediately
+			return fmt.Errorf("failed to install docker.io: %w\nOutput: %s", err, out)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// Verify docker installation
