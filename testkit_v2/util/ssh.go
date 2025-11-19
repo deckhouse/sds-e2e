@@ -193,10 +193,20 @@ func newSshConfig(user, keyPath string) *ssh.ClientConfig {
 			Fatalf("unable to parse private key: %s", err.Error())
 		}
 
-		pass, err := readPassword("    Enter passphrase for '" + keyPath + "': ")
-		if err != nil {
-			Fatalf("unable to get ssh password: %s", err.Error())
+		// Try to get passphrase from environment variable first
+		var pass []byte
+		if envPass := os.Getenv("SSH_PASSPHRASE"); envPass != "" {
+			pass = []byte(envPass)
+			Debugf("Using SSH passphrase from SSH_PASSPHRASE environment variable")
+		} else {
+			// Try to read from terminal (readPassword handles both stdin and /dev/tty)
+			var readErr error
+			pass, readErr = readPassword("    Enter passphrase for '" + keyPath + "': ")
+			if readErr != nil {
+				Fatalf("SSH key '%s' is passphrase protected. Set SSH_PASSPHRASE environment variable: export SSH_PASSPHRASE='your-passphrase'\nOriginal error: %s", keyPath, readErr.Error())
+			}
 		}
+
 		signer, err = ssh.ParsePrivateKeyWithPassphrase(key, pass)
 		if err != nil {
 			Fatalf("unable to parse private key: %s", err.Error())

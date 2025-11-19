@@ -25,14 +25,24 @@ import (
 )
 
 const (
+	SnapshotControllerModuleName      = "snapshot-controller"
+	SnapshotControllerModuleNamespace = "d8-snapshot-controller"
+	SnapshotControllerDeploymentName  = "snapshot-controller"
+
+	SDSLocalVolumeModuleName                  = "sds-local-volume"
+	SDSLocalVolumeModuleNamespace             = "d8-sds-local-volume"
+	SDSLocalVolumeCSIControllerDeploymentName = "csi-controller"
+	SDSLocalVolumeCSINodeDaemonSetName        = "csi-node"
+
 	SDSNodeConfiguratorModuleName      = "sds-node-configurator"
 	SDSNodeConfiguratorModuleNamespace = "d8-sds-node-configurator"
+	SDSNodeConfiguratorDaemonSetName   = "sds-node-configurator"
 
 	SDSReplicatedVolumeModuleName               = "sds-replicated-volume"
 	SDSReplicatedVolumeModuleNamespace          = "d8-sds-replicated-volume"
 	SDSReplicatedVolumeControllerDeploymentName = "sds-replicated-volume-controller"
 
-	ModuleReadyTimeout = 600 // Timeout for module to be ready (in seconds)
+	ModuleReadyTimeout = 300 // Timeout for module to be ready (in seconds) - 5*60
 )
 
 // EnsureModule creates and configure deckhouse module if it does not exist. Check and modify existing module if needed.
@@ -101,7 +111,7 @@ func (cluster *KCluster) EnsureModuleEnabled(moduleConfig *v1alpha1nfs.ModuleCon
 }
 
 func (cluster *KCluster) WaitUntilSDSReplicatedVolumeModuleReady() error {
-	Debugf("Waiting for SDS Replicated Volume module to be ready...")
+	Debugf("Waiting for SDS Replicated Volume module to get ready...")
 
 	return cluster.WaitUntilDeploymentReady(SDSReplicatedVolumeModuleNamespace, SDSReplicatedVolumeControllerDeploymentName, ModuleReadyTimeout)
 }

@@ -35,6 +35,22 @@ spec:
 apiVersion: deckhouse.io/v1alpha1
 kind: ModulePullOverride
 metadata:
+  name: snapshot-controller
+spec:
+  imageTag: main
+  scanInterval: 15s
+  source: deckhouse
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModuleConfig
+metadata:
+  name: snapshot-controller
+spec:
+  enabled: true
+---
+apiVersion: deckhouse.io/v1alpha1
+kind: ModulePullOverride
+metadata:
   name: sds-local-volume
 spec:
   imageTag: main
@@ -82,7 +98,6 @@ metadata:
   name: sds-node-configurator
 spec:
   enabled: true
-apiVersion: deckhouse.io/v1alpha1
 ---
 apiVersion: deckhouse.io/v1alpha1
 kind: ModuleSource
