@@ -274,7 +274,7 @@ func (cluster *KCluster) DeleteNsAndWait(filters ...NsFilter) error {
 	})
 }
 
-func (cluster *KCluster) CheckDeploymentReady(nsName, deploymentName string) (bool, error) {
+func (cluster *KCluster) CheckDeploymentReady(nsName, deploymentName string) error {
 	deployment := &v1app.Deployment{}
 	err := cluster.controllerRuntimeClient.Get(cluster.ctx, ctrlrtclient.ObjectKey{
 		Name:      deploymentName,
@@ -282,25 +282,21 @@ func (cluster *KCluster) CheckDeploymentReady(nsName, deploymentName string) (bo
 	}, deployment)
 
 	if err != nil {
-		return false, fmt.Errorf("failed to get deployment %s in namespace %s: %w", deploymentName, nsName, err)
+		return fmt.Errorf("failed to check deployment %s in namespace %s: %w", deploymentName, nsName, err)
 	}
 
-	if deployment.Status.ReadyReplicas == deployment.Status.Replicas {
-		return true, nil
+	if deployment.Status.ReadyReplicas != deployment.Status.Replicas {
+		return fmt.Errorf("deployment %s in namespace %s is not ready", deploymentName, nsName)
 	}
 
-	return false, nil
+	return nil
 }
 
 func (cluster *KCluster) WaitUntilDeploymentReady(nsName, deploymentName string, timeoutSec int) error {
 	Debugf("Waiting for deployment %s in namespace %s to be ready for %d seconds...", deploymentName, nsName, timeoutSec)
 	return RetrySec(timeoutSec, func() error {
-		ready, err := cluster.CheckDeploymentReady(nsName, deploymentName)
-		if err != nil {
+		if err := cluster.CheckDeploymentReady(nsName, deploymentName); err != nil {
 			return err
-		}
-		if !ready {
-			return fmt.Errorf("deployment %s in namespace %s is not ready", deploymentName, nsName)
 		}
 		Debugf("Deployment %s in namespace %s is ready", deploymentName, nsName)
 		return nil

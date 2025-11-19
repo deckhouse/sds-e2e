@@ -362,20 +362,6 @@ func identifyVmRoles(vms []VmConfig) ([]*VmConfig, []*VmConfig, *VmConfig, error
 	return vmMasters, vmWorkers, vmBootstrap, nil
 }
 
-// checkDeploymentReady checks if specified deployment in a namespace is ready
-func checkDeploymentReady(cluster *KCluster, nsName string, deploymentName string) error {
-
-	ready, err := cluster.CheckDeploymentReady(nsName, deploymentName)
-	if err != nil {
-		return fmt.Errorf("failed to check deployment %s in namespace %s: %w", deploymentName, nsName, err)
-	}
-	if !ready {
-		return fmt.Errorf("deployment %s in namespace %s is not ready", deploymentName, nsName)
-	}
-
-	return nil
-}
-
 // checkDaemonSetReady checks if daemonset is ready with desired == current == ready
 func checkDaemonSetReady(cluster *KCluster, nsName, dsName string) error {
 	ds, err := cluster.GetDaemonSet(nsName, dsName)
@@ -447,7 +433,7 @@ func ensureClusterReady(cluster *KCluster) error {
 
 	// Check snapshot-controller module first (required by sds-local-volume)
 	if err := RetrySec(ModuleReadyTimeout, func() error {
-		if err := checkDeploymentReady(cluster, SnapshotControllerModuleNamespace, SnapshotControllerDeploymentName); err != nil {
+		if err := cluster.CheckDeploymentReady(SnapshotControllerModuleNamespace, SnapshotControllerDeploymentName); err != nil {
 			return err
 		}
 		Debugf("snapshot-controller ready")
@@ -459,7 +445,7 @@ func ensureClusterReady(cluster *KCluster) error {
 	// Check sds-local-volume module (required by sds-node-configurator)
 	if err := RetrySec(ModuleReadyTimeout, func() error {
 		// Check required deployment
-		if err := checkDeploymentReady(cluster, SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSIControllerDeploymentName); err != nil {
+		if err := cluster.CheckDeploymentReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSIControllerDeploymentName); err != nil {
 			return err
 		}
 

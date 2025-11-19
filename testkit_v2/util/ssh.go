@@ -199,15 +199,11 @@ func newSshConfig(user, keyPath string) *ssh.ClientConfig {
 			pass = []byte(envPass)
 			Debugf("Using SSH passphrase from SSH_PASSPHRASE environment variable")
 		} else {
-			// Only use interactive input if we're in a terminal
-			if terminal.IsTerminal(syscall.Stdin) {
-				var readErr error
-				pass, readErr = readPassword("    Enter passphrase for '" + keyPath + "': ")
-				if readErr != nil {
-					Fatalf("unable to get ssh password: %s", readErr.Error())
-				}
-			} else {
-				Fatalf("SSH key '%s' is passphrase protected. Set SSH_PASSPHRASE environment variable or run in interactive terminal", keyPath)
+			// Try to read from terminal (readPassword handles both stdin and /dev/tty)
+			var readErr error
+			pass, readErr = readPassword("    Enter passphrase for '" + keyPath + "': ")
+			if readErr != nil {
+				Fatalf("SSH key '%s' is passphrase protected. Set SSH_PASSPHRASE environment variable: export SSH_PASSPHRASE='your-passphrase'\nOriginal error: %s", keyPath, readErr.Error())
 			}
 		}
 
