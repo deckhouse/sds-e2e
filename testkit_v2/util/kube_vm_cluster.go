@@ -362,43 +362,6 @@ func identifyVmRoles(vms []VmConfig) ([]*VmConfig, []*VmConfig, *VmConfig, error
 	return vmMasters, vmWorkers, vmBootstrap, nil
 }
 
-// checkDaemonSetReady checks if daemonset is ready with desired == current == ready
-func checkDaemonSetReady(cluster *KCluster, nsName, dsName string) error {
-	ds, err := cluster.GetDaemonSet(nsName, dsName)
-	if err != nil {
-		return fmt.Errorf("failed to get daemonset %s in namespace %s: %w", dsName, nsName, err)
-	}
-
-	desired := int(ds.Status.DesiredNumberScheduled)
-	current := int(ds.Status.CurrentNumberScheduled)
-	ready := int(ds.Status.NumberReady)
-
-	if desired != current || current != ready || desired != ready {
-		return fmt.Errorf("daemonset %s in namespace %s not ready: desired=%d, current=%d, ready=%d",
-			dsName, nsName, desired, current, ready)
-	}
-
-	// Check all pods are running
-	pods, err := cluster.ListPod(nsName, PodFilter{Name: fmt.Sprintf("%%%s-%%", dsName)})
-	if err != nil {
-		return fmt.Errorf("failed to list pods for daemonset %s in namespace %s: %w", dsName, nsName, err)
-	}
-
-	if len(pods) != desired {
-		return fmt.Errorf("daemonset %s in namespace %s: expected %d pods, found %d",
-			dsName, nsName, desired, len(pods))
-	}
-
-	for _, pod := range pods {
-		if pod.Status.Phase != coreapi.PodRunning {
-			return fmt.Errorf("daemonset %s in namespace %s: pod %s is not running (phase: %s)",
-				dsName, nsName, pod.Name, pod.Status.Phase)
-		}
-	}
-
-	return nil
-}
-
 // ensureNodesReady checks if all nodes are ready after being added
 func ensureNodesReady(cluster *KCluster, expectedNodeCount int) error {
 	Infof("Check if nodes are ready")
@@ -450,7 +413,7 @@ func ensureClusterReady(cluster *KCluster) error {
 		}
 
 		// Check daemonset
-		if err := checkDaemonSetReady(cluster, SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSINodeDaemonSetName); err != nil {
+		if err := cluster.CheckDaemonSetReady(SDSLocalVolumeModuleNamespace, SDSLocalVolumeCSINodeDaemonSetName); err != nil {
 			return err
 		}
 
@@ -463,7 +426,7 @@ func ensureClusterReady(cluster *KCluster) error {
 	// Check sds-node-configurator module last
 	if err := RetrySec(ModuleReadyTimeout, func() error {
 		// Check daemonset with desired == current == ready and all pods running
-		if err := checkDaemonSetReady(cluster, SDSNodeConfiguratorModuleNamespace, SDSNodeConfiguratorDaemonSetName); err != nil {
+		if err := cluster.CheckDaemonSetReady(SDSNodeConfiguratorModuleNamespace, SDSNodeConfiguratorDaemonSetName); err != nil {
 			return err
 		}
 

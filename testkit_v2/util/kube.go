@@ -302,3 +302,40 @@ func (cluster *KCluster) WaitUntilDeploymentReady(nsName, deploymentName string,
 		return nil
 	})
 }
+
+// CheckDaemonSetReady checks if daemonset is ready with desired == current == ready
+func (cluster *KCluster) CheckDaemonSetReady(nsName, dsName string) error {
+	ds, err := cluster.GetDaemonSet(nsName, dsName)
+	if err != nil {
+		return fmt.Errorf("failed to get daemonset %s in namespace %s: %w", dsName, nsName, err)
+	}
+
+	desired := int(ds.Status.DesiredNumberScheduled)
+	current := int(ds.Status.CurrentNumberScheduled)
+	ready := int(ds.Status.NumberReady)
+
+	if desired != current || current != ready || desired != ready {
+		return fmt.Errorf("daemonset %s in namespace %s not ready: desired=%d, current=%d, ready=%d",
+			dsName, nsName, desired, current, ready)
+	}
+
+	// Check all pods are running
+	pods, err := cluster.ListPod(nsName, PodFilter{Name: fmt.Sprintf("%%%s-%%", dsName)})
+	if err != nil {
+		return fmt.Errorf("failed to list pods for daemonset %s in namespace %s: %w", dsName, nsName, err)
+	}
+
+	if len(pods) != desired {
+		return fmt.Errorf("daemonset %s in namespace %s: expected %d pods, found %d",
+			dsName, nsName, desired, len(pods))
+	}
+
+	for _, pod := range pods {
+		if pod.Status.Phase != coreapi.PodRunning {
+			return fmt.Errorf("daemonset %s in namespace %s: pod %s is not running (phase: %s)",
+				dsName, nsName, pod.Name, pod.Status.Phase)
+		}
+	}
+
+	return nil
+}
