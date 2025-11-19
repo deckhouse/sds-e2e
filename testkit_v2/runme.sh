@@ -57,4 +57,3 @@ go test \
   -clustertype "Ubuntu 22 mini" \
   -hvstorageclass "$hv_storage_class" \
   -namespace "$e2e_namespace"
-
