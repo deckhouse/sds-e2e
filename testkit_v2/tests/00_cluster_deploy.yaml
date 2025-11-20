@@ -1,0 +1,143 @@
+# Cluster Definition YAML
+# All nodes in the cluster must be of the same type: either all VM or all bare-metal
+
+# Example 1: VM-based cluster
+# ===========================
+# For VM nodes, required fields are:
+#   - hostname: unique name for the VM
+#   - hostType: must be "vm"
+#   - role: "master", "worker", or "setup"
+#   - osType: OS type (e.g., "Ubuntu_22", "Ubuntu_24", "Debian_11", etc.)
+#   - auth.method: "ssh-key" or "ssh-password"
+#   - auth.user: SSH username
+#   - cpu: number of CPU cores
+#   - ram: RAM in GB
+#   - diskSize: disk size in GB
+#
+# Optional fields for VM nodes:
+#   - ipAddress: will be set by hypervisor after VM creation (can be specified for static IP)
+#   - auth.sshKey: SSH PUBLIC key (value like "ssh-rsa ...", path to .pub file, or empty to use ~/.ssh/id_rsa.pub)
+#   - auth.password: password (only if auth.method is "ssh-password")
+#
+# Note: image field is not needed - osType is used as image definition
+# Note: sshKey is a PUBLIC key (for VM creation), the corresponding private key will be found automatically for SSH access
+
+masters:
+  - hostname: master-1
+    hostType: "vm"
+    role: "master"
+    osType: "Ubuntu_22"
+    auth:
+      method: "ssh-key"
+      user: "user"
+      # sshKey is a PUBLIC key (not private key!) and can be:
+      #   - empty string: uses default ~/.ssh/id_rsa.pub (public) and ~/.ssh/id_rsa (private)
+      #   - public key value: e.g., "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ..."
+      #     -> Private key is found by checking common locations: ~/.ssh/id_rsa, ~/.ssh/id_ed25519, etc.
+      #   - public key file path: e.g., "/path/to/key.pub" or "~/.ssh/custom_key.pub"
+      #     -> Private key is found at the same path without .pub extension (e.g., "/path/to/key")
+      #   - path without .pub: e.g., "/path/to/key" (treated as public key file)
+      #     -> Private key is found by trying: same path, or common names (id_rsa, id_ed25519) in same directory
+      sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty
+    cpu: 4
+    ram: 8
+    diskSize: 20
+    # ipAddress is optional for VMs - will be assigned by hypervisor
+    # ipAddress: "10.0.0.10"
+
+workers:
+  - hostname: worker-1
+    hostType: "vm"
+    role: "worker"
+    osType: "Ubuntu_22"
+    auth:
+      method: "ssh-key"
+      user: "user"
+      sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty
+    cpu: 2
+    ram: 4
+    diskSize: 20
+    # ipAddress: "10.0.0.11"
+
+  - hostname: worker-2
+    hostType: "vm"
+    role: "worker"
+    osType: "Ubuntu_22"
+    auth:
+      method: "ssh-key"
+      user: "user"
+      sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty
+    cpu: 2
+    ram: 4
+    diskSize: 20
+    # ipAddress: "10.0.0.12"
+
+# Optional: setup node (bootstrap node for DKP installation)
+# If not specified, first worker will be used
+# setup:
+#   hostname: setup-1
+#   hostType: "vm"
+#   role: "setup"
+#   osType: "Ubuntu_22"
+#   auth:
+#     method: "ssh-key"
+#     user: "user"
+#     sshKey: ""
+#   cpu: 2
+#   ram: 4
+#   diskSize: 20
+
+# Example 2: Bare-metal cluster
+# =============================
+# For bare-metal nodes, required fields are:
+#   - hostname: hostname of the physical machine
+#   - ipAddress: IP address of the physical machine
+#   - hostType: must be "bare-metal"
+#   - role: "master", "worker", or "setup"
+#   - auth.method: "ssh-key" or "ssh-password"
+#   - auth.user: SSH username
+#
+# Optional fields for bare-metal nodes:
+#   - osType: OS type (optional, for information only)
+#   - cpu: CPU cores (optional, for information only)
+#   - ram: RAM in GB (optional, for information only)
+#   - diskSize: disk size in GB (optional, for information only)
+#   - auth.sshKey: SSH PUBLIC key (value like "ssh-rsa ...", path to .pub file, or empty to use ~/.ssh/id_rsa.pub)
+#     -> Private key is found automatically:
+#        * If empty: uses ~/.ssh/id_rsa (private) and ~/.ssh/id_rsa.pub (public)
+#        * If public key value: searches ~/.ssh/ for id_rsa, id_ed25519, id_ecdsa, id_dsa
+#        * If .pub file path: uses same path without .pub extension
+#        * If path without .pub: tries same path or common names in same directory
+#   - auth.password: password (only if auth.method is "ssh-password")
+#   - prepared: whether the node is already prepared for DKP installation (default: false)
+#
+# Uncomment below to use bare-metal nodes instead of VMs:
+#
+# masters:
+#   - hostname: master-bm-1
+#     ipAddress: "192.168.1.10"
+#     hostType: "bare-metal"
+#     role: "master"
+#     auth:
+#       method: "ssh-key"
+#       user: "admin"
+#       sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty
+#
+# workers:
+#   - hostname: worker-bm-1
+#     ipAddress: "192.168.1.11"
+#     hostType: "bare-metal"
+#     role: "worker"
+#     auth:
+#       method: "ssh-key"
+#       user: "admin"
+#       sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty
+#
+#   - hostname: worker-bm-2
+#     ipAddress: "192.168.1.12"
+#     hostType: "bare-metal"
+#     role: "worker"
+#     auth:
+#       method: "ssh-key"
+#       user: "admin"
+#       sshKey: ""  # Uses default ~/.ssh/id_rsa.pub if empty

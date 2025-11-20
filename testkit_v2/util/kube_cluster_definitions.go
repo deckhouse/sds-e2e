@@ -60,34 +60,36 @@ const (
 
 // NodeAuth contains authentication information for a node
 type NodeAuth struct {
-	Method   AuthMethod
-	User     string
-	SSHKey   string // Path to SSH private key
-	Password string // Password (if using password auth)
+	Method   AuthMethod `yaml:"method"`
+	User     string     `yaml:"user"`
+	SSHKey   string     `yaml:"sshKey"`   // Public key (value like "ssh-rsa ...", path to .pub file, or empty for default ~/.ssh/id_rsa.pub)
+	Password string     `yaml:"password"` // Password (if using password auth)
+	// Internal: resolved private key path for SSH authentication (not in YAML)
+	privateKeyPath string
 }
 
 // ClusterNode defines a single node in the cluster
 type ClusterNode struct {
-	Hostname  string
-	IPAddress string
-	OSType    OSType
-	HostType  HostType
-	Role      ClusterRole
-	Auth      NodeAuth
+	Hostname  string      `yaml:"hostname"`
+	IPAddress string      `yaml:"ipAddress,omitempty"` // Required for bare-metal, optional for VM
+	OSType    OSType      `yaml:"osType,omitempty"`    // Required for VM, optional for bare-metal
+	HostType  HostType    `yaml:"hostType"`
+	Role      ClusterRole `yaml:"role"`
+	Auth      NodeAuth    `yaml:"auth"`
 	// VM-specific fields (only used when HostType == HostTypeVM)
-	CPU      int
-	RAM      int // in GB
-	DiskSize int // in GB
-	Image    string
+	CPU      int `yaml:"cpu"`      // Required for VM
+	RAM      int `yaml:"ram"`      // Required for VM, in GB
+	DiskSize int `yaml:"diskSize"` // Required for VM, in GB
+	// Image field removed - osType is used as image definition
 	// Bare-metal specific fields
-	Prepared bool // Whether the node is already prepared for DKP installation
+	Prepared bool `yaml:"prepared,omitempty"` // Whether the node is already prepared for DKP installation
 }
 
 // ClusterDefinition defines the complete cluster configuration
 type ClusterDefinition struct {
-	Masters []ClusterNode
-	Workers []ClusterNode
-	Setup   *ClusterNode // Bootstrap node (can be nil, will use first worker if not set)
+	Masters []ClusterNode `yaml:"masters"`
+	Workers []ClusterNode `yaml:"workers"`
+	Setup   *ClusterNode  `yaml:"setup,omitempty"` // Bootstrap node (can be nil, will use master for VM clusters or first worker for bare-metal if not set)
 }
 
 // ModuleConfig defines a Deckhouse module configuration
