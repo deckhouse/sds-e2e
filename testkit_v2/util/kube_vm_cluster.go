@@ -238,8 +238,7 @@ func checkDeckhouseInstalled() bool {
 	return !strings.Contains(out, "cannot access '/opt/deckhouse'")
 }
 
-// TODO - remove unused parameter bootstrapVm
-func uploadBootstrapFiles(client sshClient, bootstrapVm *VmConfig) error {
+func uploadBootstrapFiles(client sshClient) error {
 	for _, f := range []string{ConfigName, ResourcesName} {
 		err := client.Upload(filepath.Join(DataPath, f), filepath.Join(RemoteAppPath, f))
 		if err != nil {
@@ -256,8 +255,7 @@ func uploadBootstrapFiles(client sshClient, bootstrapVm *VmConfig) error {
 	return nil
 }
 
-// TODO - remove unused parameter masterVm
-func getKubeconfig(masterVm *VmConfig) error {
+func getKubeconfig() error {
 	out := NestedSshClient.ExecFatal("sudo cat /root/.kube/config")
 	out = strings.ReplaceAll(out, "127.0.0.1:6445", "127.0.0.1:"+NestedK8sPort)
 	err := os.WriteFile(NestedClusterKubeConfig, []byte(out), 0600)
@@ -282,7 +280,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 		client := HvSshClient.GetFwdClient("user", bootstrapVm.ip+":22", vmKeyPath)
 		defer client.Close()
 
-		if err := uploadBootstrapFiles(client, bootstrapVm); err != nil {
+		if err := uploadBootstrapFiles(client); err != nil {
 			Fatalf("failed to upload bootstrap files: %w", err)
 		}
 
@@ -291,7 +289,7 @@ func initVmD8(masterVm, bootstrapVm *VmConfig, vmKeyPath string) {
 		}
 	}
 
-	if err := getKubeconfig(masterVm); err != nil {
+	if err := getKubeconfig(); err != nil {
 		Fatalf("failed to get kubeconfig: %w", err)
 	}
 }
