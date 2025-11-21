@@ -1,3 +1,6 @@
+// TODO Check OS on hosts! This is a strong requirement for VM and optional for bare-metal but required if OS type is set!
+// TODO add kernel version and check it if set! 
+// Now we use just one image with kernel version defined in struct - Ubuntu 22.04. For first run I can set random version of kernel and test will break with report of actual version.
 # Cluster Definition YAML
 # All nodes in the cluster must be of the same type: either all VM or all bare-metal
 
