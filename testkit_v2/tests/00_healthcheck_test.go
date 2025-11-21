@@ -22,6 +22,90 @@ import (
 	util "github.com/deckhouse/sds-e2e/util"
 )
 
+// Modules definition for the cluster deployment
+var testModules = []util.ModuleConfig{
+	{
+		Name:         "snapshot-controller",
+		Version:      1,
+		Enabled:      true,
+		Settings:     map[string]any{},
+		Dependencies: []string{},
+	},
+	{
+		Name:    "sds-node-configurator",
+		Version: 1,
+		Enabled: true,
+		Settings: map[string]any{
+			"enableThinProvisioning": true,
+		},
+		Dependencies: []string{"sds-local-volume"},
+	},
+	{
+		Name:         "sds-local-volume",
+		Version:      1,
+		Enabled:      true,
+		Settings:     map[string]any{},
+		Dependencies: []string{"snapshot-controller"},
+	},
+	{
+		Name:         "sds-replicated-volume",
+		Version:      1,
+		Enabled:      true,
+		Settings:     map[string]any{},
+		Dependencies: []string{"sds-node-configurator"},
+	},
+}
+
+// Cluster definition for healthcheck test
+var testClusterDefinition = util.ClusterDefinition{
+	Masters: []util.ClusterNode{
+		{
+			Hostname: "master-1",
+			HostType: util.HostTypeVM,
+			Role:     util.ClusterRoleMaster,
+			OSType:   util.OSTypeMap["Ubuntu 22.04 6.2.0-39-generic"],
+			Auth: util.NodeAuth{
+				Method: util.AuthMethodSSHKey,
+				User:   "user",
+				SSHKey: "", // Public key that will be deployed to the node - value or filepath
+			},
+			CPU:      4,
+			RAM:      8,
+			DiskSize: 30,
+		},
+	},
+	Workers: []util.ClusterNode{
+		{
+			Hostname: "worker-1",
+			HostType: util.HostTypeVM,
+			Role:     util.ClusterRoleWorker,
+			OSType:   util.OSTypeMap["Ubuntu 22.04 6.2.0-39-generic"],
+			Auth: util.NodeAuth{
+				Method: util.AuthMethodSSHKey,
+				User:   "user",
+				SSHKey: "", // Public key that will be deployed to the node - value or filepath
+			},
+			CPU:      2,
+			RAM:      6,
+			DiskSize: 30,
+		},
+		{
+			Hostname: "worker-2",
+			HostType: util.HostTypeVM,
+			Role:     util.ClusterRoleWorker,
+			OSType:   util.OSTypeMap["Ubuntu 22.04 6.2.0-39-generic"],
+			Auth: util.NodeAuth{
+				Method: util.AuthMethodSSHKey,
+				User:   "user",
+				SSHKey: "", // Public key that will be deployed to the node - value or filepath
+			},
+			CPU:      2,
+			RAM:      6,
+			DiskSize: 30,
+		},
+	},
+}
+
 func TestNodeHealthCheck(t *testing.T) {
 	cluster := util.EnsureCluster("", "")
 
